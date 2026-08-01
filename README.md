@@ -42,23 +42,22 @@ git clone https://github.com/happyoils710/howlcoin.git
 cd howlcoin
 python3 -m pip install --user -r requirements.txt
 python3 -m howl init
-python3 -m howl node --connect bore.pub:12057
+python3 -m howl node --connect 147.182.223.204:42069
 # dashboard: http://127.0.0.1:42070/  → click Mine
 ```
 
-See [SEEDS.md](SEEDS.md) for current seed host/port (tunnel port can change if the host restarts).
+See [SEEDS.md](SEEDS.md) for seed details. Primary seed is a **DigitalOcean VPS** (always on).
 
-### For you (host the public seed)
+### For you (host / manage the public seed)
 
 ```bash
-cd ~/Desktop/howlcoin
-./scripts/start-public-seed.sh
-# or manually:
-#   python3 -m howl node --host 0.0.0.0 --port 42069
-#   bore local 42069 --to bore.pub
+# SSH to the droplet
+ssh -i ~/.ssh/id_ed25519_github root@147.182.223.204
+systemctl status howlcoin
+journalctl -u howlcoin -f
 ```
 
-Keep that Mac awake. For a permanent static IP seed, use a VPS (see [docs/PUBLIC_SEED.md](docs/PUBLIC_SEED.md)).
+Reinstall / update: [docs/VPS_SEED.md](docs/VPS_SEED.md) · `scripts/vps-install.sh`
 
 ---
 
