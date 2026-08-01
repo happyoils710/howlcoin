@@ -35,28 +35,30 @@ Two pieces make Howlcoin “public”:
 
 Without a public seed, each person only mines a private local chain.
 
-### For miners (clone & mine)
+### For miners (anyone on the internet)
 
 ```bash
-git clone https://github.com/YOUR_USER/howlcoin.git
+git clone https://github.com/happyoils710/howlcoin.git
 cd howlcoin
 python3 -m pip install --user -r requirements.txt
 python3 -m howl init
-python3 -m howl node --connect YOUR_SEED_IP:42069
+python3 -m howl node --connect bore.pub:12057
 # dashboard: http://127.0.0.1:42070/  → click Mine
 ```
 
-See [SEEDS.md](SEEDS.md) for official seed addresses.
+See [SEEDS.md](SEEDS.md) for current seed host/port (tunnel port can change if the host restarts).
 
-### For you (publish + host the network)
+### For you (host the public seed)
 
 ```bash
-# 1) Put code on GitHub (no wallets/keys — see .gitignore)
-# 2) On a home PC or cheap VPS, run a seed:
-python3 -m howl node --host 0.0.0.0 --port 42069 --rpc-host 127.0.0.1 --rpc-port 42070
-# 3) Router/cloud firewall: allow inbound TCP 42069
-# 4) Tell people: git clone … && howl node --connect YOUR_PUBLIC_IP:42069
+cd ~/Desktop/howlcoin
+./scripts/start-public-seed.sh
+# or manually:
+#   python3 -m howl node --host 0.0.0.0 --port 42069
+#   bore local 42069 --to bore.pub
 ```
+
+Keep that Mac awake. For a permanent static IP seed, use a VPS (see [docs/PUBLIC_SEED.md](docs/PUBLIC_SEED.md)).
 
 ---
 
