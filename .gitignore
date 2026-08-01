@@ -1,0 +1,28 @@
+# secrets & local chain data (NEVER publish these)
+wallet.json
+wallet.backup-*.json
+chain.json
+mempool.json
+peers.json
+data/
+*.bak
+
+# python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.env
+.Python
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
