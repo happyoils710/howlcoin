@@ -12,6 +12,8 @@ Env:
   HOWL_SEED             public seed shown to users (default: 147.182.223.204:42069)
   HOWL_MINE_COOLDOWN    seconds between mines per user (default: 120)
   HOWL_ADMIN_IDS        comma-separated Telegram user ids allowed extra commands
+  HOWL_EXPLORER_URL     web explorer base URL (optional), e.g. http://127.0.0.1:42080
+  HOWL_PUBLIC_DATA      optional path to public chain for /explorer dual view
 """
 
 from __future__ import annotations
@@ -69,11 +71,14 @@ class HowlBot:
         data_dir: Path,
         seed: str = "147.182.223.204:42069",
         mine_cooldown: int = 120,
+        explorer_url: str = "",
+        public_data: Optional[Path] = None,
     ):
         self.data_dir = data_dir
         self.users_dir = data_dir / "tg_users"
         self.users_dir.mkdir(parents=True, exist_ok=True)
         self.seed = seed
+        self.explorer_url = (explorer_url or "").rstrip("/")
         self.mine_cooldown = max(30, mine_cooldown)
         self.chain = Blockchain(data_dir)
         self.chain_lock = threading.RLock()
@@ -84,6 +89,14 @@ class HowlBot:
         self.meta = self._load_meta()
         # user_id -> pending send {to, amount_howlies, fee}
         self.pending_sends: Dict[int, Dict[str, Any]] = {}
+        # optional second chain (public seed ledger) for explorer commands
+        self.public_chain: Optional[Blockchain] = None
+        self.public_path = public_data
+        if public_data and (Path(public_data).expanduser() / "chain.json").exists():
+            try:
+                self.public_chain = Blockchain(Path(public_data).expanduser())
+            except Exception:
+                self.public_chain = None
 
     def _load_meta(self) -> Dict[str, Any]:
         if self._meta_path.exists():
@@ -529,6 +542,11 @@ def build_app(token: str, bot: HowlBot) -> Application:
     app.add_handler(CommandHandler("help", bot.cmd_help))
     app.add_handler(CommandHandler("seed", bot.cmd_seed))
     app.add_handler(CommandHandler("status", bot.cmd_status))
+    app.add_handler(CommandHandler(["explorer", "explore"], bot.cmd_explorer))
+    app.add_handler(CommandHandler("blocks", bot.cmd_blocks))
+    app.add_handler(CommandHandler("block", bot.cmd_block))
+    app.add_handler(CommandHandler("tx", bot.cmd_tx))
+    app.add_handler(CommandHandler(["addr", "lookup"], bot.cmd_addr_lookup))
     app.add_handler(CommandHandler("wallet", bot.cmd_wallet))
     app.add_handler(CommandHandler(["receive", "deposit", "address"], bot.cmd_receive))
     app.add_handler(CommandHandler("send", bot.cmd_send))
@@ -554,9 +572,24 @@ def main() -> None:
     data = Path(_env("HOWL_DATA_DIR", str(Path.home() / ".howlcoin-telegram"))).expanduser()
     seed = _env("HOWL_SEED", "147.182.223.204:42069")
     cooldown = int(_env("HOWL_MINE_COOLDOWN", "120") or "120")
-    bot = HowlBot(data_dir=data, seed=seed, mine_cooldown=cooldown)
+    explorer_url = _env("HOWL_EXPLORER_URL", "")
+    public_raw = _env("HOWL_PUBLIC_DATA", str(Path.home() / ".howlcoin"))
+    public_data = Path(public_raw).expanduser() if public_raw else None
+    bot = HowlBot(
+        data_dir=data,
+        seed=seed,
+        mine_cooldown=cooldown,
+        explorer_url=explorer_url,
+        public_data=public_data,
+    )
     app = build_app(token, bot)
-    log.info("Howlcoin telegram bot starting · data=%s seed=%s", data, seed)
+    log.info(
+        "Howlcoin telegram bot starting · data=%s seed=%s explorer=%s public=%s",
+        data,
+        seed,
+        explorer_url or "(none)",
+        public_data if bot.public_chain else "(not loaded)",
+    )
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 

@@ -32,7 +32,12 @@ receive - Show deposit address + QR
 send - Send HOWL to an address
 mine - Mine 1 Scrypt block
 mnemonic - Show 12-word phrase (DM only)
-status - Chain height
+status - Chain height(s)
+explorer - Explorer help
+blocks - Recent blocks
+block - Block by height or hash
+tx - Lookup transaction
+addr - Lookup address
 seed - Public P2P seed
 newwallet - New wallet
 help - Help
