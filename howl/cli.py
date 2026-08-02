@@ -591,7 +591,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     s.set_defaults(func=cmd_telegram)
 
-    s = sub.add_parser("explorer", help="block explorer for public + telegram chains")
+    s = sub.add_parser("explorer", help="block explorer (public chain; optional telegram)")
     s.add_argument("--host", default="127.0.0.1", help="bind host (0.0.0.0 for LAN/public)")
     s.add_argument("--port", type=int, default=42080, help="port (default 42080)")
     s.add_argument(
@@ -602,7 +602,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument(
         "--telegram-data",
         default=None,
-        help="telegram bot chain data dir (default ~/.howlcoin-telegram)",
+        help="optional: include a telegram bot chain tab (off by default)",
     )
     s.set_defaults(func=cmd_explorer)
 

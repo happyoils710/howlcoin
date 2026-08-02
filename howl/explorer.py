@@ -1,9 +1,8 @@
 """
 Howlcoin multi-chain block explorer (read-only).
 
-Default networks:
-  - public   → ~/.howlcoin or HOWL_PUBLIC_DATA
-  - telegram → ~/.howlcoin-telegram or HOWL_TELEGRAM_DATA
+Default network:
+  - public → ~/.howlcoin or HOWL_PUBLIC_DATA (seed / main ledger)
 
 Run:
   python3 -m howl explorer
@@ -27,7 +26,6 @@ from .wallet import format_howl
 ASSETS_DIR = Path(__file__).resolve().parents[1] / "assets"
 
 DEFAULT_PUBLIC = Path.home() / ".howlcoin"
-DEFAULT_TELEGRAM = Path.home() / ".howlcoin-telegram"
 
 
 def _chain_or_none(data_dir: Path) -> Optional[Blockchain]:
@@ -205,8 +203,7 @@ tbody tr:hover{background:var(--rowh)}
 <div id="app"></div>
 <div class="footer">
   <div>Howlscan · Scrypt PoW · not financial advice ·
-    <a href="#/public">Public</a> ·
-    <a href="#/telegram">Telegram</a> ·
+    <a href="#/public">Home</a> ·
     <a href="#/public/richlist">Richlist</a> ·
     <a href="#/public/mempool">Mempool</a> ·
     <a href="#/public/block/0">Genesis</a>
@@ -703,11 +700,18 @@ def default_networks(
     public_dir: Optional[Path] = None,
     telegram_dir: Optional[Path] = None,
 ) -> Dict[str, Path]:
+    """Build network map. Telegram chain is optional and off by default."""
     import os
 
     pub = Path(os.environ.get("HOWL_PUBLIC_DATA", public_dir or DEFAULT_PUBLIC))
-    tg = Path(os.environ.get("HOWL_TELEGRAM_DATA", telegram_dir or DEFAULT_TELEGRAM))
-    return {"public": pub, "telegram": tg}
+    nets: Dict[str, Path] = {"public": pub}
+    # Only include telegram if explicitly requested via env or CLI path
+    tg_env = os.environ.get("HOWL_TELEGRAM_DATA", "").strip()
+    if telegram_dir:
+        nets["telegram"] = Path(telegram_dir).expanduser()
+    elif tg_env:
+        nets["telegram"] = Path(tg_env).expanduser()
+    return nets
 
 
 def main(
