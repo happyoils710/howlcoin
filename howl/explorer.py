@@ -40,44 +40,42 @@ def web_search(query: str, limit: int = 12) -> List[Dict[str, str]]:
     """
     Server-side web search so the wallet can show results in-app
     (avoids third-party search pages that block iframes).
-    Uses DuckDuckGo HTML endpoint.
+    Uses DuckDuckGo HTML endpoint with a browser-like User-Agent
+    (bot UAs get an empty SERP from DDG).
     """
     q = (query or "").strip()
     if not q:
         return []
     limit = max(1, min(20, int(limit)))
-    url = "https://html.duckduckgo.com/html/?" + urllib.parse.urlencode({"q": q})
-    req = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": (
-                "Mozilla/5.0 (compatible; HowlcoinWallet/0.5; +https://howlscan.org)"
-            ),
-            "Accept": "text/html",
-        },
-        method="GET",
-    )
-    with urllib.request.urlopen(req, timeout=12) as resp:
-        page = resp.read().decode("utf-8", errors="ignore")
 
-    results: List[Dict[str, str]] = []
-    # DDG HTML result blocks
-    blocks = re.findall(
-        r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>'
-        r'.*?class="result__snippet"[^>]*>(.*?)</(?:a|td)',
-        page,
-        flags=re.I | re.S,
-    )
-    if not blocks:
-        # looser fallback: just titles + links
-        blocks = [
-            (href, title, "")
-            for href, title in re.findall(
-                r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
-                page,
-                flags=re.I | re.S,
+    # Browser UA is required — DDG HTML returns no result__a blocks for bot UAs.
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/122.0.0.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+
+    def _fetch_ddg_html(qq: str) -> str:
+        # Prefer POST (matches the HTML form); fall back to GET.
+        post_url = "https://html.duckduckgo.com/html/"
+        data = urllib.parse.urlencode({"q": qq, "b": ""}).encode("utf-8")
+        try:
+            req = urllib.request.Request(
+                post_url, data=data, headers=headers, method="POST"
             )
-        ]
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                return resp.read().decode("utf-8", errors="ignore")
+        except Exception:
+            get_url = post_url + "?" + urllib.parse.urlencode({"q": qq})
+            req = urllib.request.Request(get_url, headers=headers, method="GET")
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                return resp.read().decode("utf-8", errors="ignore")
+
+    page = _fetch_ddg_html(q)
 
     def clean(s: str) -> str:
         s = re.sub(r"<[^>]+>", " ", s or "")
@@ -85,26 +83,73 @@ def web_search(query: str, limit: int = 12) -> List[Dict[str, str]]:
         return re.sub(r"\s+", " ", s).strip()
 
     def unwrap_ddg(href: str) -> str:
+        href = html_lib.unescape((href or "").strip())
         # //duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com&...
         if "uddg=" in href:
             try:
-                parsed = urllib.parse.urlparse(href if "://" in href else "https:" + href)
+                full = href if "://" in href else ("https:" + href if href.startswith("//") else href)
+                parsed = urllib.parse.urlparse(full)
                 qs = urllib.parse.parse_qs(parsed.query)
                 if qs.get("uddg"):
                     return urllib.parse.unquote(qs["uddg"][0])
             except Exception:
                 pass
+        # bare /l/?uddg=... paths
+        if "uddg=" in href:
+            m = re.search(r"uddg=([^&]+)", href)
+            if m:
+                return urllib.parse.unquote(m.group(1))
         if href.startswith("//"):
             return "https:" + href
         return href
 
+    def is_ad_or_junk(link: str) -> bool:
+        low = link.lower()
+        if "duckduckgo.com/y.js" in low or "ad_domain=" in low:
+            return True
+        if "bing.com/aclick" in low or "doubleclick" in low:
+            return True
+        return False
+
+    # DDG HTML: <a rel="nofollow" class="result__a" href="...">title</a>
+    # Snippet often follows in .result__snippet
+    blocks = re.findall(
+        r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>'
+        r'.*?class="result__snippet"[^>]*>(.*?)</(?:a|td|div)',
+        page,
+        flags=re.I | re.S,
+    )
+    if not blocks:
+        # Attribute order can vary — pull any result__a anchor
+        blocks = []
+        for m in re.finditer(
+            r'<a\b([^>]*\bclass="[^"]*result__a[^"]*"[^>]*)>(.*?)</a>',
+            page,
+            flags=re.I | re.S,
+        ):
+            attrs, title = m.group(1), m.group(2)
+            hm = re.search(r'href="([^"]+)"', attrs, flags=re.I)
+            if not hm:
+                continue
+            # nearby snippet (optional)
+            tail = page[m.end() : m.end() + 800]
+            sm = re.search(
+                r'class="result__snippet"[^>]*>(.*?)</(?:a|td|div)',
+                tail,
+                flags=re.I | re.S,
+            )
+            blocks.append((hm.group(1), title, sm.group(1) if sm else ""))
+
+    results: List[Dict[str, str]] = []
     seen = set()
     for href, title, snip in blocks:
         link = unwrap_ddg(href)
         if not link.startswith("http"):
             continue
+        if is_ad_or_junk(link):
+            continue
         title_c = clean(title) or link
-        key = link.split("#", 1)[0]
+        key = link.split("#", 1)[0].rstrip("/")
         if key in seen:
             continue
         seen.add(key)
