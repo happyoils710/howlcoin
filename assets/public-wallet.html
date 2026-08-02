@@ -706,6 +706,11 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <h2 id="assetsListTitle">Assets</h2>
         <div id="assetsList"><p class="hint">Loading…</p></div>
       </div>
+      <div class="panel" id="assetsCustomTokenPanel">
+        <h2 id="assetsCustomTitle">Add custom token</h2>
+        <div id="assetsCustomTokenForm"></div>
+        <div id="assetsCustomList"></div>
+      </div>
     </div>
 
     <!-- SINGLE ASSET DETAIL -->
@@ -1082,13 +1087,10 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <div class="seg" id="assetSeg"></div>
         <div id="depositBody"></div>
       </div>
-      <div class="panel">
-        <h2>Custom ERC-20 token</h2>
-        <label>Contract address (Ethereum)</label>
-        <input class="field" id="customContract" placeholder="0x…" spellcheck="false"/>
-        <label>Symbol (optional)</label>
-        <input class="field" id="customSymbol" placeholder="TOKEN"/>
-        <button class="btn sec" type="button" onclick="addCustomToken()">Add custom token</button>
+      <div class="panel" id="recvCustomTokenPanel">
+        <h2>Add custom token</h2>
+        <p class="hint">Tokens for any chain that supports them (ERC-20, SPL, TRC-20, FA, Stellar, XRP IOUs).</p>
+        <div id="recvCustomTokenForm"></div>
         <div id="customList"></div>
       </div>
     </div>
@@ -1235,17 +1237,38 @@ const ASSET_CHAINS = [
   { id: "bitcoin", label: "Bitcoin family", kinds: ["utxo"] },
   { id: "solana", label: "Solana", kinds: ["sol", "spl"] },
   { id: "ethereum", label: "Ethereum + ERC-20", kinds: ["eth", "evm", "erc20"], evmOnly: "eth" },
-  { id: "op", label: "Optimism", kinds: ["evm"], evmOnly: "op" },
-  { id: "base", label: "Base", kinds: ["evm"], evmOnly: "base" },
-  { id: "bnb", label: "BNB Chain", kinds: ["evm"], evmOnly: "bnb" },
-  { id: "avax", label: "Avalanche", kinds: ["evm"], evmOnly: "avax" },
-  { id: "hype", label: "HyperEVM", kinds: ["evm"], evmOnly: "hype" },
-  { id: "tron", label: "TRON", kinds: ["trx"] },
-  { id: "xrp", label: "XRP Ledger", kinds: ["xrp"] },
-  { id: "stellar", label: "Stellar", kinds: ["xlm"] },
-  { id: "tezos", label: "Tezos", kinds: ["xtz"] },
+  { id: "op", label: "Optimism", kinds: ["evm", "erc20"], evmOnly: "op" },
+  { id: "base", label: "Base", kinds: ["evm", "erc20"], evmOnly: "base" },
+  { id: "bnb", label: "BNB Chain", kinds: ["evm", "erc20"], evmOnly: "bnb" },
+  { id: "avax", label: "Avalanche", kinds: ["evm", "erc20"], evmOnly: "avax" },
+  { id: "hype", label: "HyperEVM", kinds: ["evm", "erc20"], evmOnly: "hype" },
+  { id: "tron", label: "TRON", kinds: ["trx", "trc20"] },
+  { id: "xrp", label: "XRP Ledger", kinds: ["xrp", "xrp_token"] },
+  { id: "stellar", label: "Stellar", kinds: ["xlm", "xlm_asset"] },
+  { id: "tezos", label: "Tezos", kinds: ["xtz", "fa"] },
   { id: "other", label: "Other (external)", kinds: ["external"] },
 ];
+
+/**
+ * Chains with a token standard (can add custom tokens).
+ * chainId matches ASSET_CHAINS id.
+ */
+const TOKEN_SYSTEMS = {
+  ethereum: { standard: "ERC-20", kind: "erc20", evmId: "eth", addrLabel: "Contract address", placeholder: "0x…" },
+  op:       { standard: "ERC-20", kind: "erc20", evmId: "op", addrLabel: "Contract address", placeholder: "0x…" },
+  base:     { standard: "ERC-20", kind: "erc20", evmId: "base", addrLabel: "Contract address", placeholder: "0x…" },
+  bnb:      { standard: "BEP-20", kind: "erc20", evmId: "bnb", addrLabel: "Contract address", placeholder: "0x…" },
+  avax:     { standard: "ERC-20", kind: "erc20", evmId: "avax", addrLabel: "Contract address", placeholder: "0x…" },
+  hype:     { standard: "ERC-20", kind: "erc20", evmId: "hype", addrLabel: "Contract address", placeholder: "0x…" },
+  solana:   { standard: "SPL", kind: "spl", addrLabel: "Mint address", placeholder: "Token mint (base58)…" },
+  tron:     { standard: "TRC-20", kind: "trc20", addrLabel: "Contract address", placeholder: "T… (TRC-20)" },
+  tezos:    { standard: "FA1.2 / FA2", kind: "fa", addrLabel: "Token contract", placeholder: "KT1…" },
+  stellar:  { standard: "Stellar asset", kind: "xlm_asset", addrLabel: "Asset code", placeholder: "USDC" },
+  xrp:      { standard: "Issued currency", kind: "xrp_token", addrLabel: "Currency code", placeholder: "USD or hex" },
+};
+function chainHasTokenSystem(chainId){
+  return !!TOKEN_SYSTEMS[chainId];
+}
 
 let keypair = null;
 let ethInfo = null;
@@ -1467,11 +1490,108 @@ async function ethBalance(addr){
   return Number(wei) / 1e18;
 }
 async function erc20Balance(contract, addr, decimals){
-  // balanceOf(address)
+  return erc20BalanceOnRpc(ETH_RPC, contract, addr, decimals);
+}
+async function evmRpcCall(rpc, method, params, ms = 12000){
+  if(!rpc) throw new Error("No RPC");
+  const r = await fetchTimeout(rpc, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+  }, ms);
+  const j = await r.json();
+  if(j.error) throw new Error(j.error.message || "RPC error");
+  return j.result;
+}
+async function erc20BalanceOnRpc(rpc, contract, addr, decimals){
   const data = "0x70a08231" + padAddr(addr);
-  const hex = await ethRpc("eth_call", [{ to: contract, data }, "latest"]);
+  const hex = await evmRpcCall(rpc, "eth_call", [{ to: contract, data }, "latest"]);
   const raw = BigInt(hex || "0x0");
-  return Number(raw) / 10 ** decimals;
+  return Number(raw) / 10 ** Number(decimals || 18);
+}
+/** TRC-20 balance via TronGrid account payload */
+async function trc20Balance(contract, owner, decimals){
+  const r = await fetchTimeout(
+    "https://api.trongrid.io/v1/accounts/" + encodeURIComponent(owner),
+    {},
+    12000
+  );
+  if(!r.ok) throw new Error("TronGrid " + r.status);
+  const j = await r.json();
+  const rows = j.data?.[0]?.trc20 || [];
+  const c = String(contract || "");
+  for(const row of rows){
+    if(row && typeof row === "object"){
+      for(const [k, v] of Object.entries(row)){
+        if(k === c || k.toLowerCase() === c.toLowerCase()){
+          return Number(v) / 10 ** Number(decimals || 6);
+        }
+      }
+    }
+  }
+  return 0;
+}
+/** Tezos FA1.2/FA2 via TzKT */
+async function faTokenBalance(contract, owner, tokenId, decimals){
+  let url = "https://api.tzkt.io/v1/tokens/balances?account=" + encodeURIComponent(owner) +
+    "&token.contract=" + encodeURIComponent(contract) + "&limit=20";
+  if(tokenId != null && tokenId !== ""){
+    url += "&token.tokenId=" + encodeURIComponent(String(tokenId));
+  }
+  const r = await fetchTimeout(url, {}, 12000);
+  if(!r.ok) throw new Error("TzKT " + r.status);
+  const list = await r.json();
+  let total = 0;
+  for(const row of list || []){
+    total += Number(row.balance || 0);
+  }
+  return total / 10 ** Number(decimals || 0);
+}
+/** Stellar issued asset balance */
+async function xlmAssetBalance(code, issuer, owner){
+  const r = await fetchTimeout(
+    "https://horizon.stellar.org/accounts/" + encodeURIComponent(owner),
+    {},
+    12000
+  );
+  if(!r.ok){
+    if(r.status === 404) return 0;
+    throw new Error("Horizon " + r.status);
+  }
+  const j = await r.json();
+  const hit = (j.balances || []).find(b =>
+    b.asset_type !== "native" &&
+    b.asset_code === code &&
+    b.asset_issuer === issuer
+  );
+  return hit ? Number(hit.balance) : 0;
+}
+/** XRP issued currency trust line */
+async function xrpTokenBalance(currency, issuer, owner){
+  const r = await fetchTimeout("https://xrplcluster.com", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      method: "account_lines",
+      params: [{ account: owner, ledger_index: "validated" }],
+    }),
+  }, 12000);
+  const j = await r.json();
+  const lines = j.result?.lines || [];
+  const cur = String(currency || "").toUpperCase();
+  for(const line of lines){
+    if((line.account === issuer || line.account === issuer) &&
+       String(line.currency || "").toUpperCase() === cur){
+      return Number(line.balance || 0);
+    }
+  }
+  // also match hex currency codes as-is
+  for(const line of lines){
+    if(line.account === issuer && line.currency === currency){
+      return Number(line.balance || 0);
+    }
+  }
+  return 0;
 }
 /** Abortable fetch — prevent hung ERC-20 RPCs from blocking SOL forever. */
 async function fetchTimeout(url, opts = {}, ms = 12000){
@@ -1885,30 +2005,132 @@ function customTokens(){
 }
 function saveCustomTokens(list){ localStorage.setItem(LS_CUSTOM, JSON.stringify(list)); }
 
+/** Normalize legacy {contract,symbol,decimals} → multi-chain token record */
+function normalizeCustomToken(t){
+  if(!t || typeof t !== "object") return null;
+  if(t.kind && t.chain){
+    return {
+      chain: t.chain,
+      kind: t.kind,
+      evmId: t.evmId || (t.kind === "erc20" ? "eth" : undefined),
+      contract: t.contract || "",
+      mint: t.mint || "",
+      code: t.code || t.currency || "",
+      issuer: t.issuer || "",
+      tokenId: t.tokenId != null ? String(t.tokenId) : "",
+      symbol: t.symbol || t.code || "TOKEN",
+      decimals: t.decimals != null ? Number(t.decimals) : defaultDecimalsForKind(t.kind),
+    };
+  }
+  // legacy Ethereum-only custom ERC-20
+  if(t.contract){
+    return {
+      chain: "ethereum",
+      kind: "erc20",
+      evmId: "eth",
+      contract: String(t.contract).toLowerCase(),
+      mint: "",
+      code: "",
+      issuer: "",
+      tokenId: "",
+      symbol: t.symbol || "TOKEN",
+      decimals: t.decimals != null ? Number(t.decimals) : 18,
+    };
+  }
+  return null;
+}
+function defaultDecimalsForKind(kind){
+  if(kind === "spl" || kind === "trc20") return 6;
+  if(kind === "fa") return 0;
+  if(kind === "xlm_asset" || kind === "xrp_token") return 0;
+  return 18;
+}
+function customTokenId(t){
+  const n = normalizeCustomToken(t);
+  if(!n) return "";
+  if(n.kind === "spl") return "custom_sol_" + n.mint;
+  if(n.kind === "erc20") return "custom_" + (n.evmId || "eth") + "_" + String(n.contract).toLowerCase();
+  if(n.kind === "trc20") return "custom_trx_" + n.contract;
+  if(n.kind === "fa") return "custom_xtz_" + n.contract + "_" + (n.tokenId || "0");
+  if(n.kind === "xlm_asset") return "custom_xlm_" + n.code + "_" + n.issuer;
+  if(n.kind === "xrp_token") return "custom_xrp_" + n.code + "_" + n.issuer;
+  return "custom_unknown";
+}
+function customTokenToAsset(raw){
+  const t = normalizeCustomToken(raw);
+  if(!t) return null;
+  const id = customTokenId(t);
+  const sym = t.symbol || "TOKEN";
+  if(t.kind === "spl"){
+    return {
+      id, symbol: sym, name: sym + " (custom)", network: "Solana (SPL)",
+      kind: "spl", mint: t.mint, decimals: t.decimals ?? 6, custom: true, chain: "solana",
+    };
+  }
+  if(t.kind === "erc20"){
+    const ev = t.evmId || "eth";
+    const net = (EVM_CHAINS[ev] || EVM_CHAINS.eth).network;
+    const std = TOKEN_SYSTEMS[ev === "eth" ? "ethereum" : ev]?.standard || "ERC-20";
+    return {
+      id, symbol: sym, name: sym + " (custom)", network: net + " (" + std + ")",
+      kind: "erc20", contract: t.contract, decimals: t.decimals ?? 18,
+      evmId: ev, custom: true, chain: ev === "eth" ? "ethereum" : ev,
+    };
+  }
+  if(t.kind === "trc20"){
+    return {
+      id, symbol: sym, name: sym + " (custom)", network: "TRON (TRC-20)",
+      kind: "trc20", contract: t.contract, decimals: t.decimals ?? 6, custom: true, chain: "tron",
+    };
+  }
+  if(t.kind === "fa"){
+    return {
+      id, symbol: sym, name: sym + " (custom)", network: "Tezos (FA)",
+      kind: "fa", contract: t.contract, tokenId: t.tokenId || "0",
+      decimals: t.decimals ?? 0, custom: true, chain: "tezos",
+    };
+  }
+  if(t.kind === "xlm_asset"){
+    return {
+      id, symbol: sym, name: sym + " (custom)", network: "Stellar",
+      kind: "xlm_asset", code: t.code, issuer: t.issuer,
+      decimals: 7, custom: true, chain: "stellar",
+    };
+  }
+  if(t.kind === "xrp_token"){
+    return {
+      id, symbol: sym, name: sym + " (custom)", network: "XRP Ledger",
+      kind: "xrp_token", code: t.code, currency: t.code, issuer: t.issuer,
+      decimals: 0, custom: true, chain: "xrp",
+    };
+  }
+  return null;
+}
+
 function allAssets(){
-  return [...PRESET_ASSETS, ...customTokens().map(t=>({
-    id: "custom_"+t.contract.toLowerCase(),
-    symbol: t.symbol || "TOKEN",
-    name: t.symbol || "Custom",
-    network: "Ethereum (ERC-20)",
-    kind: "erc20",
-    contract: t.contract,
-    decimals: t.decimals || 18,
-    custom: true,
-  }))];
+  const customs = customTokens().map(customTokenToAsset).filter(Boolean);
+  return [...PRESET_ASSETS, ...customs];
 }
 
 function chainOfAsset(a){
   if(!a) return "howl";
+  if(a.chain) return a.chain;
   if(a.kind === "howl") return "howl";
   if(a.kind === "utxo") return "bitcoin";
   if(a.kind === "sol" || a.kind === "spl") return "solana";
-  if(a.kind === "eth" || a.kind === "erc20") return "ethereum";
-  if(a.kind === "evm") return a.evmId || "ethereum";
-  if(a.kind === "trx") return "tron";
-  if(a.kind === "xrp") return "xrp";
-  if(a.kind === "xlm") return "stellar";
-  if(a.kind === "xtz") return "tezos";
+  if(a.kind === "eth") return "ethereum";
+  if(a.kind === "erc20"){
+    const e = a.evmId || "eth";
+    return e === "eth" ? "ethereum" : e;
+  }
+  if(a.kind === "evm"){
+    const e = a.evmId || "eth";
+    return e === "eth" ? "ethereum" : e;
+  }
+  if(a.kind === "trx" || a.kind === "trc20") return "tron";
+  if(a.kind === "xrp" || a.kind === "xrp_token") return "xrp";
+  if(a.kind === "xlm" || a.kind === "xlm_asset") return "stellar";
+  if(a.kind === "xtz" || a.kind === "fa") return "tezos";
   if(a.kind === "external") return "other";
   return "howl";
 }
@@ -1916,6 +2138,12 @@ function assetsForChain(chainId){
   const ch = ASSET_CHAINS.find(c => c.id === chainId) || ASSET_CHAINS[0];
   return allAssets().filter(a => {
     if(!ch.kinds.includes(a.kind)) return false;
+    if(a.kind === "erc20"){
+      const ev = a.evmId || "eth";
+      if(chainId === "ethereum") return ev === "eth";
+      if(ch.evmOnly) return ev === ch.evmOnly;
+      return false;
+    }
     if(ch.evmOnly && a.kind === "evm" && a.evmId !== ch.evmOnly) return false;
     if(ch.evmOnly && a.kind === "eth" && ch.evmOnly !== "eth") return false;
     // ethereum list includes eth + erc20 + hbar-style eth alias assets on eth
@@ -1934,11 +2162,11 @@ function assetAddress(a){
   if(!a) return "";
   if(a.kind === "howl") return keypair?.address || "";
   if(a.kind === "sol" || a.kind === "spl") return solInfo?.address || "";
-  if(a.kind === "xtz") return xtzInfo?.address || "";
+  if(a.kind === "xtz" || a.kind === "fa") return xtzInfo?.address || "";
   if(a.kind === "utxo") return multiInfo[a.coinId]?.address || multiInfo[a.id]?.address || "";
-  if(a.kind === "trx") return multiInfo.trx?.address || "";
-  if(a.kind === "xrp") return multiInfo.xrp?.address || "";
-  if(a.kind === "xlm") return multiInfo.xlm?.address || "";
+  if(a.kind === "trx" || a.kind === "trc20") return multiInfo.trx?.address || "";
+  if(a.kind === "xrp" || a.kind === "xrp_token") return multiInfo.xrp?.address || "";
+  if(a.kind === "xlm" || a.kind === "xlm_asset") return multiInfo.xlm?.address || "";
   if(a.kind === "external") return "";
   // eth, evm, erc20 share ETH address
   return ethInfo?.address || "";
@@ -1963,6 +2191,7 @@ function setSelectedChain(chainId, source){
   // if assets page open, always refresh list
   if($("p-assets")?.classList.contains("on")) renderAssetsList(false);
   if($("p-home")?.classList.contains("on")) renderHomeAssets(false);
+  if($("p-recv")?.classList.contains("on")) renderCustomTokenForms();
 }
 
 function fillChainSelects(){
@@ -2021,6 +2250,7 @@ function renderAssetsList(refill){
     $("assetsListTitle").textContent = (ch?.label || "Assets") + " assets";
   }
   renderAssetRows("assetsList");
+  renderCustomTokenForms();
 }
 function openAssetDetail(id){
   detailAssetId = id || selectedAsset || "howl";
@@ -2053,9 +2283,13 @@ function assetActions(a){
     }
     acts.push({ label: "Open Solscan", fn: ()=> openExternalUrl("https://solscan.io/account/"+encodeURIComponent(solInfo?.address||"")) });
   }
-  if(a.kind === "eth" || a.kind === "erc20"){
+  if(a.kind === "eth" || (a.kind === "erc20" && (a.evmId || "eth") === "eth")){
     acts.push({ label: "Uniswap", fn: ()=> openDapp("https://app.uniswap.org/") });
     acts.push({ label: "Explorer", fn: ()=> openExternalUrl("https://etherscan.io/address/"+encodeURIComponent(ethInfo?.address||"")) });
+  }
+  if(a.kind === "erc20" && a.evmId && a.evmId !== "eth"){
+    const ev = EVM_CHAINS[a.evmId] || EVM_CHAINS.eth;
+    acts.push({ label: "Open explorer", fn: ()=> openExternalUrl((ev.explorer||"") + (ethInfo?.address||"")) });
   }
   if(a.kind === "evm"){
     const ev = EVM_CHAINS[a.evmId] || EVM_CHAINS.eth;
@@ -2068,17 +2302,20 @@ function assetActions(a){
     const u = UTXO_COINS[a.coinId] || UTXO_COINS.btc;
     acts.push({ label: "Explorer", fn: ()=> openExternalUrl((u.explorer||"") + (addr||"")) });
   }
-  if(a.kind === "trx"){
+  if(a.kind === "trx" || a.kind === "trc20"){
     acts.push({ label: "Explorer", fn: ()=> openExternalUrl("https://tronscan.org/#/address/"+encodeURIComponent(addr||"")) });
   }
-  if(a.kind === "xrp"){
+  if(a.kind === "xrp" || a.kind === "xrp_token"){
     acts.push({ label: "Explorer", fn: ()=> openExternalUrl("https://xrpscan.com/account/"+encodeURIComponent(addr||"")) });
   }
-  if(a.kind === "xlm"){
+  if(a.kind === "xlm" || a.kind === "xlm_asset"){
     acts.push({ label: "Explorer", fn: ()=> openExternalUrl("https://stellarchain.io/accounts/"+encodeURIComponent(addr||"")) });
   }
-  if(a.kind === "xtz"){
+  if(a.kind === "xtz" || a.kind === "fa"){
     acts.push({ label: "Explorer", fn: ()=> openExternalUrl("https://tzkt.io/"+encodeURIComponent(xtzInfo?.address||"")) });
+  }
+  if(a.custom){
+    acts.push({ label: "Remove custom token", fn: ()=>{ removeCustom(a.id); showPage("assets"); } });
   }
   if(a.kind === "external"){
     acts.push({ label: "Open explorer", fn: ()=> openExternalUrl(a.explorer || "https://howlscan.org") });
@@ -2397,7 +2634,10 @@ function showPage(name){
   const app = $("app");
   if(app) app.classList.toggle("browser-focus", name === "browser");
   if(name!=="browser" && app) app.classList.remove("browser-focus");
-  if(name==="recv") selectAsset(selectedAsset);
+  if(name==="recv"){
+    selectAsset(selectedAsset);
+    renderCustomTokenForms();
+  }
   if(name==="home"){ renderHomeAssets(); }
   if(name==="assets"){
     renderAssetsList();
@@ -3826,6 +4066,9 @@ function selectAsset(id){
       <p class="hint">Balance: <b style="color:var(--green)">${escHtml(bal)}</b> ${escHtml(sym)}</p>
       ${a.contract?`<p class="hint mono" style="font-size:.72rem">Contract: ${escHtml(a.contract)}</p>`:""}
       ${a.mint?`<p class="hint mono" style="font-size:.72rem">Mint: ${escHtml(a.mint)}</p>`:""}
+      ${a.code?`<p class="hint mono" style="font-size:.72rem">Code: ${escHtml(a.code)}</p>`:""}
+      ${a.issuer?`<p class="hint mono" style="font-size:.72rem">Issuer: ${escHtml(a.issuer)}</p>`:""}
+      ${a.tokenId!=null && a.kind==="fa"?`<p class="hint mono" style="font-size:.72rem">Token ID: ${escHtml(String(a.tokenId))}</p>`:""}
       ${a.note?`<p class="hint">${escHtml(a.note)}</p>`:""}
       <div class="warnbox">Send only <b>${escHtml(sym)}</b> on <b>${escHtml(a.network||"")}</b>. Wrong network can mean lost funds.</div>
     </div>`;
@@ -3878,7 +4121,10 @@ async function refreshEthBalances(){
         if(a.kind === "erc20"){
           evmJobs.push((async ()=>{
             try{
-              const b = await erc20Balance(a.contract, ethInfo.address, a.decimals||18);
+              const ev = a.evmId || "eth";
+              const rpc = (EVM_CHAINS[ev] || {}).rpc || (ev === "eth" ? ETH_RPC : "");
+              if(!rpc){ ethBalances[a.id] = "—"; delete assetRaw[a.id]; return; }
+              const b = await erc20BalanceOnRpc(rpc, a.contract, ethInfo.address, a.decimals||18);
               setAssetBal(a.id, b, a.decimals && a.decimals <= 8 ? 8 : 6);
             }catch{ ethBalances[a.id] = "—"; delete assetRaw[a.id]; }
           })());
@@ -3886,6 +4132,42 @@ async function refreshEthBalances(){
       }
       await Promise.allSettled(evmJobs);
     })());
+  }
+
+  // Custom TRC-20 / FA / Stellar / XRP tokens
+  for(const a of allAssets()){
+    if(a.kind === "trc20" && multiInfo.trx?.address){
+      jobs.push((async ()=>{
+        try{
+          const b = await trc20Balance(a.contract, multiInfo.trx.address, a.decimals||6);
+          setAssetBal(a.id, b, 6);
+        }catch{ ethBalances[a.id] = "—"; delete assetRaw[a.id]; }
+      })());
+    }
+    if(a.kind === "fa" && xtzInfo?.address){
+      jobs.push((async ()=>{
+        try{
+          const b = await faTokenBalance(a.contract, xtzInfo.address, a.tokenId, a.decimals||0);
+          setAssetBal(a.id, b, Math.min(6, a.decimals||0) || 6);
+        }catch{ ethBalances[a.id] = "—"; delete assetRaw[a.id]; }
+      })());
+    }
+    if(a.kind === "xlm_asset" && multiInfo.xlm?.address){
+      jobs.push((async ()=>{
+        try{
+          const b = await xlmAssetBalance(a.code, a.issuer, multiInfo.xlm.address);
+          setAssetBal(a.id, b, 7);
+        }catch{ ethBalances[a.id] = "—"; delete assetRaw[a.id]; }
+      })());
+    }
+    if(a.kind === "xrp_token" && multiInfo.xrp?.address){
+      jobs.push((async ()=>{
+        try{
+          const b = await xrpTokenBalance(a.code || a.currency, a.issuer, multiInfo.xrp.address);
+          setAssetBal(a.id, b, 6);
+        }catch{ ethBalances[a.id] = "—"; delete assetRaw[a.id]; }
+      })());
+    }
   }
 
   if(xtzInfo){
@@ -4337,32 +4619,196 @@ async function disableTotp(){
   toast("2FA disabled");
 }
 
-function addCustomToken(){
-  let c = $("customContract").value.trim();
-  if(!/^0x[a-fA-F0-9]{40}$/.test(c)){ toast("Invalid contract address"); return; }
-  c = c.toLowerCase();
-  const symbol = ($("customSymbol").value.trim() || "TOKEN").toUpperCase().slice(0,12);
-  const list = customTokens().filter(t=>t.contract!==c);
-  list.push({ contract:c, symbol, decimals:18 });
-  saveCustomTokens(list);
-  $("customContract").value = "";
-  $("customSymbol").value = "";
-  renderAssetSeg();
+function tokenFormPrefix(scope){
+  return scope === "assets" ? "at" : "rt";
+}
+function renderCustomTokenFormInto(containerId, scope, defaultChain){
+  const el = $(containerId);
+  if(!el) return;
+  const chains = Object.keys(TOKEN_SYSTEMS);
+  let chain = defaultChain || selectedChain;
+  if(!TOKEN_SYSTEMS[chain]) chain = "ethereum";
+  const ts = TOKEN_SYSTEMS[chain];
+  const p = tokenFormPrefix(scope);
+  const needsIssuer = ts.kind === "xlm_asset" || ts.kind === "xrp_token";
+  const needsTokenId = ts.kind === "fa";
+  const isEvmOrSplOrTron = ts.kind === "erc20" || ts.kind === "spl" || ts.kind === "trc20" || ts.kind === "fa";
+  el.innerHTML = `
+    <label>Chain / standard</label>
+    <select class="chain-select" id="${p}Chain" style="margin-bottom:8px">
+      ${chains.map(cid=>{
+        const lab = (ASSET_CHAINS.find(c=>c.id===cid)?.label || cid) + " · " + TOKEN_SYSTEMS[cid].standard;
+        return `<option value="${cid}" ${cid===chain?"selected":""}>${lab}</option>`;
+      }).join("")}
+    </select>
+    <label id="${p}AddrLab">${escHtml(ts.addrLabel)}</label>
+    <input class="field" id="${p}Addr" placeholder="${escAttr(ts.placeholder)}" spellcheck="false"/>
+    ${needsIssuer ? `
+      <label>Issuer address</label>
+      <input class="field" id="${p}Issuer" placeholder="Issuer account" spellcheck="false"/>
+    ` : `<input type="hidden" id="${p}Issuer" value=""/>`}
+    ${needsTokenId ? `
+      <label>Token ID (FA2, use 0 for FA1.2)</label>
+      <input class="field" id="${p}TokenId" placeholder="0" inputmode="numeric"/>
+    ` : `<input type="hidden" id="${p}TokenId" value="0"/>`}
+    <label>Symbol</label>
+    <input class="field" id="${p}Symbol" placeholder="TOKEN"/>
+    <label>Decimals ${isEvmOrSplOrTron ? "" : "(optional)"}</label>
+    <input class="field" id="${p}Decimals" placeholder="${defaultDecimalsForKind(ts.kind)}" inputmode="numeric"/>
+    <button class="btn sec" type="button" data-scope="${scope}">Add ${escHtml(ts.standard)} token</button>
+    <p class="hint" style="margin-top:8px">Shown under this chain’s asset list. Balances load when available.</p>
+  `;
+  const sel = $(p + "Chain");
+  if(sel){
+    sel.onchange = ()=> renderCustomTokenFormInto(containerId, scope, sel.value);
+  }
+  const btn = el.querySelector("button[data-scope]");
+  if(btn) btn.onclick = ()=> addCustomTokenFromForm(scope);
+}
+function renderCustomTokenForms(){
+  // Assets page: form locked to selected chain when it has tokens
+  const assetsPanel = $("assetsCustomTokenPanel");
+  if(assetsPanel){
+    if(chainHasTokenSystem(selectedChain)){
+      assetsPanel.classList.remove("hidden");
+      if($("assetsCustomTitle")){
+        const lab = ASSET_CHAINS.find(c=>c.id===selectedChain)?.label || selectedChain;
+        const std = TOKEN_SYSTEMS[selectedChain]?.standard || "token";
+        $("assetsCustomTitle").textContent = "Add custom " + std + " · " + lab;
+      }
+      renderCustomTokenFormInto("assetsCustomTokenForm", "assets", selectedChain);
+    } else {
+      assetsPanel.classList.add("hidden");
+    }
+  }
+  // Deposit page: free chain picker (default ethereum or selected)
+  if($("recvCustomTokenForm")){
+    const def = chainHasTokenSystem(selectedChain) ? selectedChain : "ethereum";
+    renderCustomTokenFormInto("recvCustomTokenForm", "recv", def);
+  }
   renderCustomList();
-  selectAsset("custom_"+c);
+}
+function addCustomTokenFromForm(scope){
+  const p = tokenFormPrefix(scope);
+  const chain = ($(p + "Chain")?.value || "ethereum").trim();
+  const ts = TOKEN_SYSTEMS[chain];
+  if(!ts){ toast("This chain has no token system"); return; }
+  const symbol = (($(p + "Symbol")?.value || "").trim() || "TOKEN").toUpperCase().slice(0, 16);
+  let decimals = parseInt(($(p + "Decimals")?.value || "").trim(), 10);
+  if(!Number.isFinite(decimals)) decimals = defaultDecimalsForKind(ts.kind);
+  decimals = Math.max(0, Math.min(18, decimals));
+  const addr = ($(p + "Addr")?.value || "").trim();
+  const issuer = ($(p + "Issuer")?.value || "").trim();
+  const tokenId = ($(p + "TokenId")?.value || "0").trim() || "0";
+
+  let rec = null;
+  if(ts.kind === "erc20"){
+    if(!/^0x[a-fA-F0-9]{40}$/.test(addr)){ toast("Invalid 0x contract address"); return; }
+    rec = {
+      chain, kind: "erc20", evmId: ts.evmId || "eth",
+      contract: addr.toLowerCase(), symbol, decimals,
+    };
+  } else if(ts.kind === "spl"){
+    if(addr.length < 32 || addr.length > 48){ toast("Invalid SPL mint address"); return; }
+    rec = { chain: "solana", kind: "spl", mint: addr, symbol, decimals };
+  } else if(ts.kind === "trc20"){
+    if(!/^T[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(addr) && !/^0x[a-fA-F0-9]{40}$/.test(addr)){
+      toast("Invalid TRC-20 contract (T… address)"); return;
+    }
+    rec = { chain: "tron", kind: "trc20", contract: addr, symbol, decimals };
+  } else if(ts.kind === "fa"){
+    if(!/^KT1[1-9A-HJ-NP-Za-km-z]{33}$/.test(addr)){ toast("Invalid Tezos KT1 contract"); return; }
+    rec = { chain: "tezos", kind: "fa", contract: addr, tokenId, symbol, decimals };
+  } else if(ts.kind === "xlm_asset"){
+    if(!addr || addr.length > 12){ toast("Asset code required (≤12 chars)"); return; }
+    if(!issuer || issuer.length < 56){ toast("Stellar issuer G… address required"); return; }
+    rec = { chain: "stellar", kind: "xlm_asset", code: addr, issuer, symbol: symbol || addr, decimals: 7 };
+  } else if(ts.kind === "xrp_token"){
+    if(!addr){ toast("Currency code required"); return; }
+    if(!issuer || issuer.length < 25){ toast("XRP issuer address required"); return; }
+    rec = { chain: "xrp", kind: "xrp_token", code: addr, currency: addr, issuer, symbol: symbol || addr.slice(0,12), decimals: 0 };
+  }
+  if(!rec){ toast("Unsupported token type"); return; }
+
+  const id = customTokenId(rec);
+  const list = customTokens().filter(t => customTokenId(t) !== id);
+  // also drop legacy eth duplicates
+  const cleaned = list.filter(t=>{
+    const n = normalizeCustomToken(t);
+    if(!n) return false;
+    if(rec.kind === "erc20" && n.kind === "erc20" && n.contract === rec.contract && (n.evmId||"eth") === (rec.evmId||"eth")) return false;
+    return true;
+  });
+  cleaned.push(rec);
+  saveCustomTokens(cleaned);
+  toast(symbol + " added on " + (ASSET_CHAINS.find(c=>c.id===chain)?.label || chain));
+  renderAssetSeg();
+  renderCustomTokenForms();
+  renderAssetsList(false);
+  selectedChain = chain;
+  fillChainSelects();
+  selectAsset(id);
   refreshEthBalances();
-  toast("Custom token added");
+}
+/** @deprecated use addCustomTokenFromForm — kept for onclick compat */
+function addCustomToken(){
+  addCustomTokenFromForm("recv");
 }
 function renderCustomList(){
-  const list = customTokens();
-  $("customList").innerHTML = list.length ? list.map(t=>`
-    <div class="item"><div class="mono" style="font-size:.75rem">${t.symbol} · ${t.contract.slice(0,10)}…</div>
-    <button class="btn sec" style="width:auto;margin:0;padding:6px 10px;min-height:0" type="button"
-      onclick="removeCustom('${t.contract}')">Remove</button></div>`).join("") : "";
+  const list = customTokens().map(normalizeCustomToken).filter(Boolean);
+  const html = list.length ? list.map(t=>{
+    const id = customTokenId(t);
+    const chainLab = ASSET_CHAINS.find(c=>c.id===t.chain)?.label || t.chain;
+    const ref = t.contract || t.mint || (t.code + (t.issuer ? " · " + t.issuer.slice(0,6) + "…" : ""));
+    const short = String(ref).length > 18 ? String(ref).slice(0,10) + "…" + String(ref).slice(-4) : ref;
+    return `<div class="item">
+      <div style="min-width:0">
+        <div style="font-weight:700">${escHtml(t.symbol)} · ${escHtml(chainLab)}</div>
+        <div class="mono" style="font-size:.72rem;color:var(--muted)">${escHtml(TOKEN_SYSTEMS[t.chain]?.standard || t.kind)} · ${escHtml(short)}</div>
+      </div>
+      <button class="btn sec" style="width:auto;margin:0;padding:6px 10px;min-height:0" type="button"
+        data-rm="${escAttr(id)}">Remove</button>
+    </div>`;
+  }).join("") : `<p class="hint">No custom tokens yet</p>`;
+
+  ["customList", "assetsCustomList"].forEach(cid=>{
+    const el = $(cid);
+    if(!el) return;
+    // assets list: only tokens for selected chain
+    if(cid === "assetsCustomList"){
+      const filtered = list.filter(t => t.chain === selectedChain);
+      el.innerHTML = filtered.length ? filtered.map(t=>{
+        const id = customTokenId(t);
+        const ref = t.contract || t.mint || t.code || "";
+        return `<div class="item">
+          <div class="mono" style="font-size:.75rem">${escHtml(t.symbol)} · ${escHtml(String(ref).slice(0,12))}…</div>
+          <button class="btn sec" style="width:auto;margin:0;padding:6px 10px;min-height:0" type="button"
+            data-rm="${escAttr(id)}">Remove</button>
+        </div>`;
+      }).join("") : "";
+    } else {
+      el.innerHTML = html;
+    }
+    el.querySelectorAll("button[data-rm]").forEach(btn=>{
+      btn.onclick = ()=> removeCustom(btn.getAttribute("data-rm"));
+    });
+  });
 }
-function removeCustom(contract){
-  saveCustomTokens(customTokens().filter(t=>t.contract!==contract));
-  renderCustomList(); renderAssetSeg(); toast("Removed");
+function removeCustom(key){
+  if(!key) return;
+  saveCustomTokens(customTokens().filter(t=>{
+    const n = normalizeCustomToken(t);
+    if(!n) return false;
+    const id = customTokenId(n);
+    if(id === key) return false;
+    if(n.contract && n.contract === key) return false;
+    if(n.mint && n.mint === key) return false;
+    return true;
+  }));
+  renderCustomTokenForms();
+  renderAssetSeg();
+  renderAssetsList(false);
+  toast("Removed");
 }
 
 // --- gates ---
