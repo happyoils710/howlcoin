@@ -2475,6 +2475,71 @@ python3 -m howl status`;
       ${cmdBox('4) Mine without full dashboard (optional)', mineOnceCmd)}
     </div>
 
+    <div class="card detail" style="margin-top:14px;border-color:rgba(77,163,255,.3)">
+      <h3 style="margin-top:0">📡 Communicate with other nodes (P2P)</h3>
+      <p class="muted" style="margin:0 0 10px">
+        Howlcoin nodes talk over <b>TCP port 42069</b> using simple JSON messages.
+        They share the same genesis, sync longer chains, and relay new blocks + transactions.
+        You do <b>not</b> chat manually — “communicate” means <b>connect as a peer</b>.
+      </p>
+      <div class="kv">
+        <div class="k">Public seed</div><div class="mono">${esc(SEED)}${copyBtn(SEED)}</div>
+        <div class="k">P2P port</div><div class="mono">42069</div>
+        <div class="k">What peers share</div><div>Blocks · mempool txs · height / tip (hello)</div>
+        <div class="k">Must match</div><div>Same genesis + software rules (v0.6+)</div>
+      </div>
+
+      <h4 style="margin:16px 0 8px;font-size:.9rem;color:var(--text)">1) Join the public network (easiest)</h4>
+      <p class="muted" style="margin:0 0 8px">This dials the public seed and keeps you in the mesh.</p>
+      ${cmdBox('Connect + mine + dashboard', goCmd)}
+      <p style="margin:8px 0">
+        <button class="chipbtn" style="margin:4px" onclick="copyText('python3 -m howl go', this)">Copy howl go</button>
+        <button class="chipbtn" style="margin:4px" onclick="copyText('python3 -m howl node --public --auto-mine --open', this)">Copy node --public</button>
+      </p>
+
+      <h4 style="margin:16px 0 8px;font-size:.9rem;color:var(--text)">2) Add a friend’s node (extra peer)</h4>
+      <p class="muted" style="margin:0 0 8px">
+        Both of you run a node. One shares their public IP (or LAN IP) and has port <b>42069</b> open.
+        Example: friend is at <span class="mono">203.0.113.10</span> → connect to <span class="mono">203.0.113.10:42069</span>.
+      </p>
+      ${cmdBox('Start node and also dial a friend', `python3 -m howl node --public --auto-mine --open --connect ${SEED} --connect FRIEND_IP:42069`)}
+      ${cmdBox('While your node is running — add peer from another Terminal', `curl -sS -X POST http://127.0.0.1:42070/api/connect \\
+  -H 'Content-Type: application/json' \\
+  -d '{"peer":"FRIEND_IP:42069"}'`)}
+      <p class="muted" style="margin:8px 0 0">
+        Or open the <b>local dashboard</b> → <span class="mono">http://127.0.0.1:42070/</span> → <b>Connect peer</b>
+        (paste <span class="mono">host:42069</span>).
+      </p>
+
+      <h4 style="margin:16px 0 8px;font-size:.9rem;color:var(--text)">3) See who you’re talking to</h4>
+      ${cmdBox('Saved peer list on disk', `python3 -m howl peers
+# also: cat ~/.howlcoin/peers.json`)}
+      <p class="muted" style="margin:8px 0 0">
+        Live peers (height, tip) show in the dashboard under <b>Peers</b> while <code>howl go</code> / <code>howl node</code> is running.
+      </p>
+
+      <h4 style="margin:16px 0 8px;font-size:.9rem;color:var(--text)">4) Let others reach you (optional)</h4>
+      <ul class="muted" style="margin:0;padding-left:1.2rem;line-height:1.55">
+        <li>Your node already <b>listens</b> on <span class="mono">0.0.0.0:42069</span> when running.</li>
+        <li>To accept inbound peers from the internet: forward <b>TCP 42069</b> on your router to this computer, and share <span class="mono">YOUR_PUBLIC_IP:42069</span>.</li>
+        <li>On the same Wi‑Fi, friends can use your LAN IP (e.g. <span class="mono">192.168.1.20:42069</span>).</li>
+        <li>Home NATs often block inbound — that’s OK: you can still <b>dial out</b> to the public seed and friends who are reachable.</li>
+      </ul>
+
+      <h4 style="margin:16px 0 8px;font-size:.9rem;color:var(--text)">What gets exchanged automatically</h4>
+      <ul class="muted" style="margin:0;padding-left:1.2rem;line-height:1.55">
+        <li><b>hello</b> — coin, version, height, tip, genesis (must match)</li>
+        <li><b>get_blocks / blocks</b> — download or send chain history to catch up</li>
+        <li><b>inv</b> — “I have a new tip”</li>
+        <li><b>block / tx</b> — relay newly mined blocks and mempool transfers</li>
+        <li><b>ping / pong</b> — keep the connection alive</li>
+      </ul>
+      <p class="muted" style="margin:12px 0 0;font-size:.82rem">
+        There is no private chat channel — all protocol traffic is chain sync + gossip.
+        Wrong genesis or old software (pre‑v0.6) → peer disconnects.
+      </p>
+    </div>
+
     <div class="card detail" style="margin-top:14px">
       <h3 style="margin-top:0">What v0.6 changed</h3>
       <ul class="muted" style="margin:0;padding-left:1.2rem;line-height:1.55">
