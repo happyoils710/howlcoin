@@ -125,75 +125,79 @@ EXPLORER_HTML = r"""<!DOCTYPE html>
   --border:#252d3d; --text:#e8edf7; --muted:#8b95a8; --link:#4da3ff;
   --green:#3dff9a; --amber:#ffb020; --red:#ff6b7a; --chip:#222a3a;
   --row:#121722; --rowh:#1a2233;
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --safe-t:env(safe-area-inset-top,0px);
+  --bottom-nav-h:64px;
 }
 *{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
 body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-  background:var(--bg);color:var(--text);line-height:1.45}
+  background:var(--bg);color:var(--text);line-height:1.45;-webkit-tap-highlight-color:transparent}
 a{color:var(--link);text-decoration:none}
 a:hover{text-decoration:underline}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.84rem;word-break:break-all}
 .muted{color:var(--muted)}
-.topbar{display:flex;align-items:center;gap:16px;padding:12px 20px;border-bottom:1px solid var(--border);
-  background:rgba(12,15,20,.92);backdrop-filter:blur(10px);position:sticky;top:0;z-index:20}
-.topbar img{width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid rgba(61,255,154,.45)}
-.brand{font-weight:750;letter-spacing:.02em}
+.topbar{display:flex;align-items:center;gap:10px;padding:10px 14px;padding-top:calc(10px + var(--safe-t));
+  border-bottom:1px solid var(--border);background:rgba(12,15,20,.94);backdrop-filter:blur(12px);
+  position:sticky;top:0;z-index:40}
+.topbar img{width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid rgba(61,255,154,.45);flex-shrink:0}
+.brand{font-weight:750;letter-spacing:.02em;min-width:0;cursor:pointer}
 .brand span{color:var(--green)}
-.brand small{display:block;font-weight:500;color:var(--muted);font-size:.75rem;margin-top:1px}
-.nav{display:flex;gap:6px;flex-wrap:wrap;margin-left:8px}
-.nav button,.chipbtn{border:1px solid var(--border);background:var(--chip);color:var(--text);
-  border-radius:8px;padding:7px 12px;cursor:pointer;font:inherit;font-size:.85rem;font-weight:600}
+.brand small{display:block;font-weight:500;color:var(--muted);font-size:.72rem;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav{display:flex;gap:6px;flex-wrap:wrap;margin-left:4px}
+.nav button,.chipbtn,button.chipbtn{border:1px solid var(--border);background:var(--chip);color:var(--text);
+  border-radius:10px;padding:8px 12px;cursor:pointer;font:inherit;font-size:.85rem;font-weight:600;
+  min-height:40px;touch-action:manipulation}
 .nav button.active,.chipbtn.active{background:rgba(77,163,255,.15);border-color:rgba(77,163,255,.45);color:#9cc9ff}
 .nav button:hover,.chipbtn:hover{border-color:#3a4660}
 .grow{flex:1}
-.hero{padding:28px 20px 10px;max-width:1200px;margin:0 auto}
-.hero h2{margin:0 0 6px;font-size:1.55rem;font-weight:750}
-.ascii-banner{margin:14px 0 10px;padding:16px 0;border-radius:12px;border:1px solid var(--border);
+.top-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.iconbtn{border:1px solid var(--border);background:var(--chip);color:var(--text);border-radius:10px;
+  width:42px;height:42px;padding:0;cursor:pointer;font:inherit;font-size:1.15rem;font-weight:700;
+  display:none;align-items:center;justify-content:center;flex-shrink:0;touch-action:manipulation}
+.iconbtn:active{background:var(--panel2)}
+.hero{padding:22px 16px 8px;max-width:1200px;margin:0 auto}
+.hero h2{margin:0 0 6px;font-size:1.45rem;font-weight:750}
+.hero .muted{margin:0;font-size:.92rem}
+.ascii-banner{margin:12px 0 10px;padding:14px 0;border-radius:12px;border:1px solid var(--border);
   background:linear-gradient(135deg,rgba(61,255,154,.07),rgba(12,15,20,.95) 40%,rgba(77,163,255,.06));
   overflow:hidden;position:relative;display:flex;justify-content:center;align-items:center}
 .ascii-banner::before,.ascii-banner::after{content:"";position:absolute;top:0;bottom:0;width:56px;z-index:2;pointer-events:none}
 .ascii-banner::before{left:0;background:linear-gradient(90deg,rgba(12,15,20,.95),transparent)}
 .ascii-banner::after{right:0;background:linear-gradient(270deg,rgba(12,15,20,.95),transparent)}
-.ascii-track{flex:0 0 auto;will-change:transform;
-  animation:howl-pan 20s linear infinite}
+.ascii-track{flex:0 0 auto;will-change:transform;animation:howl-pan 20s linear infinite}
 .ascii-track pre{margin:0;padding:0 24px;font-family:"SF Mono","Menlo","Consolas","DejaVu Sans Mono",ui-monospace,monospace;
   font-size:clamp(.58rem,1.05vw,.82rem);line-height:1.22;letter-spacing:.04em;color:var(--green);
   white-space:pre;text-shadow:0 0 20px rgba(61,255,154,.18)}
-/* continuous: pause center → drift left off → enter from right → pause center (no page refresh) */
 @keyframes howl-pan{
   0%, 22%{transform:translateX(0)}
   48%{transform:translateX(calc(-55vw - 55%))}
   48.02%{transform:translateX(calc(55vw + 55%))}
   78%, 100%{transform:translateX(0)}
 }
-@media(max-width:700px){
-  .ascii-track pre{font-size:.5rem;letter-spacing:.02em}
-  .ascii-track{animation-duration:18s}
-}
-@media(prefers-reduced-motion:reduce){
-  .ascii-track{animation:none;transform:none}
-}
-.searchwrap{max-width:1200px;margin:0 auto;padding:8px 20px 18px}
-.searchbox{display:flex;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px}
-.searchbox input{flex:1;border:0;outline:0;background:transparent;color:var(--text);font:inherit;padding:10px 12px;min-width:0}
-.searchbox button{border:0;border-radius:9px;background:linear-gradient(180deg,#2f6fed,#1f55c9);color:#fff;
-  font-weight:700;padding:10px 18px;cursor:pointer}
-.stats{max-width:1200px;margin:0 auto;padding:0 20px 18px;display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
-.stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 14px 12px}
-.stat .k{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
-.stat .v{font-size:1.25rem;font-weight:750;margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.stat .s{font-size:.78rem;color:var(--muted);margin-top:4px}
-.main{max-width:1200px;margin:0 auto;padding:0 20px 40px}
-.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-@media(max-width:900px){.cols{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){.ascii-track{animation:none;transform:none}}
+.searchwrap{max-width:1200px;margin:0 auto;padding:8px 16px 14px}
+.searchbox{display:flex;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:6px}
+.searchbox input{flex:1;border:0;outline:0;background:transparent;color:var(--text);font:inherit;padding:12px 12px;min-width:0;font-size:16px}
+.searchbox button{border:0;border-radius:10px;background:linear-gradient(180deg,#2f6fed,#1f55c9);color:#fff;
+  font-weight:700;padding:12px 16px;cursor:pointer;min-height:44px;flex-shrink:0;touch-action:manipulation}
+.stats{max-width:1200px;margin:0 auto;padding:0 16px 14px;display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 12px 10px}
+.stat .k{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
+.stat .v{font-size:1.15rem;font-weight:750;margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stat .s{font-size:.74rem;color:var(--muted);margin-top:3px}
+.main{max-width:1200px;margin:0 auto;padding:0 16px 40px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;overflow:hidden}
-.card h3{margin:0;padding:14px 16px;font-size:.95rem;border-bottom:1px solid var(--border);
-  display:flex;justify-content:space-between;align-items:center}
-.card h3 .more{font-size:.8rem;font-weight:600;color:var(--link)}
+.card h3{margin:0;padding:13px 14px;font-size:.95rem;border-bottom:1px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;gap:8px}
+.card h3 .more{font-size:.8rem;font-weight:600;color:var(--link);white-space:nowrap}
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 table{width:100%;border-collapse:collapse;font-size:.88rem}
-th{text-align:left;padding:10px 14px;color:var(--muted);font-size:.72rem;text-transform:uppercase;
-  letter-spacing:.05em;border-bottom:1px solid var(--border);background:var(--panel2)}
-td{padding:11px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+th{text-align:left;padding:10px 12px;color:var(--muted);font-size:.7rem;text-transform:uppercase;
+  letter-spacing:.05em;border-bottom:1px solid var(--border);background:var(--panel2);white-space:nowrap}
+td{padding:11px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
 tr:last-child td{border-bottom:0}
 tbody tr{background:var(--row);cursor:pointer}
 tbody tr:hover{background:var(--rowh)}
@@ -201,41 +205,152 @@ tbody tr:hover{background:var(--rowh)}
 .badge.ok{background:rgba(61,255,154,.12);color:var(--green)}
 .badge.warn{background:rgba(255,176,32,.12);color:var(--amber)}
 .badge.blue{background:rgba(77,163,255,.12);color:#9cc9ff}
-.detail{padding:16px}
-.kv{display:grid;grid-template-columns:160px 1fr;gap:8px 12px;margin:10px 0}
+.detail{padding:14px}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:8px 12px;margin:10px 0}
 .kv .k{color:var(--muted);font-size:.85rem}
-.back{border:1px solid var(--border);background:var(--chip);color:var(--text);border-radius:8px;
-  padding:8px 12px;cursor:pointer;font:inherit;font-weight:600;margin-bottom:12px}
-.footer{max-width:1200px;margin:0 auto;padding:10px 20px 40px;color:var(--muted);font-size:.8rem;
+.back{border:1px solid var(--border);background:var(--chip);color:var(--text);border-radius:10px;
+  padding:10px 14px;cursor:pointer;font:inherit;font-weight:600;margin-bottom:10px;min-height:42px;touch-action:manipulation}
+.footer{max-width:1200px;margin:0 auto;padding:10px 16px 28px;color:var(--muted);font-size:.8rem;
   display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
 .err{padding:24px;color:var(--amber)}
 .amount{font-weight:700;color:var(--green)}
 .neg{color:var(--red)}
 .skeleton{opacity:.55}
+.quick-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.desktop-only{display:block}
+.mobile-only{display:none}
+/* Card list (mobile-friendly) */
+.mlist{display:flex;flex-direction:column}
+.mrow{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;
+  padding:12px 14px;border-bottom:1px solid var(--border);background:var(--row);cursor:pointer;
+  text-align:left;min-height:56px}
+.mrow:last-child{border-bottom:0}
+.mrow:active{background:var(--rowh)}
+.mrow .ml{min-width:0;flex:1}
+.mrow .mr{text-align:right;flex-shrink:0}
+.mrow .mt{font-weight:700;font-size:.95rem}
+.mrow .ms{color:var(--muted);font-size:.78rem;margin-top:3px}
+.mrow .ma{font-weight:700;color:var(--green);font-size:.92rem}
+/* Drawer + bottom nav (mobile) */
+.drawer-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:50}
+.drawer-bg.open{display:block}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(86vw,320px);background:var(--bg2);
+  border-left:1px solid var(--border);z-index:60;padding:calc(14px + var(--safe-t)) 14px calc(20px + var(--safe-b));
+  transform:translateX(100%);transition:transform .22s ease;overflow-y:auto}
+.drawer.open{transform:translateX(0)}
+.drawer h4{margin:0 0 10px;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.drawer .ditem{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:1px solid var(--border);
+  background:var(--panel);color:var(--text);border-radius:12px;padding:12px 14px;margin:0 0 8px;
+  font:inherit;font-weight:600;font-size:.92rem;cursor:pointer;text-decoration:none;min-height:48px;touch-action:manipulation}
+.drawer .ditem.primary{border-color:rgba(61,255,154,.4);color:var(--green)}
+.drawer .ditem:active{background:var(--panel2)}
+.drawer .close-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.bottom-nav{display:none;position:fixed;left:0;right:0;bottom:0;z-index:35;
+  background:rgba(12,15,20,.96);backdrop-filter:blur(14px);border-top:1px solid var(--border);
+  padding:6px 4px calc(6px + var(--safe-b));grid-template-columns:repeat(5,1fr);gap:0}
+.bnav-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  border:0;background:transparent;color:var(--muted);font:inherit;font-size:.62rem;font-weight:650;
+  padding:6px 2px;cursor:pointer;min-height:52px;touch-action:manipulation;text-decoration:none}
+.bnav-item .ico{font-size:1.15rem;line-height:1}
+.bnav-item.active{color:var(--green)}
+.bnav-item:active{opacity:.75}
+
+/* —— Mobile —— */
+@media(max-width:900px){
+  .cols{grid-template-columns:1fr}
+}
+@media(max-width:760px){
+  body{padding-bottom:calc(var(--bottom-nav-h) + var(--safe-b) + 8px)}
+  .top-actions.desktop-nav{display:none}
+  .nav{display:none}
+  .iconbtn{display:inline-flex}
+  .brand small{display:none}
+  .topbar{gap:8px;padding:8px 12px;padding-top:calc(8px + var(--safe-t))}
+  .topbar img{width:34px;height:34px}
+  .hero{padding:12px 14px 4px}
+  .hero h2{font-size:1.2rem}
+  .hero .sub-desktop{display:none}
+  .ascii-banner{display:none} /* cleaner mobile: drop ascii marquee */
+  .searchwrap{padding:6px 12px 12px;position:sticky;top:52px;z-index:30;background:linear-gradient(var(--bg) 70%,transparent)}
+  .searchbox{padding:4px;border-radius:12px}
+  .searchbox input{padding:11px 10px;font-size:16px}
+  .searchbox button{padding:10px 14px}
+  .stats{grid-template-columns:1fr 1fr;gap:8px;padding:0 12px 12px}
+  .stat .s{display:none}
+  .stat.stat-wide{grid-column:1 / -1}
+  .stat .v{font-size:1.05rem}
+  .main{padding:0 12px 24px}
+  .desktop-only{display:none!important}
+  .mobile-only{display:block}
+  .card h3{padding:12px 12px}
+  .detail{padding:12px}
+  .kv{grid-template-columns:1fr;gap:2px 0}
+  .kv .k{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;margin-top:8px}
+  .kv > div:not(.k){padding-bottom:6px;border-bottom:1px solid rgba(37,45,61,.55)}
+  .quick-row{display:none} /* bottom nav covers these */
+  .footer{display:none}
+  .bottom-nav{display:grid}
+  .table-wrap{margin:0 -2px}
+  th,td{padding:10px 10px}
+  /* hide less-critical table cols on very small if any table still shown */
+  .hide-sm{display:none!important}
+  .page-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .page-actions .back{margin-bottom:0}
+}
+@media(max-width:380px){
+  .stats{grid-template-columns:1fr 1fr}
+  .bnav-item{font-size:.58rem}
+}
 </style>
 </head>
 <body>
 <div class="topbar">
-  <img src="/assets/howlcoin-logo.jpg" alt="HOWL"/>
-  <div class="brand" style="cursor:pointer" onclick="location.hash='#/'+net">Howl<span>scan</span><small>Howlcoin block explorer</small></div>
+  <img src="/assets/howlcoin-logo.jpg" alt="HOWL" onclick="goHome()" style="cursor:pointer"/>
+  <div class="brand" onclick="goHome()">Howl<span>scan</span><small>Howlcoin block explorer</small></div>
   <div class="nav" id="nav"></div>
   <div class="grow"></div>
-  <button class="chipbtn" onclick="location.hash='#/'+net+'/richlist'">Richlist</button>
-  <button class="chipbtn" onclick="location.hash='#/'+net+'/mempool'">Mempool</button>
-  <button class="chipbtn" onclick="location.hash='#/'+net+'/block/0'">Genesis</button>
-  <a class="chipbtn" href="/whitepaper" style="text-decoration:none;display:inline-block">White paper</a>
-  <button class="chipbtn" style="border-color:rgba(61,255,154,.45);color:var(--green)" onclick="location.hash='#/run'">Run a node</button>
-  <button class="chipbtn" onclick="refreshData()">Refresh</button>
+  <div class="top-actions desktop-nav">
+    <button class="chipbtn" onclick="location.hash='#/'+net+'/richlist'">Richlist</button>
+    <button class="chipbtn" onclick="location.hash='#/'+net+'/mempool'">Mempool</button>
+    <button class="chipbtn" onclick="location.hash='#/'+net+'/block/0'">Genesis</button>
+    <a class="chipbtn" href="/whitepaper" style="text-decoration:none;display:inline-flex;align-items:center">White paper</a>
+    <button class="chipbtn" style="border-color:rgba(61,255,154,.45);color:var(--green)" onclick="location.hash='#/run'">Run a node</button>
+    <button class="chipbtn" onclick="refreshData()">Refresh</button>
+  </div>
+  <button class="iconbtn" id="menu-btn" type="button" aria-label="Menu" onclick="toggleDrawer(true)">☰</button>
 </div>
+
+<div class="drawer-bg" id="drawer-bg" onclick="toggleDrawer(false)"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="close-row">
+    <strong style="font-size:1rem">Menu</strong>
+    <button class="iconbtn" type="button" style="display:inline-flex" aria-label="Close" onclick="toggleDrawer(false)">✕</button>
+  </div>
+  <h4>Explore</h4>
+  <button class="ditem" type="button" onclick="navTo('#/'+net)">🏠 Home</button>
+  <button class="ditem" type="button" onclick="navTo('#/'+net+'/richlist')">🏆 Richlist</button>
+  <button class="ditem" type="button" onclick="navTo('#/'+net+'/mempool')">⏳ Mempool</button>
+  <button class="ditem" type="button" onclick="navTo('#/'+net+'/block/0')">🌱 Genesis</button>
+  <h4 style="margin-top:16px">Get started</h4>
+  <button class="ditem primary" type="button" onclick="navTo('#/run')">🐺 Run a node</button>
+  <a class="ditem" href="/whitepaper">📄 White paper</a>
+  <a class="ditem" href="https://github.com/happyoils710/howlcoin" target="_blank" rel="noopener">⌥ GitHub</a>
+  <h4 style="margin-top:16px">Network</h4>
+  <div id="drawer-nav"></div>
+  <button class="ditem" type="button" onclick="toggleDrawer(false);refreshData()">↻ Refresh data</button>
+</aside>
+
 <div class="hero" id="hero-static">
   <div class="ascii-banner" aria-hidden="true" id="howl-banner-host"></div>
   <h2>Blockchain explorer for <span style="color:var(--green)">Howlcoin</span></h2>
-  <p class="muted">Search blocks, transactions, and addresses across the public network</p>
+  <p class="muted sub-desktop">Search blocks, transactions, and addresses across the public network</p>
+  <p class="muted mobile-only" style="margin:0;font-size:.88rem">Search height, hash, tx, or address</p>
 </div>
-<div class="searchwrap">
+<div class="searchwrap" id="searchwrap">
   <div class="searchbox">
-    <input id="q" placeholder="Search block height / hash, txid, or address (H…)" onkeydown="if(event.key==='Enter')doSearch()"/>
-    <button onclick="doSearch()">Search</button>
+    <input id="q" placeholder="Height, hash, txid, or H… address" enterkeyhint="search" autocomplete="off"
+      onkeydown="if(event.key==='Enter')doSearch()"/>
+    <button type="button" onclick="doSearch()">Search</button>
   </div>
 </div>
 <div id="app"></div>
@@ -252,6 +367,13 @@ tbody tr:hover{background:var(--rowh)}
     <a href="https://github.com/happyoils710/howlcoin" target="_blank" rel="noopener">Code</a>
   </div>
 </div>
+<nav class="bottom-nav" id="bottom-nav" aria-label="Primary">
+  <button type="button" class="bnav-item" data-tab="home" onclick="goHome()"><span class="ico">⌂</span>Home</button>
+  <button type="button" class="bnav-item" data-tab="search" onclick="focusSearch()"><span class="ico">⌕</span>Search</button>
+  <button type="button" class="bnav-item" data-tab="richlist" onclick="location.hash='#/'+net+'/richlist'"><span class="ico">★</span>Richlist</button>
+  <button type="button" class="bnav-item" data-tab="mempool" onclick="location.hash='#/'+net+'/mempool'"><span class="ico">◎</span>Mempool</button>
+  <button type="button" class="bnav-item" data-tab="more" onclick="toggleDrawer(true)"><span class="ico">☰</span>More</button>
+</nav>
 <script>
 let net='public', networks=[];
 const SEED = '147.182.223.204:42069';
@@ -315,12 +437,52 @@ function linkAddr(a){if(!a||a==='HOWL_GENESIS_BURN') return `<span class="mono">
   return `<a class="mono" href="#/${net}/address/${encodeURIComponent(a)}">${esc(short(a,12))}</a>`}
 
 function renderNav(){
-  $('#nav').innerHTML = networks.map(n=>`
+  const html = networks.map(n=>`
     <button class="${n.id===net?'active':''}" onclick="switchNet('${n.id}')">
       ${esc(n.label)} ${n.online?`<span class="badge blue">#${n.height}</span>`:'<span class="badge warn">off</span>'}
     </button>`).join('');
+  const nav = $('#nav');
+  if(nav) nav.innerHTML = html;
+  const dnav = $('#drawer-nav');
+  if(dnav){
+    dnav.innerHTML = networks.map(n=>`
+      <button class="ditem" type="button" onclick="switchNet('${n.id}');toggleDrawer(false)">
+        ${esc(n.label)} ${n.online?`· #${n.height}`:'· offline'}
+      </button>`).join('') || '<div class="muted" style="padding:8px">No networks</div>';
+  }
 }
 function switchNet(id){net=id; location.hash=`#/${net}`}
+function goHome(){ location.hash = '#/' + net; }
+function toggleDrawer(open){
+  const d = $('#drawer'), bg = $('#drawer-bg');
+  if(!d || !bg) return;
+  const on = open === true ? true : open === false ? false : !d.classList.contains('open');
+  d.classList.toggle('open', on);
+  bg.classList.toggle('open', on);
+  d.setAttribute('aria-hidden', on ? 'false' : 'true');
+  document.body.style.overflow = on ? 'hidden' : '';
+}
+function navTo(hash){ toggleDrawer(false); location.hash = hash; }
+function focusSearch(){
+  const sw = $('#searchwrap');
+  const h = $('#hero-static');
+  if(h) h.style.display = '';
+  if(sw){ sw.style.display = ''; sw.scrollIntoView({behavior:'smooth', block:'start'}); }
+  const q = $('#q');
+  if(q){ q.focus(); try{ q.select(); }catch(e){} }
+}
+function setBottomTab(tab){
+  document.querySelectorAll('.bnav-item').forEach(el=>{
+    el.classList.toggle('active', el.dataset.tab === tab);
+  });
+}
+function activeTabFromRoute(parts){
+  if(!parts.length || (parts.length===1 && networks.find(n=>n.id===parts[0]))) return 'home';
+  if(parts[0]==='run' || parts[0]==='node' || parts[0]==='sync') return 'more';
+  if(parts[1]==='richlist' || parts[0]==='richlist') return 'richlist';
+  if(parts[1]==='mempool' || parts[0]==='mempool') return 'mempool';
+  return 'home';
+}
 
 async function loadNetworks(){
   const d=await api('/api/networks');
@@ -355,6 +517,7 @@ function setHeroVisible(show){
 async function loadHome(){
   ensureBanner();
   setHeroVisible(true);
+  setBottomTab('home');
   await loadNetworks();
   const s=await api(`/api/${net}/summary`);
   if(!s.online){
@@ -365,23 +528,25 @@ async function loadHome(){
     api(`/api/${net}/blocks?limit=15`),
     api(`/api/${net}/txs?limit=15`),
   ]);
+  const bl = blocks.blocks||[];
+  const tl = txs.transactions||[];
   // Only replace #app — hero/banner stay mounted so animation never restarts
   app().innerHTML = `
   <div class="stats">
     <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/block/${s.height}'">
-      <div class="k">Height</div><div class="v">${s.height}</div><div class="s">click → tip block</div></div>
+      <div class="k">Height</div><div class="v">${s.height}</div><div class="s">tap → tip block</div></div>
     <div class="stat"><div class="k">Difficulty</div><div class="v">${s.difficulty}</div><div class="s">Scrypt PoW</div></div>
     <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/richlist'" title="${esc(String(s.circulating||''))}">
-      <div class="k">Circulating</div><div class="v">${esc(circulatingShort(s))}</div><div class="s">HOWL · click → richlist</div></div>
+      <div class="k">Circulating</div><div class="v">${esc(circulatingShort(s))}</div><div class="s">HOWL · richlist</div></div>
     <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/mempool'">
-      <div class="k">Mempool</div><div class="v">${s.mempool}</div><div class="s">click → pending txs</div></div>
+      <div class="k">Mempool</div><div class="v">${s.mempool}</div><div class="s">pending txs</div></div>
     <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/richlist'">
-      <div class="k">Addresses</div><div class="v">${s.addresses??'—'}</div><div class="s">click → richlist</div></div>
-    <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/block/${encodeURIComponent(s.tip)}'">
-      <div class="k">Tip hash</div><div class="v mono" style="font-size:.85rem">${esc(short(s.tip,14))}</div><div class="s">click → tip block</div></div>
+      <div class="k">Addresses</div><div class="v">${s.addresses??'—'}</div><div class="s">richlist</div></div>
+    <div class="stat stat-wide" style="cursor:pointer" onclick="location.hash='#/${net}/block/${encodeURIComponent(s.tip)}'">
+      <div class="k">Tip hash</div><div class="v mono" style="font-size:.85rem">${esc(short(s.tip,14))}</div><div class="s">tap → tip block</div></div>
   </div>
   <div class="main" style="padding-bottom:8px">
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+    <div class="quick-row">
       <button class="chipbtn" onclick="location.hash='#/${net}/block/0'">Genesis #0</button>
       <button class="chipbtn" onclick="location.hash='#/${net}/block/${s.height}'">Latest #${s.height}</button>
       <button class="chipbtn" onclick="location.hash='#/${net}/richlist'">Top addresses</button>
@@ -392,10 +557,11 @@ async function loadHome(){
   <div class="main cols">
     <div class="card">
       <h3>Latest blocks <a class="more" href="#/${net}/block/${s.height}">tip →</a></h3>
+      <div class="desktop-only table-wrap">
       <table>
         <thead><tr><th>Height</th><th>Hash</th><th>Txs</th><th>Miner</th><th>Reward</th><th>Time</th></tr></thead>
         <tbody>
-          ${(blocks.blocks||[]).map(b=>`<tr onclick="location.hash='#/${net}/block/${b.height}'">
+          ${bl.map(b=>`<tr onclick="location.hash='#/${net}/block/${b.height}'">
             <td><b>${linkBlock(b.height)}</b></td>
             <td class="mono">${esc(short(b.hash,12))}</td>
             <td>${b.tx_count}</td>
@@ -405,13 +571,24 @@ async function loadHome(){
           </tr>`).join('')}
         </tbody>
       </table>
+      </div>
+      <div class="mobile-only mlist">
+        ${bl.map(b=>`<div class="mrow" onclick="location.hash='#/${net}/block/${b.height}'">
+          <div class="ml">
+            <div class="mt">Block #${b.height}</div>
+            <div class="ms mono">${esc(short(b.hash,10))} · ${b.tx_count} tx · ${ago(b.timestamp)}</div>
+          </div>
+          <div class="mr"><div class="ma">${fmtAmt(b.reward)}</div><div class="ms">reward</div></div>
+        </div>`).join('')||'<div class="mrow"><div class="muted">No blocks</div></div>'}
+      </div>
     </div>
     <div class="card">
       <h3>Latest transactions <a class="more" href="#/${net}/mempool">mempool →</a></h3>
+      <div class="desktop-only table-wrap">
       <table>
         <thead><tr><th>Txid</th><th>Type</th><th>Flow</th><th>Amount</th><th>Status</th></tr></thead>
         <tbody>
-          ${(txs.transactions||[]).map(t=>`<tr onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
+          ${tl.map(t=>`<tr onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
             <td onclick="event.stopPropagation()">${linkTx(t.txid)}</td>
             <td><span class="badge ${t.type==='coinbase'?'ok':'blue'}">${t.type==='coinbase'?'reward':'transfer'}</span></td>
             <td class="mono" onclick="event.stopPropagation()">${t.type==='coinbase'?'new coins → '+linkAddr(t.to):linkAddr(t.from)+' → '+linkAddr(t.to)}</td>
@@ -420,32 +597,41 @@ async function loadHome(){
           </tr>`).join('') || '<tr><td colspan="5" class="muted" style="padding:16px">No transactions yet</td></tr>'}
         </tbody>
       </table>
+      </div>
+      <div class="mobile-only mlist">
+        ${tl.map(t=>`<div class="mrow" onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
+          <div class="ml">
+            <div class="mt">${t.type==='coinbase'?'Mining reward':'Transfer'} <span class="badge ${t.confirmed?'ok':'warn'}" style="margin-left:4px">${t.confirmed?'#'+t.block_height:'pool'}</span></div>
+            <div class="ms mono">${t.type==='coinbase'?'→ '+esc(short(t.to,10)):esc(short(t.from,8))+' → '+esc(short(t.to,8))}</div>
+          </div>
+          <div class="mr"><div class="ma">${fmtAmt(t.amount)}</div></div>
+        </div>`).join('')||'<div class="mrow"><div class="muted">No transactions yet</div></div>'}
+      </div>
     </div>
   </div>`;
 }
 
 async function showBlock(id){
   setHeroVisible(false);
+  setBottomTab('home');
   await loadNetworks();
   const d=await api(`/api/${net}/block/${encodeURIComponent(id)}`);
   const b=d.block; const txs=b.transactions||[];
   const cb=txs.find(t=>t.type==='coinbase');
   const h=b.height;
   const prev = h>0 ? h-1 : null;
-  const next = h; // will link next height; may 404 if tip
-  app().innerHTML=`<div class="main" style="padding-top:20px">
-    ${crumbs([{label:'Home',href:'#/'+net},{label:esc(net),href:'#/'+net},{label:'Block #'+h}])}
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+  app().innerHTML=`<div class="main" style="padding-top:12px">
+    ${crumbs([{label:'Home',href:'#/'+net},{label:'Block #'+h}])}
+    <div class="page-actions">
       <button class="back" onclick="location.hash='#/${net}'">← Home</button>
-      ${prev!=null?`<button class="chipbtn" onclick="location.hash='#/${net}/block/${prev}'">← Prev #${prev}</button>`:''}
-      <button class="chipbtn" onclick="location.hash='#/${net}/block/${h+1}'">Next #${h+1} →</button>
-      <button class="chipbtn" onclick="location.hash='#/${net}/block/0'">Genesis</button>
+      ${prev!=null?`<button class="chipbtn" onclick="location.hash='#/${net}/block/${prev}'">← #${prev}</button>`:''}
+      <button class="chipbtn" onclick="location.hash='#/${net}/block/${h+1}'">#${h+1} →</button>
     </div>
     <div class="card detail">
       <div class="badge blue">Block</div>
-      <h2 style="margin:8px 0 4px">Block #${b.height}</h2>
+      <h2 style="margin:8px 0 4px;font-size:1.25rem">Block #${b.height}</h2>
       <div class="mono">${esc(b.hash)}${copyBtn(b.hash)}</div>
-      <div class="kv" style="margin-top:16px">
+      <div class="kv" style="margin-top:12px">
         <div class="k">Height</div><div>${b.height}</div>
         <div class="k">Timestamp</div><div>${esc(fmtTime(b.header.timestamp))} <span class="muted">(${ago(b.header.timestamp)})</span></div>
         <div class="k">Difficulty</div><div>${b.header.difficulty}</div>
@@ -457,8 +643,9 @@ async function showBlock(id){
         <div class="k">Transactions</div><div>${txs.length}</div>
       </div>
     </div>
-    <div class="card" style="margin-top:14px">
-      <h3>Transactions in this block</h3>
+    <div class="card" style="margin-top:12px">
+      <h3>Transactions</h3>
+      <div class="desktop-only table-wrap">
       <table>
         <thead><tr><th>Txid</th><th>Type</th><th>Flow</th><th>Amount</th></tr></thead>
         <tbody>
@@ -470,25 +657,38 @@ async function showBlock(id){
           </tr>`).join('')}
         </tbody>
       </table>
+      </div>
+      <div class="mobile-only mlist">
+        ${txs.map(t=>`<div class="mrow" onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
+          <div class="ml">
+            <div class="mt">${t.type==='coinbase'?'Mining reward':'Transfer'}</div>
+            <div class="ms mono">${t.type==='coinbase'?'→ '+esc(short(t.to,12)):esc(short(t.from,8))+' → '+esc(short(t.to,8))}</div>
+          </div>
+          <div class="mr"><div class="ma">${fmtAmt(t.amount)}</div></div>
+        </div>`).join('')||'<div class="mrow"><div class="muted">No txs</div></div>'}
+      </div>
     </div>
   </div>`;
 }
 
 async function showTx(id){
   setHeroVisible(false);
+  setBottomTab('home');
   await loadNetworks();
   const d=await api(`/api/${net}/tx/${encodeURIComponent(id)}`);
   const t=d.tx;
-  app().innerHTML=`<div class="main" style="padding-top:20px">
-    ${crumbs([{label:'Home',href:'#/'+net},{label:esc(net),href:'#/'+net},{label:'Transaction'}])}
-    <button class="back" onclick="location.hash='#/${net}'">← Home</button>
-    ${d.confirmed?`<button class="chipbtn" onclick="location.hash='#/${net}/block/${d.block_height}'">Open block #${d.block_height}</button>`:
-      `<button class="chipbtn" onclick="location.hash='#/${net}/mempool'">View mempool</button>`}
-    <div class="card detail" style="margin-top:12px">
+  app().innerHTML=`<div class="main" style="padding-top:12px">
+    ${crumbs([{label:'Home',href:'#/'+net},{label:'Transaction'}])}
+    <div class="page-actions">
+      <button class="back" onclick="location.hash='#/${net}'">← Home</button>
+      ${d.confirmed?`<button class="chipbtn" onclick="location.hash='#/${net}/block/${d.block_height}'">Block #${d.block_height}</button>`:
+        `<button class="chipbtn" onclick="location.hash='#/${net}/mempool'">Mempool</button>`}
+    </div>
+    <div class="card detail" style="margin-top:4px">
       <div class="badge ${d.confirmed?'ok':'warn'}">${d.confirmed?'Confirmed':'Mempool'}</div>
-      <h2 style="margin:8px 0 4px">Transaction</h2>
+      <h2 style="margin:8px 0 4px;font-size:1.25rem">Transaction</h2>
       <div class="mono">${esc(t.txid||id)}${copyBtn(t.txid||id)}</div>
-      <div class="kv" style="margin-top:16px">
+      <div class="kv" style="margin-top:12px">
         <div class="k">Status</div><div>${d.confirmed?('Block '+linkBlock(d.block_height)):'Unconfirmed'}</div>
         <div class="k">Type</div><div>${esc(t.type||'transfer')}</div>
         ${t.type==='coinbase'?`
@@ -510,28 +710,33 @@ async function showTx(id){
 
 async function showAddr(addr){
   setHeroVisible(false);
+  setBottomTab('richlist');
   await loadNetworks();
   const d=await api(`/api/${net}/address/${encodeURIComponent(addr)}`);
-  app().innerHTML=`<div class="main" style="padding-top:20px">
-    ${crumbs([{label:'Home',href:'#/'+net},{label:esc(net),href:'#/'+net},{label:'Richlist',href:'#/'+net+'/richlist'},{label:'Address'}])}
-    <button class="back" onclick="location.hash='#/${net}'">← Home</button>
-    <button class="chipbtn" onclick="location.hash='#/${net}/richlist'">Richlist</button>
-    <div class="card detail" style="margin-top:12px">
+  const hist = d.transactions||[];
+  app().innerHTML=`<div class="main" style="padding-top:12px">
+    ${crumbs([{label:'Home',href:'#/'+net},{label:'Richlist',href:'#/'+net+'/richlist'},{label:'Address'}])}
+    <div class="page-actions">
+      <button class="back" onclick="location.hash='#/${net}'">← Home</button>
+      <button class="chipbtn" onclick="location.hash='#/${net}/richlist'">Richlist</button>
+    </div>
+    <div class="card detail" style="margin-top:4px">
       <div class="badge blue">Address</div>
-      <h2 style="margin:8px 0 4px">Wallet</h2>
+      <h2 style="margin:8px 0 4px;font-size:1.25rem">Wallet</h2>
       <div class="mono">${esc(d.address)}${copyBtn(d.address)}</div>
-      <div class="kv" style="margin-top:16px">
-        <div class="k">Balance</div><div class="amount" style="font-size:1.3rem">${esc(d.balance_fmt)}</div>
+      <div class="kv" style="margin-top:12px">
+        <div class="k">Balance</div><div class="amount" style="font-size:1.25rem">${esc(d.balance_fmt)}</div>
         <div class="k">Nonce</div><div>${d.nonce}</div>
         <div class="k">Shown txs</div><div>${d.tx_count}</div>
       </div>
     </div>
-    <div class="card" style="margin-top:14px">
-      <h3>Transaction history</h3>
+    <div class="card" style="margin-top:12px">
+      <h3>History</h3>
+      <div class="desktop-only table-wrap">
       <table>
         <thead><tr><th>Dir</th><th>Txid</th><th>Amount</th><th>Block</th></tr></thead>
         <tbody>
-          ${(d.transactions||[]).map(t=>`<tr>
+          ${hist.map(t=>`<tr>
             <td><span class="badge ${t.direction==='in'||t.type==='coinbase'?'ok':'warn'}">${esc(t.direction||t.type)}</span></td>
             <td>${t.txid?linkTx(t.txid):'—'}</td>
             <td class="amount">${fmtAmt(t.amount)}</td>
@@ -539,46 +744,73 @@ async function showAddr(addr){
           </tr>`).join('')||'<tr><td colspan="4" class="muted" style="padding:16px">No transactions</td></tr>'}
         </tbody>
       </table>
+      </div>
+      <div class="mobile-only mlist">
+        ${hist.map(t=>`<div class="mrow" onclick="${t.txid?`location.hash='#/${net}/tx/${encodeURIComponent(t.txid)}'`:''}">
+          <div class="ml">
+            <div class="mt"><span class="badge ${t.direction==='in'||t.type==='coinbase'?'ok':'warn'}">${esc(t.direction||t.type)}</span>
+              ${t.block_height!=null?' · #'+t.block_height:''}</div>
+            <div class="ms mono">${t.txid?esc(short(t.txid,14)):'—'}</div>
+          </div>
+          <div class="mr"><div class="ma">${fmtAmt(t.amount)}</div></div>
+        </div>`).join('')||'<div class="mrow"><div class="muted">No transactions</div></div>'}
+      </div>
     </div>
   </div>`;
 }
 
 async function showRichlist(){
   setHeroVisible(false);
+  setBottomTab('richlist');
   await loadNetworks();
   const d=await api(`/api/${net}/richlist?limit=50`);
-  app().innerHTML=`<div class="main" style="padding-top:20px">
-    ${crumbs([{label:'Home',href:'#/'+net},{label:esc(net),href:'#/'+net},{label:'Richlist'}])}
-    <button class="back" onclick="location.hash='#/${net}'">← Home</button>
-    <div class="card" style="margin-top:12px">
-      <h3>Top addresses by balance</h3>
+  const rows = d.richlist||[];
+  app().innerHTML=`<div class="main" style="padding-top:12px">
+    ${crumbs([{label:'Home',href:'#/'+net},{label:'Richlist'}])}
+    <div class="page-actions"><button class="back" onclick="location.hash='#/${net}'">← Home</button></div>
+    <div class="card" style="margin-top:4px">
+      <h3>Top addresses</h3>
+      <div class="desktop-only table-wrap">
       <table>
         <thead><tr><th>#</th><th>Address</th><th>Balance</th></tr></thead>
         <tbody>
-          ${(d.richlist||[]).map(r=>`<tr onclick="location.hash='#/${net}/address/${encodeURIComponent(r.address)}'">
+          ${rows.map(r=>`<tr onclick="location.hash='#/${net}/address/${encodeURIComponent(r.address)}'">
             <td>${r.rank}</td>
             <td onclick="event.stopPropagation()">${linkAddr(r.address)}</td>
             <td class="amount">${esc(r.balance_fmt)}</td>
           </tr>`).join('')||'<tr><td colspan="3" class="muted" style="padding:16px">No balances</td></tr>'}
         </tbody>
       </table>
+      </div>
+      <div class="mobile-only mlist">
+        ${rows.map(r=>`<div class="mrow" onclick="location.hash='#/${net}/address/${encodeURIComponent(r.address)}'">
+          <div class="ml">
+            <div class="mt">#${r.rank} <span class="mono" style="font-weight:500">${esc(short(r.address,12))}</span></div>
+            <div class="ms mono">${esc(short(r.address,20))}</div>
+          </div>
+          <div class="mr"><div class="ma">${esc(r.balance_fmt)}</div></div>
+        </div>`).join('')||'<div class="mrow"><div class="muted">No balances</div></div>'}
+      </div>
     </div>
   </div>`;
 }
 
 async function showMempool(){
   setHeroVisible(false);
+  setBottomTab('mempool');
   await loadNetworks();
   const d=await api(`/api/${net}/mempool`);
-  app().innerHTML=`<div class="main" style="padding-top:20px">
-    ${crumbs([{label:'Home',href:'#/'+net},{label:esc(net),href:'#/'+net},{label:'Mempool'}])}
-    <button class="back" onclick="location.hash='#/${net}'">← Home</button>
-    <div class="card" style="margin-top:12px">
+  const rows = d.transactions||[];
+  app().innerHTML=`<div class="main" style="padding-top:12px">
+    ${crumbs([{label:'Home',href:'#/'+net},{label:'Mempool'}])}
+    <div class="page-actions"><button class="back" onclick="location.hash='#/${net}'">← Home</button></div>
+    <div class="card" style="margin-top:4px">
       <h3>Mempool <span class="badge warn">${d.count||0} pending</span></h3>
+      <div class="desktop-only table-wrap">
       <table>
         <thead><tr><th>Txid</th><th>From → To</th><th>Amount</th><th>Fee</th></tr></thead>
         <tbody>
-          ${(d.transactions||[]).map(t=>`<tr onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
+          ${rows.map(t=>`<tr onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
             <td onclick="event.stopPropagation()">${linkTx(t.txid)}</td>
             <td class="mono" onclick="event.stopPropagation()">${linkAddr(t.from)} → ${linkAddr(t.to)}</td>
             <td class="amount">${fmtAmt(t.amount)}</td>
@@ -586,12 +818,23 @@ async function showMempool(){
           </tr>`).join('')||'<tr><td colspan="4" class="muted" style="padding:16px">Mempool empty</td></tr>'}
         </tbody>
       </table>
+      </div>
+      <div class="mobile-only mlist">
+        ${rows.map(t=>`<div class="mrow" onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
+          <div class="ml">
+            <div class="mt mono">${esc(short(t.txid,12))}</div>
+            <div class="ms mono">${esc(short(t.from,8))} → ${esc(short(t.to,8))}</div>
+          </div>
+          <div class="mr"><div class="ma">${fmtAmt(t.amount)}</div><div class="ms">fee ${fmtAmt(t.fee||0)}</div></div>
+        </div>`).join('')||'<div class="mrow"><div class="muted">Mempool empty</div></div>'}
+      </div>
     </div>
   </div>`;
 }
 
 async function showRunNode(){
   setHeroVisible(false);
+  setBottomTab('more');
   await loadNetworks();
   let height='?';
   try{
@@ -607,12 +850,12 @@ python3 -m pip install -r requirements.txt`;
 # or continuous:
 python3 -m howl mine --continuous`;
   const fullCmd = `git clone ${REPO}.git && cd howlcoin && python3 -m pip install -r requirements.txt && python3 -m howl init && python3 -m howl node --connect ${SEED}`;
-  app().innerHTML=`<div class="main" style="padding-top:20px">
+  app().innerHTML=`<div class="main" style="padding-top:12px">
     ${crumbs([{label:'Home',href:'#/public'},{label:'Run a node'}])}
-    <button class="back" onclick="location.hash='#/public'">← Home</button>
-    <div class="card detail" style="margin-top:12px">
+    <div class="page-actions"><button class="back" onclick="location.hash='#/public'">← Home</button></div>
+    <div class="card detail" style="margin-top:4px">
       <div class="badge ok">Sync to Howlcoin</div>
-      <h2 style="margin:8px 0 6px">Run a node on your computer</h2>
+      <h2 style="margin:8px 0 6px;font-size:1.25rem">Run a node on your computer</h2>
       <p class="muted" style="margin:0 0 12px">
         Websites <b>cannot open your Terminal</b> (browser security). Copy these commands into
         Terminal (Mac/Linux) or a terminal on Windows, and you will sync to the live public chain
@@ -661,12 +904,16 @@ function doSearch(){
 }
 
 async function route(){
+  toggleDrawer(false);
   const h=(location.hash||'').replace(/^#\/?/,'');
   const parts=h.split('/').filter(Boolean);
   if(parts[0] && networks.length && networks.find(n=>n.id===parts[0])){
     net=parts[0];
   }
   renderNav();
+  setBottomTab(activeTabFromRoute(parts));
+  // scroll to top on navigation (mobile)
+  try{ window.scrollTo({top:0, behavior:'instant' in window ? 'instant' : 'auto'}); }catch(e){ window.scrollTo(0,0); }
   try{
     if(parts.length>=3 && parts[1]==='block') return await showBlock(decodeURIComponent(parts[2]));
     if(parts.length>=3 && parts[1]==='tx') return await showTx(decodeURIComponent(parts[2]));
