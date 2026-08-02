@@ -963,7 +963,13 @@ import {
 
 const API = "";
 const ETH_RPC = "https://cloudflare-eth.com";
-const SOL_RPC = "https://api.mainnet-beta.solana.com";
+// Prefer reliable public endpoints; fall back if one rate-limits
+const SOL_RPC_LIST = [
+  "https://api.mainnet-beta.solana.com",
+  "https://solana-mainnet.rpc.extrnode.com",
+  "https://rpc.ankr.com/solana",
+];
+let SOL_RPC = SOL_RPC_LIST[0];
 
 const DAPP_BOOKMARKS = [
   { name: "News", url: "search:crypto news today", fav: "📰" },
@@ -1219,35 +1225,108 @@ async function erc20Balance(contract, addr, decimals){
   const raw = BigInt(hex || "0x0");
   return Number(raw) / 10 ** decimals;
 }
-async function solRpc(method, params){
-  const r = await fetch(SOL_RPC, {
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify({ jsonrpc:"2.0", id:1, method, params }),
-  });
-  const j = await r.json();
-  if(j.error) throw new Error(j.error.message || "Solana RPC error");
-  return j.result;
+async function solRpc(method, params, opts){
+  const tryList = opts?.rpcList || SOL_RPC_LIST;
+  let lastErr = null;
+  for(const endpoint of tryList){
+    try{
+      const r = await fetch(endpoint, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ jsonrpc:"2.0", id:1, method, params }),
+      });
+      if(!r.ok){
+        lastErr = new Error("HTTP " + r.status);
+        continue;
+      }
+      const j = await r.json();
+      if(j.error){
+        lastErr = new Error(j.error.message || "Solana RPC error");
+        // rate limit / banned → try next
+        if(/rate|limit|403|429|blocked/i.test(String(j.error.message||""))) continue;
+        throw lastErr;
+      }
+      SOL_RPC = endpoint; // remember working endpoint
+      return j.result;
+    }catch(e){
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error("All Solana RPCs failed");
+}
+function formatSolAmount(solNum){
+  const n = Number(solNum);
+  if(!isFinite(n)) return "—";
+  if(n === 0) return "0";
+  // keep dust visible (lamports → up to 9 decimals)
+  if(Math.abs(n) < 1e-6) return n.toFixed(9).replace(/0+$/,"").replace(/\.$/,"");
+  return n.toLocaleString(undefined, { maximumFractionDigits: 9, minimumFractionDigits: 0 });
 }
 async function solBalance(addr){
-  const res = await solRpc("getBalance", [addr]);
-  const lamports = res?.value ?? res ?? 0;
-  return Number(lamports) / 1e9;
+  if(!addr) throw new Error("No Solana address");
+  const res = await solRpc("getBalance", [addr, { commitment: "confirmed" }]);
+  const lamports = Number(res?.value ?? res ?? 0);
+  return lamports / 1e9;
 }
 async function splBalance(mint, owner){
   // getTokenAccountsByOwner filtered by mint
   const res = await solRpc("getTokenAccountsByOwner", [
     owner,
     { mint },
-    { encoding: "jsonParsed" },
+    { encoding: "jsonParsed", commitment: "confirmed" },
   ]);
   const list = res?.value || [];
   let total = 0;
   for(const acc of list){
     const info = acc?.account?.data?.parsed?.info?.tokenAmount;
     if(info?.uiAmount != null) total += Number(info.uiAmount);
+    else if(info?.amount != null && info?.decimals != null){
+      total += Number(info.amount) / 10 ** Number(info.decimals);
+    }
   }
   return total;
+}
+/** Recent SOL transfers for an address (amount + direction). */
+async function solRecentTransfers(addr, limit = 15){
+  const sigs = await solRpc("getSignaturesForAddress", [addr, { limit }]) || [];
+  const rows = [];
+  for(const s of sigs.slice(0, limit)){
+    const sig = s.signature;
+    let amount = "";
+    let dir = "in";
+    let title = s.err ? "Failed" : "Solana tx";
+    try{
+      const tx = await solRpc("getTransaction", [
+        sig,
+        { encoding: "jsonParsed", maxSupportedTransactionVersion: 0, commitment: "confirmed" },
+      ]);
+      if(tx?.meta && !tx.meta.err){
+        const keys = (tx.transaction?.message?.accountKeys || []).map(k=>
+          typeof k === "string" ? k : (k.pubkey || "")
+        );
+        const idx = keys.indexOf(addr);
+        if(idx >= 0){
+          const pre = Number((tx.meta.preBalances || [])[idx] || 0);
+          const post = Number((tx.meta.postBalances || [])[idx] || 0);
+          const delta = post - pre;
+          if(delta !== 0){
+            dir = delta > 0 ? "in" : "out";
+            title = delta > 0 ? "Received" : "Sent";
+            amount = formatSolAmount(Math.abs(delta) / 1e9) + " SOL";
+          }
+        }
+      }
+    }catch(_){}
+    rows.push({
+      dir,
+      title,
+      amount: amount || "SOL",
+      sub: (sig || "").slice(0, 16) + "…" + (s.blockTime ? " · " + new Date(s.blockTime * 1000).toLocaleString() : ""),
+      url: "https://solscan.io/tx/" + encodeURIComponent(sig || ""),
+      sig,
+    });
+  }
+  return rows;
 }
 
 function customTokens(){
@@ -3168,17 +3247,25 @@ async function refreshEthBalances(){
       }catch{ ethBalances[a.id] = "—"; }
     }
   }
-  if(solInfo){
+  if(solInfo?.address){
     try{
       const sol = await solBalance(solInfo.address);
-      ethBalances.sol = sol.toLocaleString(undefined,{maximumFractionDigits:6});
-    }catch{ ethBalances.sol = "—"; }
+      ethBalances.sol = formatSolAmount(sol);
+      ethBalances._solErr = "";
+    }catch(e){
+      ethBalances.sol = "—";
+      ethBalances._solErr = e.message || "RPC error";
+      console.warn("SOL balance failed", e);
+    }
     for(const a of allAssets()){
       if(a.kind!=="spl") continue;
       try{
         const b = await splBalance(a.mint, solInfo.address);
-        ethBalances[a.id] = b.toLocaleString(undefined,{maximumFractionDigits:6});
-      }catch{ ethBalances[a.id] = "—"; }
+        ethBalances[a.id] = formatSolAmount(b);
+      }catch(e){
+        ethBalances[a.id] = "—";
+        console.warn("SPL balance failed", a.symbol, e);
+      }
     }
   }
   if(xtzInfo){
