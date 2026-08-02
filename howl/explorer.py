@@ -158,7 +158,7 @@ a:hover{text-decoration:underline}
   grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 14px 12px}
 .stat .k{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
-.stat .v{font-size:1.25rem;font-weight:750;margin-top:6px}
+.stat .v{font-size:1.25rem;font-weight:750;margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .stat .s{font-size:.78rem;color:var(--muted);margin-top:4px}
 .main{max-width:1200px;margin:0 auto;padding:0 20px 40px}
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
@@ -223,7 +223,27 @@ const app = () => $('#app');
 async function api(p){const r=await fetch(p); const j=await r.json(); if(!r.ok) throw new Error(j.error||r.statusText); return j}
 function short(h,n=12){if(!h)return '—'; h=String(h); return h.length<=n?h:h.slice(0,n)+'…'}
 function fmtAmt(a){if(a==null||a==='')return '—'; const n=Number(a)/1e8; return n.toLocaleString(undefined,{maximumFractionDigits:8})+' HOWL'}
+function fmtCompact(n){
+  // short number for stat boxes: 40499998 → 40.5M
+  const x=Number(n);
+  if(!isFinite(x)) return '—';
+  const abs=Math.abs(x);
+  const sign=x<0?'-':'';
+  if(abs>=1e12) return sign+(abs/1e12).toFixed(2).replace(/\.?0+$/,'')+'T';
+  if(abs>=1e9) return sign+(abs/1e9).toFixed(2).replace(/\.?0+$/,'')+'B';
+  if(abs>=1e6) return sign+(abs/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';
+  if(abs>=1e3) return sign+(abs/1e3).toFixed(1).replace(/\.0$/,'')+'K';
+  if(abs>=1) return sign+abs.toFixed(abs>=100?0:2).replace(/\.?0+$/,'');
+  return sign+abs.toFixed(4).replace(/\.?0+$/,'');
+}
+function circulatingShort(s){
+  // s.circulating is like "40499998.00000000 HOWL" or use howlies
+  if(s.circulating_howlies!=null) return fmtCompact(Number(s.circulating_howlies)/1e8);
+  const raw=String(s.circulating||'').replace(/ HOWL/i,'').replace(/,/g,'').trim();
+  return fmtCompact(raw);
+}
 function fmtTime(ts){if(!ts)return '—'; try{return new Date(ts*1000).toLocaleString()}catch(e){return '—'}}
+
 function ago(ts){if(!ts)return ''; const s=Math.max(0,Math.floor(Date.now()/1000-ts));
   if(s<60)return s+'s ago'; if(s<3600)return Math.floor(s/60)+'m ago'; if(s<86400)return Math.floor(s/3600)+'h ago'; return Math.floor(s/86400)+'d ago'}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -287,8 +307,8 @@ async function loadHome(){
     <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/block/${s.height}'">
       <div class="k">Height</div><div class="v">${s.height}</div><div class="s">click → tip block</div></div>
     <div class="stat"><div class="k">Difficulty</div><div class="v">${s.difficulty}</div><div class="s">Scrypt PoW</div></div>
-    <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/richlist'">
-      <div class="k">Circulating</div><div class="v" style="font-size:1rem">${esc(String(s.circulating).replace(' HOWL',''))}</div><div class="s">click → richlist</div></div>
+    <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/richlist'" title="${esc(String(s.circulating||''))}">
+      <div class="k">Circulating</div><div class="v">${esc(circulatingShort(s))}</div><div class="s">HOWL · click → richlist</div></div>
     <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/mempool'">
       <div class="k">Mempool</div><div class="v">${s.mempool}</div><div class="s">click → pending txs</div></div>
     <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/richlist'">
