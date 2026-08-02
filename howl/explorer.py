@@ -211,7 +211,6 @@ tbody tr:hover{background:var(--rowh)}
     <a href="#/public/block/0">Genesis</a>
   </div>
   <div>API <span class="mono">/api/networks</span> · seed <span class="mono">147.182.223.204:42069</span> ·
-    <a href="https://t.me/HowlMine_bot" target="_blank" rel="noopener">Bot</a> ·
     <a href="https://github.com/happyoils710/howlcoin" target="_blank" rel="noopener">Code</a>
   </div>
 </div>
@@ -567,7 +566,6 @@ python3 -m howl mine --continuous`;
         <div class="k">Public seed</div><div class="mono">${esc(SEED)}${copyBtn(SEED)}</div>
         <div class="k">Explorer</div><div><a href="https://howlscan.org/">https://howlscan.org/</a></div>
         <div class="k">Source code</div><div><a href="${REPO}" target="_blank" rel="noopener">${esc(REPO)}</a></div>
-        <div class="k">Telegram bot</div><div><a href="https://t.me/HowlMine_bot" target="_blank" rel="noopener">@HowlMine_bot</a></div>
       </div>
     </div>
     <div class="card detail" style="margin-top:14px">
@@ -588,7 +586,6 @@ python3 -m howl mine --continuous`;
       <p>
         <a class="chipbtn" style="display:inline-block;text-decoration:none;margin:4px" href="${REPO}" target="_blank" rel="noopener">Open GitHub repo</a>
         <a class="chipbtn" style="display:inline-block;text-decoration:none;margin:4px" href="${REPO}/archive/refs/heads/main.zip" target="_blank" rel="noopener">Download ZIP</a>
-        <a class="chipbtn" style="display:inline-block;text-decoration:none;margin:4px" href="https://t.me/HowlMine_bot" target="_blank" rel="noopener">Open Telegram bot</a>
         <button class="chipbtn" style="margin:4px" onclick="copyText('python3 -m howl node --connect ${SEED}', this)">Copy connect command</button>
       </p>
       <p class="muted" style="margin-bottom:0">After you connect, your node downloads blocks from the seed until your tip matches Howlscan.</p>
@@ -780,18 +777,11 @@ def default_networks(
     public_dir: Optional[Path] = None,
     telegram_dir: Optional[Path] = None,
 ) -> Dict[str, Path]:
-    """Build network map. Telegram chain is optional and off by default."""
+    """Build network map (public Howlcoin ledger only)."""
     import os
 
     pub = Path(os.environ.get("HOWL_PUBLIC_DATA", public_dir or DEFAULT_PUBLIC))
-    nets: Dict[str, Path] = {"public": pub}
-    # Only include telegram if explicitly requested via env or CLI path
-    tg_env = os.environ.get("HOWL_TELEGRAM_DATA", "").strip()
-    if telegram_dir:
-        nets["telegram"] = Path(telegram_dir).expanduser()
-    elif tg_env:
-        nets["telegram"] = Path(tg_env).expanduser()
-    return nets
+    return {"public": pub}
 
 
 def main(
@@ -800,9 +790,6 @@ def main(
     public_dir: Optional[str] = None,
     telegram_dir: Optional[str] = None,
 ) -> None:
-    nets = default_networks(
-        Path(public_dir) if public_dir else None,
-        Path(telegram_dir) if telegram_dir else None,
-    )
+    nets = default_networks(Path(public_dir) if public_dir else None)
     hub = ExplorerHub(nets)
     ExplorerServer(hub, host=host, port=port).serve_forever()

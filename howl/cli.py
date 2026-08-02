@@ -431,38 +431,14 @@ def cmd_peers(args: argparse.Namespace) -> None:
 
 
 def cmd_explorer(args: argparse.Namespace) -> None:
-    """Multi-chain block explorer (public + telegram data dirs)."""
+    """Public chain block explorer."""
     from .explorer import main as explorer_main
 
     explorer_main(
         host=args.host,
         port=args.port,
         public_dir=args.public_data,
-        telegram_dir=args.telegram_data,
     )
-
-
-def cmd_telegram(args: argparse.Namespace) -> None:
-    """Run the Howlcoin Telegram bot (needs HOWL_TELEGRAM_TOKEN)."""
-    import os
-
-    if args.token:
-        os.environ["HOWL_TELEGRAM_TOKEN"] = args.token
-    # Prefer explicit env HOWL_DATA_DIR; only override if user passed non-default --data-dir
-    # or if HOWL_DATA_DIR is unset.
-    if not os.environ.get("HOWL_DATA_DIR"):
-        os.environ["HOWL_DATA_DIR"] = str(
-            Path(args.data_dir).expanduser() if args.data_dir else Path.home() / ".howlcoin-telegram"
-        )
-    elif getattr(args, "data_dir", None) and str(args.data_dir) != str(DEFAULT_DATA_DIR):
-        os.environ["HOWL_DATA_DIR"] = str(Path(args.data_dir).expanduser())
-    if args.seed:
-        os.environ["HOWL_SEED"] = args.seed
-    if args.cooldown:
-        os.environ["HOWL_MINE_COOLDOWN"] = str(args.cooldown)
-    from .telegram_bot import main as tg_main
-
-    tg_main()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -576,33 +552,13 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("peers", help="show saved peer list")
     s.set_defaults(func=cmd_peers)
 
-    s = sub.add_parser("telegram", help="run Telegram bot (wallet + mine + status)")
-    s.add_argument("--token", help="BotFather token (or set HOWL_TELEGRAM_TOKEN)")
-    s.add_argument(
-        "--seed",
-        default="147.182.223.204:42069",
-        help="public seed string shown to users",
-    )
-    s.add_argument(
-        "--cooldown",
-        type=int,
-        default=120,
-        help="seconds between /mine per user (default 120)",
-    )
-    s.set_defaults(func=cmd_telegram)
-
-    s = sub.add_parser("explorer", help="block explorer (public chain; optional telegram)")
+    s = sub.add_parser("explorer", help="block explorer (public chain)")
     s.add_argument("--host", default="127.0.0.1", help="bind host (0.0.0.0 for LAN/public)")
     s.add_argument("--port", type=int, default=42080, help="port (default 42080)")
     s.add_argument(
         "--public-data",
         default=None,
         help="public chain data dir (default ~/.howlcoin or HOWL_PUBLIC_DATA)",
-    )
-    s.add_argument(
-        "--telegram-data",
-        default=None,
-        help="optional: include a telegram bot chain tab (off by default)",
     )
     s.set_defaults(func=cmd_explorer)
 
