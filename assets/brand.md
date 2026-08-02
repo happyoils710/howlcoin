@@ -26,6 +26,9 @@ Cute cartoon wolf howling at a mint crescent moon, **gold coin rim** — Scrypt 
 | `howlcoin-logo-meme.jpg` / `.png` | Same as primary (explicit meme variant) |
 | `howlcoin-logo-meme-howlface.jpg` / `.png` | Alternate: big grinning wolf face on mint ring |
 | `howlcoin-logo-meme-pup-coin.jpg` / `.png` | Alternate: chubby pup + gold coin (previous mascot restyle) |
+| `howlcoin-logo-money.jpg` / `.png` | **Money symbol** — wolf howl fused into a mint `$` on a gold coin |
+| `howlcoin-logo-money-ears.jpg` / `.png` | Money symbol alt — `$` with wolf ears + crescent moon |
+| `howlcoin-logo-money-h.jpg` / `.png` | Money symbol alt — glowing **H** monogram as currency mark |
 | `howlcoin-logo-professional.jpg` / `.png` | Serious geometric mark (white paper / exchange deck) |
 | `howlcoin-logo-professional-coin.jpg` / `.png` | Premium 3D coin render |
 | `howlcoin-logo-professional-icon.jpg` / `.png` | Flat silhouette icon |
