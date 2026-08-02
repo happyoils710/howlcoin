@@ -740,7 +740,9 @@ function copySeed(){
 async function mine(n){
   const btn = document.getElementById('mineBtn');
   const st = document.getElementById('mineStatus');
-  btn.disabled = true; st.textContent = 'Mining…';
+  btn.disabled = true;
+  st.textContent = 'Mining… can take hours at higher difficulty. Leave node running — watch the Terminal for H/s and ETA.';
+  toast('Mining started — check Terminal for live ETA');
   try{
     const j = await api('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({blocks:n})});
     st.textContent = 'Mined to height ' + j.height + ' · ' + j.balance;
