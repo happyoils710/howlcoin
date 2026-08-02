@@ -199,6 +199,22 @@ MEDIA_DIR = Path(
 )
 MEDIA_MAX_BYTES = int(os.environ.get("HOWL_MEDIA_MAX_BYTES", str(450_000)))
 
+# Click counters / monetized redirects (see howl/click_stats.py)
+try:
+    from .click_stats import (
+        load_link_registry,
+        public_summary as click_public_summary,
+        record_click,
+        resolve_redirect,
+    )
+except ImportError:  # pragma: no cover
+    from click_stats import (  # type: ignore
+        load_link_registry,
+        public_summary as click_public_summary,
+        record_click,
+        resolve_redirect,
+    )
+
 
 def _save_nft_media(
     image_b64: str,
@@ -1501,6 +1517,10 @@ html[data-theme="bones"] body::before{display:none!important}
 body > *{position:relative;z-index:1}
 a{color:var(--link);text-decoration:none}
 a:hover{text-decoration:underline}
+.click-badge{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;font-size:.65rem;font-weight:700;
+  vertical-align:middle;background:rgba(0,255,198,.12);border:1px solid rgba(0,255,198,.28);color:var(--green);
+  font-family:ui-monospace,Menlo,monospace;line-height:1.4}
+a[data-monetize="1"] .click-badge,a[href^="/r/"] .click-badge{background:rgba(192,132,252,.15);border-color:rgba(192,132,252,.35);color:#c084fc}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.84rem;word-break:break-all}
 .muted{color:var(--muted)}
 .topbar{display:flex;align-items:center;gap:10px;padding:10px 14px;padding-top:calc(10px + var(--safe-t));
@@ -1700,9 +1720,10 @@ tbody tr:hover{background:var(--rowh)}
     <button class="chipbtn" onclick="location.hash='#/'+net+'/richlist'">Richlist</button>
     <button class="chipbtn" onclick="location.hash='#/'+net+'/mempool'">Mempool</button>
     <button class="chipbtn" onclick="location.hash='#/'+net+'/block/0'">Genesis</button>
-    <a class="chipbtn" href="/whitepaper" style="text-decoration:none;display:inline-flex;align-items:center">White paper</a>
-    <a class="chipbtn" href="/token" style="text-decoration:none;display:inline-flex;align-items:center;color:var(--text)">Token info</a>
-    <a class="chipbtn" href="/wallet" style="text-decoration:none;display:inline-flex;align-items:center">Wallet</a>
+    <a class="chipbtn" href="/whitepaper" data-click-id="whitepaper" style="text-decoration:none;display:inline-flex;align-items:center">White paper</a>
+    <a class="chipbtn" href="/token" data-click-id="token_info" style="text-decoration:none;display:inline-flex;align-items:center;color:var(--text)">Token info</a>
+    <a class="chipbtn" href="/wallet" data-click-id="wallet_app" style="text-decoration:none;display:inline-flex;align-items:center">Wallet</a>
+    <a class="chipbtn" href="/clicks" data-click-id="clicks_stats" style="text-decoration:none;display:inline-flex;align-items:center">Clicks</a>
     <button class="chipbtn" style="border-color:var(--primary-border);color:var(--green)" onclick="location.hash='#/run'">Run a node</button>
     <button class="chipbtn" onclick="refreshData()">Refresh</button>
   </div>
@@ -1722,10 +1743,11 @@ tbody tr:hover{background:var(--rowh)}
   <button class="ditem" type="button" onclick="navTo('#/'+net+'/block/0')">🌱 Genesis</button>
   <h4 style="margin-top:16px">Get started</h4>
   <button class="ditem primary" type="button" onclick="navTo('#/run')">🐺 Run a node</button>
-  <a class="ditem" href="/wallet">👛 Wallet</a>
-  <a class="ditem" href="/token">🏷 Token / contract info</a>
-  <a class="ditem" href="/whitepaper">📄 White paper</a>
-  <a class="ditem" href="https://github.com/happyoils710/howlcoin" target="_blank" rel="noopener">⌥ GitHub</a>
+  <a class="ditem" href="/wallet" data-click-id="wallet_app">👛 Wallet</a>
+  <a class="ditem" href="/token" data-click-id="token_info">🏷 Token / contract info</a>
+  <a class="ditem" href="/whitepaper" data-click-id="whitepaper">📄 White paper</a>
+  <a class="ditem" href="/r/github" data-click-id="github" rel="noopener">⌥ GitHub</a>
+  <a class="ditem" href="/clicks" data-click-id="clicks_stats">📊 Link clicks</a>
   <h4 style="margin-top:16px">Appearance</h4>
   <div class="theme-grid" id="themeGrid">
     <button type="button" class="theme-pill" data-theme="dark" onclick="setTheme('dark')">Dark<small>Default</small></button>
@@ -1764,7 +1786,8 @@ tbody tr:hover{background:var(--rowh)}
     <a href="#/public/block/0">Genesis</a>
   </div>
   <div>API <span class="mono">/api/networks</span> · seed <span class="mono">147.182.223.204:42069</span> ·
-    <a href="https://github.com/happyoils710/howlcoin" target="_blank" rel="noopener">Code</a>
+    <a href="https://github.com/happyoils710/howlcoin" target="_blank" rel="noopener" data-click-id="github">Code</a> ·
+    <a href="/clicks">Link clicks</a>
   </div>
 </div>
 <nav class="bottom-nav" id="bottom-nav" aria-label="Primary">
@@ -1783,6 +1806,85 @@ const LS_THEME_WALLET = 'howl_theme_v1';
 const THEMES = ['light','dark','neo','bones'];
 const $ = s => document.querySelector(s);
 const app = () => $('#app');
+
+/* —— Link click counters (aggregate; monetize via /r/{id}) —— */
+const clickCountCache = Object.create(null);
+function trackClick(opts){
+  const payload = {
+    id: (opts && opts.id) || '',
+    href: (opts && opts.href) || '',
+    kind: (opts && opts.kind) || '',
+    monetize: !!(opts && opts.monetize),
+    source: (opts && opts.source) || 'howlscan',
+  };
+  try{
+    const body = JSON.stringify(payload);
+    if(navigator.sendBeacon){
+      const blob = new Blob([body], {type:'application/json'});
+      navigator.sendBeacon('/api/public/click', blob);
+    } else {
+      fetch('/api/public/click', {method:'POST', headers:{'Content-Type':'application/json'}, body, keepalive:true}).catch(()=>{});
+    }
+  }catch(e){}
+  if(payload.id){
+    clickCountCache[payload.id] = (clickCountCache[payload.id]||0) + 1;
+    paintClickBadges();
+  }
+}
+function classifyHrefClient(href){
+  if(!href) return 'other';
+  if(href.startsWith('#') || href.startsWith('/#') || href.startsWith('/')) return 'internal';
+  try{
+    const u = new URL(href, location.href);
+    if(u.origin === location.origin) return 'internal';
+    return 'external';
+  }catch(e){ return 'other'; }
+}
+function paintClickBadges(){
+  document.querySelectorAll('[data-click-id]').forEach(el=>{
+    const id = el.getAttribute('data-click-id');
+    if(!id) return;
+    let badge = el.querySelector(':scope > .click-badge');
+    const n = clickCountCache[id];
+    if(n == null) return;
+    if(!badge){
+      badge = document.createElement('span');
+      badge.className = 'click-badge';
+      badge.title = 'Clicks (aggregate)';
+      el.appendChild(badge);
+    }
+    badge.textContent = n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n);
+  });
+}
+async function refreshClickBadges(){
+  try{
+    const j = await fetch('/api/public/clicks?limit=100').then(r=>r.json());
+    (j.links||[]).forEach(L=>{ if(L.id) clickCountCache[L.id] = L.clicks||0; });
+    paintClickBadges();
+  }catch(e){}
+}
+function wireClickTracking(){
+  if(document.documentElement.dataset.clickWired) return;
+  document.documentElement.dataset.clickWired = '1';
+  document.addEventListener('click', (ev)=>{
+    const a = ev.target && ev.target.closest && ev.target.closest('a[href]');
+    if(!a) return;
+    const href = a.getAttribute('href') || '';
+    if(!href || href.startsWith('javascript:')) return;
+    // /r/{id} is counted server-side on redirect — avoid double-count
+    if(href.startsWith('/r/') || href.startsWith('/go/')){
+      const id = a.getAttribute('data-click-id') || href.split('/').filter(Boolean)[1] || '';
+      if(id){ clickCountCache[id] = (clickCountCache[id]||0) + 1; paintClickBadges(); }
+      return;
+    }
+    const id = a.getAttribute('data-click-id') || '';
+    const mon = a.getAttribute('data-monetize') === '1';
+    const kind = a.getAttribute('data-click-kind') || (mon ? 'sponsored' : classifyHrefClient(href));
+    trackClick({ id, href, kind, monetize: mon });
+  }, true);
+  refreshClickBadges();
+  setInterval(refreshClickBadges, 60000);
+}
 
 function setTheme(name){
   const t = THEMES.includes(name) ? name : 'dark';
@@ -2617,6 +2719,7 @@ function refreshData(){
 }
 window.addEventListener('hashchange', ()=>route());
 ensureBanner();
+wireClickTracking();
 loadNetworks().then(route);
 // Background data refresh only (banner stays mounted, animation uninterrupted)
 setInterval(()=>{ if(isHomeHash()) loadHome().catch(()=>{}); }, 20000);
@@ -2684,6 +2787,103 @@ class ExplorerServer:
                     if not wh.is_file():
                         return self._json(404, {"error": "wallet guide not found"})
                     return self._bytes(200, wh.read_bytes(), "text/html; charset=utf-8")
+
+                # Monetized / tracked redirect: /r/{id} → count click → destination
+                if path.startswith("/r/") or path.startswith("/go/"):
+                    parts = [p for p in path.strip("/").split("/") if p]
+                    lid = parts[1] if len(parts) >= 2 else ""
+                    entry = resolve_redirect(lid) if lid else None
+                    if not entry:
+                        return self._json(404, {"error": "unknown link id", "id": lid})
+                    dest = str(entry.get("href") or "")
+                    try:
+                        record_click(
+                            link_id=lid,
+                            href=dest,
+                            kind=str(entry.get("kind") or "external"),
+                            monetize=bool(entry.get("monetize")),
+                            source="redirect",
+                        )
+                    except Exception:
+                        pass
+                    # Absolute URL for external; site-relative for internal
+                    if dest.startswith("http://") or dest.startswith("https://"):
+                        loc = dest
+                    elif dest.startswith("/"):
+                        loc = dest
+                    else:
+                        loc = "/" + dest.lstrip("/")
+                    self.send_response(302)
+                    self.send_header("Location", loc)
+                    self.send_header("Cache-Control", "no-store")
+                    self.end_headers()
+                    return
+
+                # Public click stats (transparent monetization dashboard)
+                if path in ("/clicks", "/clicks/", "/link-stats"):
+                    try:
+                        summary = click_public_summary(limit=100)
+                    except Exception as e:
+                        summary = {"error": str(e), "links": [], "total_clicks": 0}
+                    rows_html = []
+                    for L in summary.get("links") or []:
+                        mon = "yes" if L.get("monetize") else "—"
+                        redir = L.get("redirect") or ""
+                        rows_html.append(
+                            "<tr>"
+                            f"<td class='mono'>{html_lib.escape(str(L.get('id','')))}</td>"
+                            f"<td>{html_lib.escape(str(L.get('label','')))}</td>"
+                            f"<td><b>{int(L.get('clicks') or 0)}</b></td>"
+                            f"<td>{html_lib.escape(str(L.get('kind','')))}</td>"
+                            f"<td>{mon}</td>"
+                            f"<td class='mono' style='font-size:.75rem'>{html_lib.escape(str(L.get('href','')[:64]))}</td>"
+                            f"<td>{('<a href=\"'+html_lib.escape(redir)+'\">'+html_lib.escape(redir)+'</a>') if redir else '—'}</td>"
+                            "</tr>"
+                        )
+                    page = f"""<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Howlscan link clicks</title>
+<link rel="stylesheet" href="/assets/howl-site-theme.css"/>
+<style>
+body{{margin:0;font-family:system-ui,sans-serif;background:var(--bg,#0c0f14);color:var(--text,#e8eef7);padding:24px}}
+a{{color:var(--link,#4da3ff)}} table{{width:100%;border-collapse:collapse;font-size:.88rem}}
+th,td{{text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,.08);vertical-align:top}}
+.mono{{font-family:ui-monospace,Menlo,monospace;word-break:break-all}}
+.card{{max-width:1100px;margin:0 auto;background:rgba(18,26,46,.9);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:18px}}
+.muted{{color:#8b9bb8;font-size:.88rem;line-height:1.45}}
+.badge{{display:inline-block;padding:2px 8px;border-radius:999px;background:rgba(0,255,198,.12);color:#3dff9a;font-size:.75rem;font-weight:700}}
+</style></head><body>
+<div class="card">
+  <p><a href="/">← Howlscan</a></p>
+  <h1 style="margin:8px 0">Link click counters</h1>
+  <p class="muted">Aggregate clicks only — no visitor IPs. Monetized links use <span class="mono">/r/{{id}}</span> redirects.
+  Configure partners in <span class="mono">click_links.json</span> or env <span class="mono">HOWL_CLICK_LINKS</span>.</p>
+  <p><span class="badge">total {int(summary.get('total_clicks') or 0)}</span>
+  · est. revenue ${html_lib.escape(str(summary.get('estimated_revenue_usd') or 0))} USD
+  (from cpc_usd × clicks on monetized ids)</p>
+  <table>
+    <thead><tr><th>id</th><th>label</th><th>clicks</th><th>kind</th><th>monetize</th><th>href</th><th>redirect</th></tr></thead>
+    <tbody>{''.join(rows_html) or '<tr><td colspan="7" class="muted">No clicks yet — browse the site</td></tr>'}</tbody>
+  </table>
+  <h3 style="margin-top:22px">Add a paid / affiliate link</h3>
+  <pre class="mono" style="font-size:.78rem;white-space:pre-wrap;background:rgba(0,0,0,.35);padding:12px;border-radius:10px">/* /var/lib/howlcoin/click_links.json */
+{{
+  "links": {{
+    "partner_x": {{
+      "href": "https://partner.example/ref=howlcoin",
+      "label": "Partner X",
+      "kind": "sponsored",
+      "monetize": true,
+      "cpc_usd": 0.15
+    }}
+  }}
+}}
+/* Then link as: &lt;a href="/r/partner_x" data-click-id="partner_x"&gt;…&lt;/a&gt; */</pre>
+  <p class="muted">API: <span class="mono">GET /api/public/clicks</span> · <span class="mono">POST /api/public/click</span></p>
+</div>
+</body></html>"""
+                    return self._bytes(200, page.encode("utf-8"), "text/html; charset=utf-8")
 
                 # Public non-custodial wallet (syncs to public chain via API)
                 if path in ("/app", "/app/", "/wallet/app", "/wallet/app/"):
@@ -2884,6 +3084,34 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
 
                 if path == "/api/networks":
                     return self._json(200, {"networks": hub.list_networks()})
+
+                # Link click counters (aggregate analytics + monetization hooks)
+                if path in ("/api/public/clicks", "/api/clicks"):
+                    try:
+                        limit = int((qs.get("limit") or ["50"])[0])
+                    except (TypeError, ValueError):
+                        limit = 50
+                    try:
+                        return self._json(200, click_public_summary(limit=limit))
+                    except Exception as e:
+                        return self._json(500, {"error": str(e)})
+
+                if path in ("/api/public/click", "/api/click"):
+                    # Also accept GET for simple beacons: /api/public/click?id=github&href=...
+                    if self.command == "GET":
+                        try:
+                            out = record_click(
+                                link_id=(qs.get("id") or [None])[0],
+                                href=(qs.get("href") or [None])[0],
+                                kind=(qs.get("kind") or [None])[0],
+                                monetize=(qs.get("monetize") or ["0"])[0] in ("1", "true", "yes"),
+                                source="get",
+                            )
+                            return self._json(200, out)
+                        except Exception as e:
+                            return self._json(400, {"error": str(e)})
+                    # POST handled below with body
+                    pass
 
                 if path in ("/api/public/fees", "/api/fees"):
                     return self._json(
@@ -3308,6 +3536,20 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                     body = json.loads(raw.decode() or "{}")
                 except json.JSONDecodeError:
                     return self._json(400, {"error": "invalid json"})
+
+                # Link click counter (sendBeacon / fetch)
+                if path in ("/api/public/click", "/api/click"):
+                    try:
+                        out = record_click(
+                            link_id=body.get("id") or body.get("link_id"),
+                            href=body.get("href") or body.get("url"),
+                            kind=body.get("kind"),
+                            monetize=body.get("monetize"),
+                            source=str(body.get("source") or "post"),
+                        )
+                        return self._json(200, out)
+                    except Exception as e:
+                        return self._json(400, {"error": str(e)})
 
                 # Howl Swap bridge POST
                 if path in ("/api/public/bridge/order", "/api/bridge/order"):
