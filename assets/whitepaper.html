@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Howlcoin White Paper — HOWL</title>
+<meta name="description" content="Howlcoin (HOWL) white paper: Scrypt PoW, emission schedule, wallets, Howlscan, and public seed."/>
+<link rel="icon" href="/assets/howlcoin-logo.jpg"/>
+<style>
+:root{
+  --bg:#0c0f14; --bg2:#12161e; --panel:#161b26; --panel2:#1a2130;
+  --border:#252d3d; --text:#e8edf7; --muted:#8b95a8; --link:#4da3ff;
+  --green:#3dff9a; --amber:#ffb020; --chip:#222a3a;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg);color:var(--text);line-height:1.6}
+a{color:var(--link);text-decoration:none}
+a:hover{text-decoration:underline}
+.topbar{display:flex;align-items:center;gap:14px;padding:12px 20px;border-bottom:1px solid var(--border);
+  background:rgba(12,15,20,.92);backdrop-filter:blur(10px);position:sticky;top:0;z-index:20}
+.topbar img{width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid rgba(61,255,154,.45)}
+.brand{font-weight:750;letter-spacing:.02em}
+.brand span{color:var(--green)}
+.brand small{display:block;font-weight:500;color:var(--muted);font-size:.75rem;margin-top:1px}
+.grow{flex:1}
+.chipbtn{border:1px solid var(--border);background:var(--chip);color:var(--text);
+  border-radius:8px;padding:7px 12px;cursor:pointer;font:inherit;font-size:.85rem;font-weight:600;
+  text-decoration:none;display:inline-block}
+.chipbtn:hover{border-color:#3a4660;text-decoration:none}
+.chipbtn.primary{border-color:rgba(61,255,154,.45);color:var(--green)}
+.wrap{max-width:820px;margin:0 auto;padding:28px 20px 60px}
+.paper{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:28px 32px 40px}
+@media(max-width:640px){.paper{padding:20px 16px 32px}}
+h1{font-size:1.85rem;margin:0 0 8px;font-weight:750;line-height:1.25}
+h2{font-size:1.25rem;margin:2rem 0 .75rem;padding-top:.5rem;border-top:1px solid var(--border);font-weight:700;color:var(--green)}
+h2:first-of-type{border-top:0;padding-top:0}
+h3{font-size:1.05rem;margin:1.4rem 0 .5rem;font-weight:700}
+p{margin:.75rem 0;color:var(--text)}
+.muted,.paper > p:first-of-type{color:var(--muted)}
+blockquote{margin:1rem 0;padding:12px 16px;border-left:3px solid var(--green);
+  background:rgba(61,255,154,.06);border-radius:0 10px 10px 0;color:var(--muted);font-style:italic}
+ul,ol{margin:.6rem 0;padding-left:1.35rem}
+li{margin:.35rem 0}
+hr{border:0;border-top:1px solid var(--border);margin:1.5rem 0}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em;
+  background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:1px 6px}
+pre{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px 16px;overflow-x:auto}
+pre code{background:none;border:0;padding:0;font-size:.82rem;line-height:1.45}
+table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.9rem}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+th{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;background:var(--panel2)}
+tr:hover td{background:rgba(255,255,255,.02)}
+strong{font-weight:700}
+.meta{color:var(--muted);font-size:.92rem;margin-bottom:1.25rem}
+.footer{max-width:820px;margin:0 auto;padding:0 20px 40px;color:var(--muted);font-size:.82rem;
+  display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.toc{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin:1rem 0 1.5rem}
+.toc b{display:block;margin-bottom:8px;font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.toc a{display:block;padding:3px 0;font-size:.9rem}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <a href="/"><img src="/assets/howlcoin-logo.jpg" alt="HOWL"/></a>
+  <a href="/" class="brand" style="color:inherit;text-decoration:none">Howl<span>scan</span><small>Howlcoin block explorer</small></a>
+  <div class="grow"></div>
+  <a class="chipbtn" href="/">Explorer</a>
+  <a class="chipbtn primary" href="/whitepaper">White paper</a>
+  <a class="chipbtn" href="/#/run">Run a node</a>
+  <a class="chipbtn" href="https://github.com/happyoils710/howlcoin" target="_blank" rel="noopener">GitHub</a>
+</div>
+<div class="wrap">
+  <article class="paper">
+<h1 id="howlcoin-howl-white-paper">Howlcoin (HOWL) White Paper</h1>
+<p><strong>Version 1.0</strong> · August 2026 <strong>Ticker:</strong> HOWL <strong>Website / explorer:</strong> <a href="https://howlscan.org">https://howlscan.org</a> <strong>Source:</strong> <a href="https://github.com/happyoils710/howlcoin">https://github.com/happyoils710/howlcoin</a> <strong>Public seed:</strong> <code>147.182.223.204:42069</code></p>
+<blockquote><em>The moon heard a howl and howled back. Scrypt free. Much chain. Very wow.</em></blockquote>
+<hr/>
+<h2 id="abstract">Abstract</h2>
+<p>Howlcoin is an open-source, <strong>Scrypt proof-of-work</strong> cryptocurrency designed for <strong>CPU-friendly mining</strong>, transparent rules, and community experimentation. It is a standalone ledger (not a token on another smart-contract chain). Users run nodes, mine blocks, send HOWL between addresses, and inspect the chain on <strong>Howlscan</strong>.</p>
+<p>Howlcoin prioritizes <strong>clarity and accessibility</strong> over industrial hashrate competition. Early block rewards are intentionally large so a small network of ordinary computers can bootstrap distribution. Emission then steps down by height, with a permanent <strong>tail reward</strong> so mining never fully ends.</p>
+<p><strong>This software is experimental and community-oriented. It is not financial advice. There is no promise of price, exchange listing, or profit.</strong></p>
+<hr/>
+<h2 id="1-motivation">1. Motivation</h2>
+<p>Many modern “coins” are database entries on someone else’s chain. Howlcoin instead offers:</p>
+<ol><li><strong>A real PoW chain</strong> — blocks are earned by Scrypt work, not by mint buttons on a contract.  </li><li><strong>Runnable software</strong> — one repository, Python implementation, simple CLI.  </li><li><strong>Public infrastructure</strong> — a seed node and a public explorer (Howlscan).  </li><li><strong>Fair launch posture</strong> — genesis creates <strong>no spendable premine</strong>; coins enter circulation via mining.</li></ol>
+<p>Howlcoin is built for people who want to <strong>see</strong> a chain: mine a block, watch height move, send to a friend, look it up on the explorer.</p>
+<hr/>
+<h2 id="2-design-goals">2. Design goals</h2>
+<table><thead><tr><th>Goal</th><th>Approach</th></tr></thead><tbody><tr><td>Easy to mine at launch</td><td>Light Scrypt, modest initial difficulty</td></tr><tr><td>Predictable rules</td><td>Fixed emission schedule by block height</td></tr><tr><td>Open participation</td><td>Public seed + open-source node software</td></tr><tr><td>Inspectability</td><td>Howlscan block explorer + HTTP API</td></tr><tr><td>Simple wallets</td><td>BIP39 12-word seeds or raw private keys</td></tr><tr><td>Honest scope</td><td>Documented limits; no fake “enterprise” claims</td></tr></tbody></table>
+<hr/>
+<h2 id="3-consensus">3. Consensus</h2>
+<h3 id="31-proof-of-work">3.1 Proof of work</h3>
+<p>Howlcoin uses <strong>Scrypt</strong> with parameters:</p>
+<table><thead><tr><th>Parameter</th><th>Value</th></tr></thead><tbody><tr><td><strong>N</strong></td><td>1024</td></tr><tr><td><strong>r</strong></td><td>1</td></tr><tr><td><strong>p</strong></td><td>1</td></tr><tr><td><strong>Output</strong></td><td>32 bytes</td></tr></tbody></table>
+<p>Block headers are serialized and hashed with Scrypt. A block is valid when the digest meets the current <strong>difficulty</strong> rule (leading zero hex nibbles).</p>
+<h3 id="32-block-time-and-difficulty">3.2 Block time and difficulty</h3>
+<table><thead><tr><th>Parameter</th><th>Value</th></tr></thead><tbody><tr><td>Target block time</td><td><strong>60 seconds</strong></td></tr><tr><td>Difficulty retarget</td><td>Every <strong>20</strong> blocks</td></tr><tr><td>Max adjust per window</td><td><strong>4×</strong> up or down</td></tr><tr><td>Initial difficulty</td><td><strong>4</strong></td></tr></tbody></table>
+<p>Difficulty is adjusted so average block time tracks the target as hashrate changes.</p>
+<h3 id="33-genesis">3.3 Genesis</h3>
+<ul><li><strong>Height:</strong> 0  </li><li><strong>Spendable subsidy:</strong> 0  </li><li><strong>Inscription:</strong> project launch message (see genesis hash on Howlscan)  </li><li>All networks that share this genesis and software rules are the same <em>family</em>; only <strong>synced peers</strong> share one public tip.</li></ul>
+<h3 id="34-validation-high-level">3.4 Validation (high level)</h3>
+<p>A new block must:</p>
+<ul><li>Link to the previous tip (<code>prev_hash</code>)  </li><li>Carry correct height  </li><li>Include a valid <strong>coinbase</strong> (mining reward)  </li><li>Meet Scrypt difficulty  </li><li>Include only valid signed transfers (if any) with correct balances and nonces  </li></ul>
+<p>Peers prefer a <strong>longer valid chain</strong> when syncing.</p>
+<hr/>
+<h2 id="4-transactions-and-accounts">4. Transactions and accounts</h2>
+<p>Howlcoin uses a simple <strong>account model</strong> (address balances), not a full UTXO set.</p>
+<h3 id="41-addresses">4.1 Addresses</h3>
+<ul><li>Base58Check-style addresses with Howlcoin version byte  </li><li>Typical form starts with <strong><code>H</code></strong>  </li><li>Backed by <strong>secp256k1</strong> ECDSA keys  </li></ul>
+<h3 id="42-transfers">4.2 Transfers</h3>
+<p>A transfer includes:</p>
+<ul><li><code>from</code>, <code>to</code>, <code>amount</code>, optional <code>fee</code>  </li><li><code>nonce</code> (replay protection per sender)  </li><li><code>public_key</code>, <code>signature</code>  </li><li>optional <code>memo</code>  </li></ul>
+<p>Transfers enter a <strong>mempool</strong>, then are confirmed when included in a mined block.</p>
+<h3 id="43-coinbase-mining-reward">4.3 Coinbase (mining reward)</h3>
+<p>Each block’s first transaction is a <strong>coinbase</strong>:</p>
+<ul><li><strong>No sender</strong> — new HOWL is created  </li><li><strong>To</strong> the miner’s address  </li><li>Amount set by the emission schedule  </li></ul>
+<p>This is a <strong>mining reward</strong>, not a payment from another wallet.</p>
+<h3 id="44-fees">4.4 Fees</h3>
+<p>Fees are optional in the current implementation and are <strong>not paid to miners as a separate stream</strong> in the simple model (kept intentionally minimal). Exact fee handling may evolve; always check the running software version.</p>
+<hr/>
+<h2 id="5-monetary-policy">5. Monetary policy</h2>
+<h3 id="51-units">5.1 Units</h3>
+<table><thead><tr><th>Unit</th><th>Value</th></tr></thead><tbody><tr><td>1 HOWL</td><td>100,000,000 howlies</td></tr><tr><td>Decimals</td><td>8</td></tr></tbody></table>
+<h3 id="52-block-subsidy-schedule">5.2 Block subsidy schedule</h3>
+<table><thead><tr><th>Height range</th><th>Reward (HOWL / block)</th></tr></thead><tbody><tr><td>0 (genesis)</td><td>0</td></tr><tr><td>1 – 999</td><td><strong>500,000</strong></td></tr><tr><td>1,000 – 9,999</td><td><strong>250,000</strong></td></tr><tr><td>10,000 – 49,999</td><td><strong>100,000</strong></td></tr><tr><td>50,000 – 199,999</td><td><strong>50,000</strong></td></tr><tr><td>200,000 – 499,999</td><td><strong>10,000</strong></td></tr><tr><td>500,000+</td><td><strong>1,000</strong> (tail)</td></tr></tbody></table>
+<h3 id="53-soft-supply-narrative">5.3 Soft supply narrative</h3>
+<p>A soft narrative cap of <strong>100 billion HOWL</strong> is documented for long-horizon storytelling. Because of <strong>tail emission</strong>, total supply grows indefinitely at a low rate after height 500,000. There is no hard “burn to zero issuance” in the current rules.</p>
+<h3 id="54-distribution">5.4 Distribution</h3>
+<ul><li>No genesis premine  </li><li>Coins are distributed to whoever mines (and to recipients of transfers)  </li><li>Early periods heavily favor active miners  </li></ul>
+<hr/>
+<h2 id="6-networking">6. Networking</h2>
+<table><thead><tr><th>Item</th><th>Value</th></tr></thead><tbody><tr><td>Default P2P port</td><td><strong>42069</strong></td></tr><tr><td>Protocol</td><td>JSON-line messages over TCP</td></tr><tr><td>Magic</td><td><code>HOWL</code></td></tr><tr><td>Public seed (main)</td><td><strong>147.182.223.204:42069</strong></td></tr></tbody></table>
+<p>Nodes exchange hellos, inventory, blocks, and transactions. A node that is behind requests blocks and may <strong>adopt a longer valid chain</strong> sharing the same genesis.</p>
+<hr/>
+<h2 id="7-wallets">7. Wallets</h2>
+<h3 id="71-bip39">7.1 BIP39</h3>
+<p>New wallets generate a <strong>12-word English mnemonic</strong>, derived along:</p>
+<pre><code>m/44&#x27;/42069&#x27;/0&#x27;/0/0</code></pre>
+<p>Users must store the mnemonic offline. Anyone with the words controls the funds.</p>
+<h3 id="72-import">7.2 Import</h3>
+<p>Raw <strong>64-character hex</strong> secp256k1 private keys can be imported. Imported keys do not invent a mnemonic.</p>
+<h3 id="73-cli-essentials">7.3 CLI essentials</h3>
+<pre><code>python3 -m howl init
+python3 -m howl wallet
+python3 -m howl mine
+python3 -m howl send &lt;ADDRESS&gt; &lt;AMOUNT&gt;
+python3 -m howl node --connect 147.182.223.204:42069</code></pre>
+<hr/>
+<h2 id="8-howlscan-block-explorer">8. Howlscan (block explorer)</h2>
+<p><strong>https://howlscan.org</strong> is the public, read-only explorer for the main ledger.</p>
+<p>Capabilities include:</p>
+<ul><li>Latest blocks and transactions  </li><li>Block, transaction, and address pages  </li><li>Richlist and mempool  </li><li>Search by height, hash, txid, or address  </li><li>“Run a node” instructions with copy-paste commands  </li></ul>
+<p>The explorer <strong>does not</strong> mint coins and <strong>does not</strong> accept private keys. Client-side browser tools cannot alter the real chain—only the viewer’s local display.</p>
+<p>API examples:</p>
+<ul><li><code>GET /api/public/summary</code>  </li><li><code>GET /api/public/blocks</code>  </li><li><code>GET /api/public/tx/{txid}</code>  </li><li><code>GET /api/public/address/{addr}</code>  </li></ul>
+<hr/>
+<h2 id="9-software-architecture">9. Software architecture</h2>
+<table><thead><tr><th>Component</th><th>Role</th></tr></thead><tbody><tr><td><code>howl</code> CLI</td><td>Wallet, mine, send, node, explorer</td></tr><tr><td><code>blockchain.py</code></td><td>Chain state, validation, mempool</td></tr><tr><td><code>scrypt_pow.py</code></td><td>Scrypt header mining</td></tr><tr><td><code>network.py</code></td><td>P2P sync and relay</td></tr><tr><td><code>dashboard.py</code></td><td>Local node web UI</td></tr><tr><td><code>explorer.py</code></td><td>Howlscan multi-page explorer</td></tr></tbody></table>
+<p>Implementation language: <strong>Python 3</strong>, MIT licensed (see <code>LICENSE</code>).</p>
+<hr/>
+<h2 id="10-security-considerations">10. Security considerations</h2>
+<ol><li><strong>Protect mnemonics and private keys</strong> — never paste them into websites or group chats.  </li><li><strong>Verify software</strong> — prefer official GitHub source and known seed/explorer URLs.  </li><li><strong>Small network risk</strong> — low hashrate chains can be reorganized by a motivated attacker with more power.  </li><li><strong>Experimental code</strong> — expect bugs; pin versions; back up wallets.  </li><li><strong>No insurance</strong> — lost keys mean lost funds.  </li></ol>
+<hr/>
+<h2 id="11-roadmap-non-binding">11. Roadmap (non-binding)</h2>
+<p>Community-driven improvements may include:</p>
+<ul><li>Stronger P2P (peer discovery, compact blocks)  </li><li>Fee market paid to miners  </li><li>Lightweight SPV or mobile clients  </li><li>More explorer analytics  </li><li>Hardening and formal test suites  </li></ul>
+<p>Nothing on this list is a commitment or timeline.</p>
+<hr/>
+<h2 id="12-governance">12. Governance</h2>
+<p>Howlcoin is <strong>open source</strong>. Protocol changes happen by software upgrades that operators choose to run. There is no foundation treasury in genesis and no on-chain voting module in v1.</p>
+<hr/>
+<h2 id="13-disclaimer">13. Disclaimer</h2>
+<p>Howlcoin is provided <strong>as is</strong>, without warranty of any kind. Participation may involve loss of funds, software failure, or chain splits. Authors and contributors are not responsible for damages. <strong>Nothing in this paper is an offer of securities or investment advice.</strong></p>
+<hr/>
+<h2 id="14-references-project-resources">14. References (project resources)</h2>
+<table><thead><tr><th>Resource</th><th>URL / value</th></tr></thead><tbody><tr><td>Explorer</td><td>https://howlscan.org</td></tr><tr><td>White paper (this document)</td><td>https://howlscan.org/whitepaper · <code>WHITEPAPER.md</code> in repo</td></tr><tr><td>Source code</td><td>https://github.com/happyoils710/howlcoin</td></tr><tr><td>Public seed</td><td><code>147.182.223.204:42069</code></td></tr><tr><td>License</td><td>MIT (<code>LICENSE</code>)</td></tr></tbody></table>
+<hr/>
+<h2 id="appendix-a-quick-start-join-the-public-chain">Appendix A — Quick start (join the public chain)</h2>
+<pre><code>git clone https://github.com/happyoils710/howlcoin.git
+cd howlcoin
+python3 -m pip install -r requirements.txt
+python3 -m howl init
+python3 -m howl node --connect 147.182.223.204:42069</code></pre>
+<p>Leave the node running to stay synced. Mine with <code>python3 -m howl mine</code> when ready.</p>
+<hr/>
+<h2 id="appendix-b-genesis-message">Appendix B — Genesis message</h2>
+<pre><code>2026-08-01 Howlcoin: the moon heard a howl and howled back. Scrypt free. Much chain. Very wow.</code></pre>
+<hr/>
+<p><em>End of Howlcoin White Paper v1.0</em> <em>Scrypt till the moon howls.</em></p>
+  </article>
+</div>
+<div class="footer">
+  <div>Howlcoin White Paper v1.0 · <a href="/">Howlscan</a> · <a href="https://github.com/happyoils710/howlcoin/blob/main/WHITEPAPER.md">Source markdown</a></div>
+  <div>Scrypt till the moon howls.</div>
+</div>
+</body>
+</html>

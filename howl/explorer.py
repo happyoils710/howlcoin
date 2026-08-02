@@ -223,6 +223,7 @@ tbody tr:hover{background:var(--rowh)}
   <button class="chipbtn" onclick="location.hash='#/'+net+'/richlist'">Richlist</button>
   <button class="chipbtn" onclick="location.hash='#/'+net+'/mempool'">Mempool</button>
   <button class="chipbtn" onclick="location.hash='#/'+net+'/block/0'">Genesis</button>
+  <a class="chipbtn" href="/whitepaper" style="text-decoration:none;display:inline-block">White paper</a>
   <button class="chipbtn" style="border-color:rgba(61,255,154,.45);color:var(--green)" onclick="location.hash='#/run'">Run a node</button>
   <button class="chipbtn" onclick="refreshData()">Refresh</button>
 </div>
@@ -241,6 +242,7 @@ tbody tr:hover{background:var(--rowh)}
 <div class="footer">
   <div>Howlscan · Scrypt PoW · not financial advice ·
     <a href="#/public">Home</a> ·
+    <a href="/whitepaper">White paper</a> ·
     <a href="#/run">Run a node</a> ·
     <a href="#/public/richlist">Richlist</a> ·
     <a href="#/public/mempool">Mempool</a> ·
@@ -744,6 +746,12 @@ class ExplorerServer:
 
                 if path in ("/", "/index.html"):
                     return self._bytes(200, EXPLORER_HTML.encode(), "text/html; charset=utf-8")
+
+                if path in ("/whitepaper", "/whitepaper.html"):
+                    wp = ASSETS_DIR / "whitepaper.html"
+                    if not wp.is_file():
+                        return self._json(404, {"error": "whitepaper not found"})
+                    return self._bytes(200, wp.read_bytes(), "text/html; charset=utf-8")
 
                 if path.startswith("/assets/"):
                     name = path[len("/assets/") :]

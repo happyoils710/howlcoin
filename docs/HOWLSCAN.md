@@ -30,12 +30,14 @@ nginx proxies **howlscan.org** → `127.0.0.1:42080` with HTTPS (certbot).
 curl -s https://howlscan.org/api/networks
 ```
 
-Browser: **https://howlscan.org/**
+Browser: **https://howlscan.org/**  
+White paper: **https://howlscan.org/whitepaper**
 
 ## 4. Share
 
 ```
 🔍 Explorer: https://howlscan.org
+📄 White paper: https://howlscan.org/whitepaper
 🌱 Seed: 147.182.223.204:42069
 📦 Code: https://github.com/happyoils710/howlcoin
 ```

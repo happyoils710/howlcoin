@@ -1,5 +1,8 @@
 # Howlcoin (HOWL)
 
+> **📄 [White Paper](WHITEPAPER.md)** — full design, consensus, emission, wallets & Howlscan  
+> Read online: **[howlscan.org/whitepaper](https://howlscan.org/whitepaper)**
+
 ```
         __    __
        /  \__/  \      _   _                 _           _
@@ -23,6 +26,9 @@
 | **Decimals** | 8 (1 HOWL = 100,000,000 howlies) |
 | **Launch** | Fair-ish: genesis has **0** premine; you mine block 1+ |
 | **Coinbase (early)** | **500,000 HOWL** / block for the first 1,000 blocks |
+| **White paper** | [WHITEPAPER.md](WHITEPAPER.md) · [howlscan.org/whitepaper](https://howlscan.org/whitepaper) |
+| **Explorer** | [https://howlscan.org](https://howlscan.org) |
+| **Public seed** | `147.182.223.204:42069` |
 
 This is a **real local Scrypt chain** you can mine, send, and explore — not an ERC-20 wrapper and not a Dogecoin mainnet fork binary. Think *early-Doge energy*: silly brand, serious-enough PoW, CPU-mineable while the network is young.
 
