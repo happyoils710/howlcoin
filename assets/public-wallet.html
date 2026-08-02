@@ -950,6 +950,9 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 import {
   createMnemonic, checkMnemonic, keypairFromMnemonic, ethAddressFromMnemonic,
   solAddressFromMnemonic, tezosAddressFromMnemonic,
+  utxoAddressFromMnemonic, btcAddressFromMnemonic, trxAddressFromMnemonic,
+  xrpAddressFromMnemonic, xlmAddressFromMnemonic,
+  UTXO_COINS, EVM_CHAINS,
   buildSignedTx, parseHowl, formatHowl, isValidAddress, COIN, makeNftId,
   PRESET_ASSETS, generateTotpSecret, totpOtpauthUrl, verifyTotp,
 } from "/assets/howl-crypto.mjs";
@@ -1017,15 +1020,27 @@ const DEFAULT_TOOLBAR = ["home", "assets", "swap", "recv", "more"];
 /** Chains for asset browser */
 const ASSET_CHAINS = [
   { id: "howl", label: "Howlcoin", kinds: ["howl"] },
+  { id: "bitcoin", label: "Bitcoin family", kinds: ["utxo"] },
   { id: "solana", label: "Solana", kinds: ["sol", "spl"] },
-  { id: "ethereum", label: "Ethereum", kinds: ["eth", "erc20"] },
+  { id: "ethereum", label: "Ethereum + ERC-20", kinds: ["eth", "evm", "erc20"], evmOnly: "eth" },
+  { id: "op", label: "Optimism", kinds: ["evm"], evmOnly: "op" },
+  { id: "base", label: "Base", kinds: ["evm"], evmOnly: "base" },
+  { id: "bnb", label: "BNB Chain", kinds: ["evm"], evmOnly: "bnb" },
+  { id: "avax", label: "Avalanche", kinds: ["evm"], evmOnly: "avax" },
+  { id: "hype", label: "HyperEVM", kinds: ["evm"], evmOnly: "hype" },
+  { id: "tron", label: "TRON", kinds: ["trx"] },
+  { id: "xrp", label: "XRP Ledger", kinds: ["xrp"] },
+  { id: "stellar", label: "Stellar", kinds: ["xlm"] },
   { id: "tezos", label: "Tezos", kinds: ["xtz"] },
+  { id: "other", label: "Other (external)", kinds: ["external"] },
 ];
 
 let keypair = null;
 let ethInfo = null;
 let solInfo = null;
 let xtzInfo = null;
+/** Extra chain addresses: { btc, ltc, bch, doge, trx, xrp, xlm } */
+let multiInfo = {};
 let mnemonic = null;
 let walletPin = null; // session-only after unlock
 let meta = { totpEnabled: false }; // totp secret lives inside encrypted blob
@@ -1256,14 +1271,28 @@ function allAssets(){
 function chainOfAsset(a){
   if(!a) return "howl";
   if(a.kind === "howl") return "howl";
+  if(a.kind === "utxo") return "bitcoin";
   if(a.kind === "sol" || a.kind === "spl") return "solana";
   if(a.kind === "eth" || a.kind === "erc20") return "ethereum";
+  if(a.kind === "evm") return a.evmId || "ethereum";
+  if(a.kind === "trx") return "tron";
+  if(a.kind === "xrp") return "xrp";
+  if(a.kind === "xlm") return "stellar";
   if(a.kind === "xtz") return "tezos";
+  if(a.kind === "external") return "other";
   return "howl";
 }
 function assetsForChain(chainId){
   const ch = ASSET_CHAINS.find(c => c.id === chainId) || ASSET_CHAINS[0];
-  return allAssets().filter(a => ch.kinds.includes(a.kind));
+  return allAssets().filter(a => {
+    if(!ch.kinds.includes(a.kind)) return false;
+    if(ch.evmOnly && a.kind === "evm" && a.evmId !== ch.evmOnly) return false;
+    if(ch.evmOnly && a.kind === "eth" && ch.evmOnly !== "eth") return false;
+    // ethereum list includes eth + erc20 + hbar-style eth alias assets on eth
+    if(chainId === "ethereum" && a.kind === "evm" && a.evmId && a.evmId !== "eth" && a.id !== "hbar") return false;
+    if(chainId === "ethereum" && a.id === "hbar") return true;
+    return true;
+  });
 }
 function assetBalanceText(a){
   if(!a) return "—";
@@ -1275,7 +1304,16 @@ function assetAddress(a){
   if(a.kind === "howl") return keypair?.address || "";
   if(a.kind === "sol" || a.kind === "spl") return solInfo?.address || "";
   if(a.kind === "xtz") return xtzInfo?.address || "";
+  if(a.kind === "utxo") return multiInfo[a.coinId]?.address || multiInfo[a.id]?.address || "";
+  if(a.kind === "trx") return multiInfo.trx?.address || "";
+  if(a.kind === "xrp") return multiInfo.xrp?.address || "";
+  if(a.kind === "xlm") return multiInfo.xlm?.address || "";
+  if(a.kind === "external") return "";
+  // eth, evm, erc20 share ETH address
   return ethInfo?.address || "";
+}
+function assetDisplaySymbol(a){
+  return a?.displaySymbol || a?.symbol || "?";
 }
 function setSelectedChain(chainId, source){
   const id = (chainId || "howl").toString();
@@ -1324,9 +1362,9 @@ function renderAssetRows(containerId){
   }
   el.innerHTML = list.map(a=>`
     <button type="button" class="asset-row" data-id="${escHtml(a.id)}">
-      <span class="ico">${escHtml((a.symbol||"?").slice(0,4))}</span>
+      <span class="ico">${escHtml(assetDisplaySymbol(a).slice(0,4))}</span>
       <div class="meta">
-        <div class="sym">${escHtml(a.symbol)}</div>
+        <div class="sym">${escHtml(assetDisplaySymbol(a))}</div>
         <div class="nm">${escHtml(a.name||a.network||"")}</div>
       </div>
       <div class="bal">${escHtml(assetBalanceText(a))}</div>
@@ -1367,8 +1405,11 @@ function copyAssetAddress(){
 function assetActions(a){
   const acts = [];
   if(!a) return acts;
-  acts.push({ label: "Deposit / receive", fn: ()=>{ selectedAsset=a.id; showPage("recv"); selectAsset(a.id); } });
-  acts.push({ label: "Copy address", fn: ()=> copyText(assetAddress(a)) });
+  const addr = assetAddress(a);
+  if(a.kind !== "external"){
+    acts.push({ label: "Deposit / receive", fn: ()=>{ selectedAsset=a.id; showPage("recv"); selectAsset(a.id); } });
+    if(addr) acts.push({ label: "Copy address", fn: ()=> copyText(addr) });
+  }
   if(a.kind === "howl"){
     acts.push({ label: "Send HOWL", fn: ()=> showPage("send") });
     acts.push({ label: "Howl Swap (get HOWL)", fn: ()=>{ showPage("swap"); setSwapMode("howl"); } });
@@ -1376,7 +1417,7 @@ function assetActions(a){
   }
   if(a.kind === "sol" || a.kind === "spl"){
     acts.push({ label: "Swap (Jupiter)", fn: ()=>{ showPage("swap"); setSwapMode("jup"); } });
-    if(a.id === "sol" || a.id === "usdc_sol" || a.symbol === "USDC"){
+    if(a.id === "sol" || a.id === "usdc_sol"){
       acts.push({ label: "Howl Swap → HOWL", fn: ()=>{ showPage("swap"); setSwapMode("howl"); if($("bridgeAsset")) $("bridgeAsset").value = a.id==="sol"?"sol":"usdc"; } });
     }
     acts.push({ label: "Explorer", fn: ()=> openExternalUrl("https://solscan.io/account/"+encodeURIComponent(solInfo?.address||"")) });
@@ -1385,8 +1426,31 @@ function assetActions(a){
     acts.push({ label: "Uniswap", fn: ()=> openDapp("https://app.uniswap.org/") });
     acts.push({ label: "Explorer", fn: ()=> openExternalUrl("https://etherscan.io/address/"+encodeURIComponent(ethInfo?.address||"")) });
   }
+  if(a.kind === "evm"){
+    const ev = EVM_CHAINS[a.evmId] || EVM_CHAINS.eth;
+    acts.push({ label: "Open explorer", fn: ()=> openExternalUrl((ev.explorer||"") + (ethInfo?.address||"")) });
+    if(a.evmId === "eth" || a.id === "op" || a.id === "base"){
+      acts.push({ label: "DEX browser", fn: ()=> openDapp(a.evmId==="base"?"https://app.uniswap.org/":"https://app.uniswap.org/") });
+    }
+  }
+  if(a.kind === "utxo"){
+    const u = UTXO_COINS[a.coinId] || UTXO_COINS.btc;
+    acts.push({ label: "Explorer", fn: ()=> openExternalUrl((u.explorer||"") + (addr||"")) });
+  }
+  if(a.kind === "trx"){
+    acts.push({ label: "Explorer", fn: ()=> openExternalUrl("https://tronscan.org/#/address/"+encodeURIComponent(addr||"")) });
+  }
+  if(a.kind === "xrp"){
+    acts.push({ label: "Explorer", fn: ()=> openExternalUrl("https://xrpscan.com/account/"+encodeURIComponent(addr||"")) });
+  }
+  if(a.kind === "xlm"){
+    acts.push({ label: "Explorer", fn: ()=> openExternalUrl("https://stellarchain.io/accounts/"+encodeURIComponent(addr||"")) });
+  }
   if(a.kind === "xtz"){
     acts.push({ label: "Explorer", fn: ()=> openExternalUrl("https://tzkt.io/"+encodeURIComponent(xtzInfo?.address||"")) });
+  }
+  if(a.kind === "external"){
+    acts.push({ label: "Open explorer", fn: ()=> openExternalUrl(a.explorer || "https://howlscan.org") });
   }
   return acts;
 }
@@ -1394,10 +1458,10 @@ function renderAssetDetail(){
   const a = allAssets().find(x=>x.id===detailAssetId) || PRESET_ASSETS[0];
   if($("assetDetailTitle")) $("assetDetailTitle").textContent = a.symbol || "Asset";
   if($("assetNetBadge")) $("assetNetBadge").textContent = a.network || chainOfAsset(a);
-  if($("assetDetailBal")) $("assetDetailBal").textContent = assetBalanceText(a) + " " + (a.symbol||"");
-  if($("assetDetailName")) $("assetDetailName").textContent = a.name || "";
+  if($("assetDetailBal")) $("assetDetailBal").textContent = assetBalanceText(a) + " " + assetDisplaySymbol(a);
+  if($("assetDetailName")) $("assetDetailName").textContent = (a.name || "") + (a.note ? " · " + a.note : "");
   const addr = assetAddress(a);
-  if($("assetDetailAddr")) $("assetDetailAddr").textContent = addr || "—";
+  if($("assetDetailAddr")) $("assetDetailAddr").textContent = addr || (a.kind==="external" ? "(use external wallet)" : "—");
   const actions = assetActions(a);
   if($("assetActions")){
     $("assetActions").innerHTML = actions.map((act,i)=>
@@ -1413,8 +1477,9 @@ function renderAssetDetail(){
     mini.innerHTML = `
       <div style="text-align:center">
         <div class="qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(addr||"")}" alt="QR"/></div>
-        <button class="btn sec" type="button" onclick="copyAssetAddress()">Copy ${escHtml(a.symbol)} address</button>
-        <p class="hint" style="margin-top:8px">Only send <b>${escHtml(a.symbol)}</b> on <b>${escHtml(a.network||"")}</b>.</p>
+        ${addr?`<button class="btn sec" type="button" onclick="copyAssetAddress()">Copy ${escHtml(assetDisplaySymbol(a))} address</button>`:`<p class="hint">No in-app deposit address for this asset yet.</p>`}
+        <p class="hint" style="margin-top:8px">Only send <b>${escHtml(assetDisplaySymbol(a))}</b> on <b>${escHtml(a.network||"")}</b>.</p>
+        ${a.note?`<p class="hint">${escHtml(a.note)}</p>`:""}
         ${a.contract?`<p class="hint mono" style="font-size:.7rem">Contract: ${escHtml(a.contract)}</p>`:""}
         ${a.mint?`<p class="hint mono" style="font-size:.7rem">Mint: ${escHtml(a.mint)}</p>`:""}
       </div>`;
@@ -3038,71 +3103,64 @@ function selectAsset(id){
   renderAssetSeg();
   const a = allAssets().find(x=>x.id===id) || PRESET_ASSETS[0];
   const body = $("depositBody");
-  if(a.kind==="howl"){
+  if(!body) return;
+  const addr = assetAddress(a) || "—";
+  const bal = assetBalanceText(a);
+  const sym = assetDisplaySymbol(a);
+  if(a.kind === "external"){
     body.innerHTML = `
       <div style="text-align:center">
-        <div class="badge on">Howlcoin public chain</div>
-        <div class="hud-line"></div>
-        <div class="qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(keypair.address)}" alt="QR"/></div>
-        <div class="mono">${keypair.address}</div>
-        <button class="btn" type="button" onclick="copyText('${keypair.address}')">Copy HOWL address</button>
-        <p class="hint">Balance: ${formatHowl(chainInfo.balance)}</p>
+        <div class="badge warn">${escHtml(a.network||"External")}</div>
+        <h3 style="margin:10px 0 4px">${escHtml(sym)}</h3>
+        <p class="hint">${escHtml(a.note||"Use an external wallet for this asset.")}</p>
+        ${a.explorer?`<button class="btn sec" type="button" onclick="openExternalUrl('${escAttr(a.explorer)}')">Open explorer</button>`:""}
       </div>`;
-  } else if(a.kind==="sol" || a.kind==="spl"){
-    const addr = solInfo?.address || "—";
-    const bal = ethBalances[a.id] != null ? ethBalances[a.id] : "…";
-    body.innerHTML = `
-      <div style="text-align:center">
-        <div class="badge sol">${a.network}</div>
-        <h3 style="margin:10px 0 4px;font-family:Orbitron,sans-serif;letter-spacing:.06em">${a.symbol}</h3>
-        <p class="hint">${a.name}</p>
-        <div class="qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(addr)}" alt="QR"/></div>
-        <div class="mono">${addr}</div>
-        <button class="btn" type="button" onclick="copyText('${addr}')">Copy Solana address</button>
-        <p class="hint">Balance: <b style="color:var(--mag)">${bal}</b> ${a.symbol}</p>
-        ${a.mint ? `<p class="hint mono" style="font-size:.72rem">Mint: ${a.mint}</p>` : ""}
-        <div class="warnbox">Send only <b>${a.symbol}</b> on <b>Solana</b> to this address. Phantom path m/44'/501'/0'/0'.</div>
-      </div>`;
-  } else if(a.kind==="xtz"){
-    const addr = xtzInfo?.address || "—";
-    const bal = ethBalances.xtz != null ? ethBalances.xtz : "…";
-    body.innerHTML = `
-      <div style="text-align:center">
-        <div class="badge" style="background:rgba(45,143,255,.15);color:#7ec8ff">Tezos</div>
-        <h3 style="margin:10px 0 4px;font-family:Orbitron,sans-serif;letter-spacing:.06em">XTZ</h3>
-        <p class="hint">Tezos · tz1 deposit</p>
-        <div class="qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(addr)}" alt="QR"/></div>
-        <div class="mono">${addr}</div>
-        <button class="btn" type="button" onclick="copyText('${addr}')">Copy Tezos address</button>
-        <p class="hint">Balance: <b style="color:var(--cyan)">${bal}</b> XTZ</p>
-        <div class="warnbox">Send only <b>XTZ on Tezos</b> to this tz1 address. Path m/44'/1729'/0'/0'.</div>
-      </div>`;
-  } else if(a.kind==="eth" || a.kind==="erc20"){
-    const addr = ethInfo?.address || "—";
-    const bal = ethBalances[a.id] != null ? ethBalances[a.id] : "…";
-    body.innerHTML = `
-      <div style="text-align:center">
-        <div class="badge">${a.network}</div>
-        <h3 style="margin:10px 0 4px;font-family:Orbitron,sans-serif;letter-spacing:.06em">${a.symbol}</h3>
-        <p class="hint">${a.name}</p>
-        <div class="qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(addr)}" alt="QR"/></div>
-        <div class="mono">${addr}</div>
-        <button class="btn" type="button" onclick="copyText('${addr}')">Copy address</button>
-        <p class="hint">Balance: <b style="color:var(--green)">${bal}</b> ${a.symbol}</p>
-        ${a.contract ? `<p class="hint mono" style="font-size:.72rem">Contract: ${a.contract}</p>` : ""}
-        <div class="warnbox">Send only <b>${a.symbol}</b> on <b>${a.network}</b> to this address. Wrong network = lost funds.</div>
-      </div>`;
+    return;
   }
+  body.innerHTML = `
+    <div style="text-align:center">
+      <div class="badge on">${escHtml(a.network||"")}</div>
+      <h3 style="margin:10px 0 4px;font-family:var(--font-display);letter-spacing:.06em">${escHtml(sym)}</h3>
+      <p class="hint">${escHtml(a.name||"")}</p>
+      <div class="qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(addr)}" alt="QR"/></div>
+      <div class="mono">${escHtml(addr)}</div>
+      <button class="btn" type="button" onclick="copyText(${JSON.stringify(addr)})">Copy ${escHtml(sym)} address</button>
+      <p class="hint">Balance: <b style="color:var(--green)">${escHtml(bal)}</b> ${escHtml(sym)}</p>
+      ${a.contract?`<p class="hint mono" style="font-size:.72rem">Contract: ${escHtml(a.contract)}</p>`:""}
+      ${a.mint?`<p class="hint mono" style="font-size:.72rem">Mint: ${escHtml(a.mint)}</p>`:""}
+      ${a.note?`<p class="hint">${escHtml(a.note)}</p>`:""}
+      <div class="warnbox">Send only <b>${escHtml(sym)}</b> on <b>${escHtml(a.network||"")}</b>. Wrong network can mean lost funds.</div>
+    </div>`;
+}
+
+async function evmNativeBalance(rpc, address){
+  if(!rpc || !address) return null;
+  const r = await fetch(rpc, {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ jsonrpc:"2.0", id:1, method:"eth_getBalance", params:[address, "latest"] }),
+  });
+  const j = await r.json();
+  if(!j.result) return null;
+  const wei = BigInt(j.result);
+  return Number(wei) / 1e18;
 }
 
 async function refreshEthBalances(){
-  // ETH + SOL multi-chain balances (map stored in ethBalances)
+  // Multi-chain balances (stored in ethBalances map by asset id)
   if(ethInfo){
     try{
       const eth = await ethBalance(ethInfo.address);
       ethBalances.eth = eth.toLocaleString(undefined,{maximumFractionDigits:6});
     }catch{ ethBalances.eth = "—"; }
     for(const a of allAssets()){
+      if(a.kind === "evm" && a.evmId){
+        const rpc = (EVM_CHAINS[a.evmId]||{}).rpc;
+        if(!rpc){ ethBalances[a.id] = ethBalances.eth || "—"; continue; }
+        try{
+          const b = await evmNativeBalance(rpc, ethInfo.address);
+          ethBalances[a.id] = b==null ? "—" : b.toLocaleString(undefined,{maximumFractionDigits:6});
+        }catch{ ethBalances[a.id] = "—"; }
+      }
       if(a.kind!=="erc20") continue;
       try{
         const b = await erc20Balance(a.contract, ethInfo.address, a.decimals||18);
@@ -3132,6 +3190,59 @@ async function refreshEthBalances(){
         ethBalances.xtz = (mutez / 1e6).toLocaleString(undefined,{maximumFractionDigits:6});
       } else ethBalances.xtz = "—";
     }catch{ ethBalances.xtz = "—"; }
+  }
+  // UTXO balances via Blockstream/public APIs (best-effort)
+  for(const a of allAssets()){
+    if(a.kind !== "utxo") continue;
+    const addr = multiInfo[a.coinId]?.address;
+    if(!addr){ ethBalances[a.id] = "—"; continue; }
+    try{
+      if(a.coinId === "btc"){
+        const r = await fetch("https://blockstream.info/api/address/" + encodeURIComponent(addr));
+        if(r.ok){
+          const j = await r.json();
+          const sats = (j.chain_stats?.funded_txo_sum||0) - (j.chain_stats?.spent_txo_sum||0);
+          ethBalances[a.id] = (sats/1e8).toLocaleString(undefined,{maximumFractionDigits:8});
+        } else ethBalances[a.id] = "—";
+      } else {
+        ethBalances[a.id] = "—"; // explorer for LTC/DOGE/BCH
+      }
+    }catch{ ethBalances[a.id] = "—"; }
+  }
+  // TRX / XRP / XLM — show dash unless APIs succeed
+  if(multiInfo.trx?.address){
+    try{
+      const r = await fetch("https://api.trongrid.io/v1/accounts/" + encodeURIComponent(multiInfo.trx.address));
+      if(r.ok){
+        const j = await r.json();
+        const sun = Number(j.data?.[0]?.balance || 0);
+        ethBalances.trx = (sun/1e6).toLocaleString(undefined,{maximumFractionDigits:6});
+      } else ethBalances.trx = "—";
+    }catch{ ethBalances.trx = "—"; }
+  }
+  if(multiInfo.xrp?.address){
+    try{
+      const r = await fetch("https://xrplcluster.com", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ method:"account_info", params:[{ account: multiInfo.xrp.address, ledger_index:"validated" }] }),
+      });
+      const j = await r.json();
+      const drops = Number(j.result?.account_data?.Balance || 0);
+      ethBalances.xrp = drops ? (drops/1e6).toLocaleString(undefined,{maximumFractionDigits:6}) : "0";
+    }catch{ ethBalances.xrp = "—"; }
+  }
+  if(multiInfo.xlm?.address){
+    try{
+      const r = await fetch("https://horizon.stellar.org/accounts/" + encodeURIComponent(multiInfo.xlm.address));
+      if(r.ok){
+        const j = await r.json();
+        const native = (j.balances||[]).find(b=>b.asset_type==="native");
+        ethBalances.xlm = native ? Number(native.balance).toLocaleString(undefined,{maximumFractionDigits:6}) : "0";
+      } else ethBalances.xlm = "—";
+    }catch{ ethBalances.xlm = "—"; }
+  }
+  for(const a of allAssets()){
+    if(a.kind === "external") ethBalances[a.id] = "—";
   }
   if($("p-recv")?.classList.contains("on")) selectAsset(selectedAsset);
   if($("p-home")?.classList.contains("on")) renderHomeAssets();
@@ -3448,6 +3559,16 @@ async function openSession(phrase, pin, vaultExtras={}){
   ethInfo = ethAddressFromMnemonic(mnemonic, 0);
   solInfo = solAddressFromMnemonic(mnemonic, 0);
   try { xtzInfo = tezosAddressFromMnemonic(mnemonic, 0); } catch { xtzInfo = null; }
+  multiInfo = {};
+  try {
+    multiInfo.btc = btcAddressFromMnemonic(mnemonic, 0);
+    multiInfo.ltc = utxoAddressFromMnemonic(mnemonic, "ltc", 0);
+    multiInfo.bch = utxoAddressFromMnemonic(mnemonic, "bch", 0);
+    multiInfo.doge = utxoAddressFromMnemonic(mnemonic, "doge", 0);
+  } catch(_){}
+  try { multiInfo.trx = trxAddressFromMnemonic(mnemonic, 0); } catch(_){}
+  try { multiInfo.xrp = xrpAddressFromMnemonic(mnemonic, 0); } catch(_){}
+  try { multiInfo.xlm = xlmAddressFromMnemonic(mnemonic, 0); } catch(_){}
   walletPin = pin;
   meta.totpSecret = vaultExtras.totpSecret || null;
   meta.hasTotp = !!meta.totpSecret;
@@ -3682,6 +3803,7 @@ window.openAssetDetail = openAssetDetail;
 window.copyAssetAddress = copyAssetAddress;
 window.renderHomeAssets = renderHomeAssets;
 window.renderAssetsList = renderAssetsList;
+window.setSelectedChain = setSelectedChain;
 window.refresh = refresh;
 window.refreshCurrentPage = refreshCurrentPage;
 window.toast = toast;

@@ -325,75 +325,170 @@ export function totpOtpauthUrl(secret, accountName = "Howlcoin", issuer = "Howlc
   return `otpauth://totp/${label}?${q.toString()}`;
 }
 
-/** Well-known ERC-20 tokens (Ethereum mainnet) for deposit UI */
+/** BIP44 + P2PKH version for UTXO deposit chains */
+export const UTXO_COINS = {
+  btc: { coinType: 0, version: 0x00, network: "Bitcoin", explorer: "https://mempool.space/address/" },
+  ltc: { coinType: 2, version: 0x30, network: "Litecoin", explorer: "https://litecoinspace.org/address/" },
+  doge: { coinType: 3, version: 0x1e, network: "Dogecoin", explorer: "https://dogechain.info/address/" },
+  bch: { coinType: 145, version: 0x00, network: "Bitcoin Cash (legacy P2PKH)", explorer: "https://www.blockchain.com/explorer/addresses/bch/" },
+};
+
+/** EVM-compatible chains — same 0x address as Ethereum */
+export const EVM_CHAINS = {
+  eth: { network: "Ethereum", explorer: "https://etherscan.io/address/", rpc: "https://cloudflare-eth.com" },
+  op: { network: "Optimism", explorer: "https://optimistic.etherscan.io/address/", rpc: "https://mainnet.optimism.io" },
+  base: { network: "Base", explorer: "https://basescan.org/address/", rpc: "https://mainnet.base.org" },
+  bnb: { network: "BNB Chain", explorer: "https://bscscan.com/address/", rpc: "https://bsc-dataseed.binance.org" },
+  avax: { network: "Avalanche C-Chain", explorer: "https://snowtrace.io/address/", rpc: "https://api.avax.network/ext/bc/C/rpc" },
+  hype: { network: "HyperEVM", explorer: "https://purrsec.com/address/", rpc: "" },
+};
+
+function utxoPath(coinType, index = 0) {
+  return [44 | 0x80000000, coinType | 0x80000000, 0 | 0x80000000, 0, index];
+}
+
+export function utxoAddressFromMnemonic(phrase, coinId = "btc", index = 0, passphrase = "") {
+  const coin = UTXO_COINS[coinId];
+  if (!coin) throw new Error("unknown UTXO coin " + coinId);
+  const norm = phrase.trim().toLowerCase().split(/\s+/).join(" ");
+  if (!validateMnemonic(norm, wordlist)) throw new Error("Invalid BIP39 mnemonic");
+  const seed = mnemonicToSeedSync(norm, passphrase);
+  const priv = derivePath(seed, utxoPath(coin.coinType, index));
+  const pub = secp.getPublicKey(priv, true);
+  const payload = concat(new Uint8Array([coin.version]), hash160(pub));
+  return {
+    address: base58CheckEncode(payload),
+    privateKeyHex: bytesToHex(priv),
+    path: `m/44'/${coin.coinType}'/0'/0/${index}`,
+    coinId,
+    network: coin.network,
+  };
+}
+
+export function btcAddressFromMnemonic(phrase, index = 0, passphrase = "") {
+  return utxoAddressFromMnemonic(phrase, "btc", index, passphrase);
+}
+
+/** TRX m/44'/195'/0'/0/0 */
+export function trxAddressFromMnemonic(phrase, index = 0, passphrase = "") {
+  const norm = phrase.trim().toLowerCase().split(/\s+/).join(" ");
+  if (!validateMnemonic(norm, wordlist)) throw new Error("Invalid BIP39 mnemonic");
+  const seed = mnemonicToSeedSync(norm, passphrase);
+  const priv = derivePath(seed, [44 | 0x80000000, 195 | 0x80000000, 0 | 0x80000000, 0, index]);
+  const pubUncompressed = secp.getPublicKey(priv, false);
+  const hash = keccak_256(pubUncompressed.slice(1));
+  const payload = concat(new Uint8Array([0x41]), hash.slice(-20));
+  return {
+    address: base58CheckEncode(payload),
+    privateKeyHex: bytesToHex(priv),
+    path: `m/44'/195'/0'/0/${index}`,
+  };
+}
+
+const XRP_B58 = "rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz";
+function xrpBase58Encode(bytes) {
+  let zeros = 0;
+  while (zeros < bytes.length && bytes[zeros] === 0) zeros++;
+  const digits = [0];
+  for (let i = zeros; i < bytes.length; i++) {
+    let carry = bytes[i];
+    for (let j = 0; j < digits.length; j++) {
+      carry += digits[j] << 8;
+      digits[j] = carry % 58;
+      carry = (carry / 58) | 0;
+    }
+    while (carry) {
+      digits.push(carry % 58);
+      carry = (carry / 58) | 0;
+    }
+  }
+  let str = XRP_B58[0].repeat(zeros);
+  for (let i = digits.length - 1; i >= 0; i--) str += XRP_B58[digits[i]];
+  return str;
+}
+
+/** XRP m/44'/144'/0'/0/0 */
+export function xrpAddressFromMnemonic(phrase, index = 0, passphrase = "") {
+  const norm = phrase.trim().toLowerCase().split(/\s+/).join(" ");
+  if (!validateMnemonic(norm, wordlist)) throw new Error("Invalid BIP39 mnemonic");
+  const seed = mnemonicToSeedSync(norm, passphrase);
+  const priv = derivePath(seed, [44 | 0x80000000, 144 | 0x80000000, 0 | 0x80000000, 0, index]);
+  const pub = secp.getPublicKey(priv, true);
+  const payload = concat(new Uint8Array([0x00]), hash160(pub));
+  const checksum = doubleSha256(payload).slice(0, 4);
+  return {
+    address: xrpBase58Encode(concat(payload, checksum)),
+    privateKeyHex: bytesToHex(priv),
+    path: `m/44'/144'/0'/0/${index}`,
+  };
+}
+
+function stellarStrKeyEncode(versionByte, keyBytes) {
+  let crc = 0;
+  const data = concat(new Uint8Array([versionByte]), keyBytes);
+  for (let i = 0; i < data.length; i++) {
+    crc ^= data[i] << 8;
+    for (let b = 0; b < 8; b++) {
+      if (crc & 0x8000) crc = ((crc << 1) ^ 0x1021) & 0xffff;
+      else crc = (crc << 1) & 0xffff;
+    }
+  }
+  const crcBytes = new Uint8Array([crc & 0xff, (crc >> 8) & 0xff]);
+  const full = concat(data, crcBytes);
+  const B32S = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = "";
+  for (const b of full) bits += b.toString(2).padStart(8, "0");
+  let out = "";
+  for (let i = 0; i + 5 <= bits.length; i += 5) out += B32S[parseInt(bits.slice(i, i + 5), 2)];
+  return out;
+}
+
+/** Stellar XLM SEP-0005 m/44'/148'/0' */
+export function xlmAddressFromMnemonic(phrase, account = 0, passphrase = "") {
+  const norm = phrase.trim().toLowerCase().split(/\s+/).join(" ");
+  if (!validateMnemonic(norm, wordlist)) throw new Error("Invalid BIP39 mnemonic");
+  const seed = mnemonicToSeedSync(norm, passphrase);
+  const priv = deriveEd25519Path(seed, [44 | 0x80000000, 148 | 0x80000000, account | 0x80000000]);
+  const pub = ed25519.getPublicKey(priv);
+  return {
+    address: stellarStrKeyEncode(6 << 3, pub),
+    privateKeyHex: bytesToHex(priv),
+    path: `m/44'/148'/${account}'`,
+  };
+}
+
+/** Multi-chain deposit assets (receive addresses + balances where APIs allow). */
 export const PRESET_ASSETS = [
   { id: "howl", symbol: "HOWL", name: "Howlcoin", network: "Howlcoin", kind: "howl" },
+  { id: "btc", symbol: "BTC", name: "Bitcoin", network: "Bitcoin", kind: "utxo", coinId: "btc" },
+  { id: "ltc", symbol: "LTC", name: "Litecoin", network: "Litecoin", kind: "utxo", coinId: "ltc" },
+  { id: "bch", symbol: "BCH", name: "Bitcoin Cash", network: "Bitcoin Cash", kind: "utxo", coinId: "bch" },
+  { id: "doge", symbol: "DOGE", name: "Dogecoin", network: "Dogecoin", kind: "utxo", coinId: "doge" },
   { id: "sol", symbol: "SOL", name: "Solana", network: "Solana", kind: "sol" },
+  { id: "usdt_sol", symbol: "USDT", name: "Tether (Solana)", network: "Solana (SPL)", kind: "spl", mint: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", decimals: 6 },
+  { id: "usdc_sol", symbol: "USDC", name: "USD Coin (Solana)", network: "Solana (SPL)", kind: "spl", mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", decimals: 6 },
+  { id: "eth", symbol: "ETH", name: "Ethereum", network: "Ethereum", kind: "evm", evmId: "eth" },
+  { id: "op", symbol: "ETH", name: "Ether (Optimism)", network: "Optimism", kind: "evm", evmId: "op", displaySymbol: "OP-ETH" },
+  { id: "base", symbol: "ETH", name: "Ether (Base)", network: "Base", kind: "evm", evmId: "base", displaySymbol: "BASE-ETH" },
+  { id: "bnb", symbol: "BNB", name: "BNB", network: "BNB Chain", kind: "evm", evmId: "bnb" },
+  { id: "avax", symbol: "AVAX", name: "Avalanche", network: "Avalanche C-Chain", kind: "evm", evmId: "avax" },
+  { id: "hype", symbol: "HYPE", name: "Hyperliquid", network: "HyperEVM", kind: "evm", evmId: "hype" },
+  { id: "usdt", symbol: "USDT", name: "Tether", network: "Ethereum (ERC-20)", kind: "erc20", contract: "0xdac17f958d2ee523a2206206994597c13d831ec7", decimals: 6 },
+  { id: "usdc", symbol: "USDC", name: "USD Coin", network: "Ethereum (ERC-20)", kind: "erc20", contract: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", decimals: 6 },
+  { id: "dai", symbol: "DAI", name: "Dai", network: "Ethereum (ERC-20)", kind: "erc20", contract: "0x6b175474e89094c44da98b954eedeac495271d0f", decimals: 18 },
+  { id: "shib", symbol: "SHIB", name: "Shiba Inu", network: "Ethereum (ERC-20)", kind: "erc20", contract: "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce", decimals: 18 },
+  { id: "leo", symbol: "LEO", name: "UNUS SED LEO", network: "Ethereum (ERC-20)", kind: "erc20", contract: "0x2af5d2ad76741191d15dfe7bf6ac92d4bd912ca3", decimals: 18 },
+  { id: "wbtc", symbol: "WBTC", name: "Wrapped Bitcoin", network: "Ethereum (ERC-20)", kind: "erc20", contract: "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599", decimals: 8 },
+  { id: "link", symbol: "LINK", name: "Chainlink", network: "Ethereum (ERC-20)", kind: "erc20", contract: "0x514910771af9ca656af840dff83e8264ecf986ca", decimals: 18 },
+  { id: "uni", symbol: "UNI", name: "Uniswap", network: "Ethereum (ERC-20)", kind: "erc20", contract: "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984", decimals: 18 },
   { id: "xtz", symbol: "XTZ", name: "Tezos", network: "Tezos", kind: "xtz" },
-  { id: "eth", symbol: "ETH", name: "Ethereum", network: "Ethereum", kind: "eth" },
-  {
-    id: "usdt",
-    symbol: "USDT",
-    name: "Tether",
-    network: "Ethereum (ERC-20)",
-    kind: "erc20",
-    contract: "0xdac17f958d2ee523a2206206994597c13d831ec7",
-    decimals: 6,
-  },
-  {
-    id: "usdc",
-    symbol: "USDC",
-    name: "USD Coin",
-    network: "Ethereum (ERC-20)",
-    kind: "erc20",
-    contract: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
-    decimals: 6,
-  },
-  {
-    id: "usdt_sol",
-    symbol: "USDT",
-    name: "Tether (Solana)",
-    network: "Solana (SPL)",
-    kind: "spl",
-    mint: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
-    decimals: 6,
-  },
-  {
-    id: "usdc_sol",
-    symbol: "USDC",
-    name: "USD Coin (Solana)",
-    network: "Solana (SPL)",
-    kind: "spl",
-    mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-    decimals: 6,
-  },
-  {
-    id: "wbtc",
-    symbol: "WBTC",
-    name: "Wrapped Bitcoin",
-    network: "Ethereum (ERC-20)",
-    kind: "erc20",
-    contract: "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
-    decimals: 8,
-  },
-  {
-    id: "link",
-    symbol: "LINK",
-    name: "Chainlink",
-    network: "Ethereum (ERC-20)",
-    kind: "erc20",
-    contract: "0x514910771af9ca656af840dff83e8264ecf986ca",
-    decimals: 18,
-  },
-  {
-    id: "uni",
-    symbol: "UNI",
-    name: "Uniswap",
-    network: "Ethereum (ERC-20)",
-    kind: "erc20",
-    contract: "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
-    decimals: 18,
-  },
+  { id: "trx", symbol: "TRX", name: "TRON", network: "TRON", kind: "trx" },
+  { id: "xrp", symbol: "XRP", name: "XRP", network: "XRP Ledger", kind: "xrp" },
+  { id: "xlm", symbol: "XLM", name: "Stellar", network: "Stellar", kind: "xlm" },
+  { id: "hbar", symbol: "HBAR", name: "Hedera", network: "Hedera (EVM alias)", kind: "evm", evmId: "eth", note: "EVM 0x alias — link in HashPack if needed." },
+  { id: "ada", symbol: "ADA", name: "Cardano", network: "Cardano", kind: "external", explorer: "https://cardanoscan.io/", note: "Use Yoroi/Eternl with this seed if supported." },
+  { id: "xmr", symbol: "XMR", name: "Monero", network: "Monero", kind: "external", explorer: "https://xmrchain.net/", note: "Use an official Monero wallet (different address scheme)." },
+  { id: "zec", symbol: "ZEC", name: "Zcash", network: "Zcash", kind: "external", explorer: "https://explorer.zcha.in/", note: "Use a Zcash wallet for transparent/shielded addresses." },
 ];
 
 export function txSighash(txBody) {
