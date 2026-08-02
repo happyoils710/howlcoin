@@ -15,6 +15,7 @@ from .config import (
     DIFFICULTY_MAX_ADJUST,
     GENESIS_MESSAGE,
     INITIAL_DIFFICULTY,
+    MIN_TX_FEE_HOWLIES,
     block_subsidy,
 )
 from .crypto import is_valid_address, sha256, tx_sighash, txid, verify_signature
@@ -118,8 +119,7 @@ class Blockchain:
             fee = int(tx.get("fee", 0))
             self.balances[frm] = self.balances.get(frm, 0) - amount - fee
             self.balances[to] = self.balances.get(to, 0) + amount
-            # fees go to miner via coinbase already including fees in our simple model
-            # (we subtract fee from sender; miner coinbase is pure subsidy — fees burned for simplicity)
+            # Fees are paid to the miner via coinbase amount (subsidy + sum of fees).
             self.nonces[frm] = int(tx["nonce"]) + 1
 
     def tip(self) -> Dict[str, Any]:
@@ -182,6 +182,11 @@ class Blockchain:
             return False, "amount must be > 0"
         if fee < 0:
             return False, "fee must be >= 0"
+        if fee < MIN_TX_FEE_HOWLIES:
+            return False, (
+                f"fee too low (min {format_howl(MIN_TX_FEE_HOWLIES)}; "
+                "fees pay the miner who confirms your tx)"
+            )
 
         bals = provisional_balances if provisional_balances is not None else self.balances
         nonces = provisional_nonces if provisional_nonces is not None else self.nonces
@@ -251,9 +256,12 @@ class Blockchain:
         if not txs or txs[0].get("type") != "coinbase":
             return False, "missing coinbase"
         subsidy = block_subsidy(block["height"])
-        if int(txs[0]["amount"]) > subsidy:
-            # allow equal; fees burned so coinbase == subsidy only
-            return False, "coinbase too large"
+        fees_total = sum(int(t.get("fee", 0)) for t in txs[1:])
+        max_coinbase = subsidy + fees_total
+        if int(txs[0]["amount"]) > max_coinbase:
+            return False, "coinbase too large (subsidy + fees)"
+        if int(txs[0]["amount"]) < subsidy:
+            return False, "coinbase below subsidy"
         # validate rest against rolling state copy
         bals = dict(self.balances)
         nonces = dict(self.nonces)
@@ -367,19 +375,12 @@ class Blockchain:
         height = self.height() + 1
         difficulty = self.next_difficulty()
         subsidy = block_subsidy(height)
-        coinbase = {
-            "type": "coinbase",
-            "to": miner_address,
-            "amount": subsidy,
-            "height": height,
-            "memo": f"Howl height {height}",
-            "txid": sha256(f"coinbase:{height}:{miner_address}:{subsidy}".encode()).hex(),
-        }
-        # select valid mempool txs
+        # select valid mempool txs first so coinbase can include their fees
         selected: List[Dict[str, Any]] = []
         bals = dict(self.balances)
         nonces = dict(self.nonces)
         bals[miner_address] = bals.get(miner_address, 0) + subsidy
+        fees_total = 0
         for tx in self.mempool[: max_txs * 2]:
             if len(selected) >= max_txs:
                 break
@@ -388,9 +389,26 @@ class Blockchain:
                 continue
             selected.append(tx)
             amount, fee = int(tx["amount"]), int(tx.get("fee", 0))
+            fees_total += fee
             bals[tx["from"]] = bals.get(tx["from"], 0) - amount - fee
             bals[tx["to"]] = bals.get(tx["to"], 0) + amount
             nonces[tx["from"]] = int(tx["nonce"]) + 1
+
+        reward = subsidy + fees_total
+        # credit fees to miner in provisional bals (already had subsidy)
+        bals[miner_address] = bals.get(miner_address, 0) + fees_total
+        coinbase = {
+            "type": "coinbase",
+            "to": miner_address,
+            "amount": reward,
+            "height": height,
+            "subsidy": subsidy,
+            "fees": fees_total,
+            "memo": f"Howl height {height}",
+            "txid": sha256(
+                f"coinbase:{height}:{miner_address}:{reward}:{fees_total}".encode()
+            ).hex(),
+        }
 
         txs = [coinbase] + selected
         txids = [t["txid"] for t in txs]

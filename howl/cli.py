@@ -262,8 +262,20 @@ def cmd_send(args: argparse.Namespace) -> None:
     dd = data_dir(args)
     chain = Blockchain(dd)
     wallet = Wallet(dd / WALLET_FILE)
+    from .config import DEFAULT_TX_FEE_HOWLIES, MIN_TX_FEE_HOWLIES
+
     amount = parse_howl(args.amount)
-    fee = parse_howl(args.fee) if args.fee else 0
+    if args.fee is None or str(args.fee).strip() == "":
+        fee = DEFAULT_TX_FEE_HOWLIES
+    else:
+        fee = parse_howl(args.fee)
+    if fee < MIN_TX_FEE_HOWLIES:
+        print(
+            f"Fee too low: need at least {format_howl(MIN_TX_FEE_HOWLIES)} "
+            f"(fees pay the miner who includes your transfer)",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     # Sender: --from ADDRESS, else primary wallet address
     from_key = wallet.primary
@@ -511,7 +523,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="sender HOWL address (must be a key in this wallet; default: primary)",
     )
-    s.add_argument("--fee", default="0", help="fee in HOWL")
+    s.add_argument(
+        "--fee",
+        default=None,
+        help="fee in HOWL paid to the miner (default: 1 HOWL; minimum: 1 HOWL)",
+    )
     s.add_argument("--memo", default="", help="optional memo")
     s.set_defaults(func=cmd_send)
 

@@ -126,7 +126,7 @@ This is a **mining reward**, not a payment from another wallet.
 
 ### 4.4 Fees
 
-Fees are optional in the current implementation and are **not paid to miners as a separate stream** in the simple model (kept intentionally minimal). Exact fee handling may evolve; always check the running software version.
+Transfers require a **minimum network fee of 1 HOWL** (default 1 HOWL). The fee is deducted from the sender and paid to the **miner** of the confirming block (added to the coinbase alongside the block subsidy). Fees help compensate nodes that secure the network.
 
 ---
 

@@ -5,7 +5,7 @@ from pathlib import Path
 # --- Identity ---
 COIN_NAME = "Howlcoin"
 TICKER = "HOWL"
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 GENESIS_MESSAGE = (
     "2026-08-01 Howlcoin: the moon heard a howl and howled back. "
     "Scrypt free. Much chain. Very wow."
@@ -62,6 +62,11 @@ def block_subsidy(height: int) -> int:
 
 # Soft cap narrative (not hard-enforced; emission asymptotes via tail)
 MAX_MONEY_HOWL = 100_000_000_000  # 100 billion HOWL vibe-cap
+
+# --- Transaction fees (paid to the block miner) ---
+# Minimum fee required to relay/include a transfer. Helps fund nodes that mine.
+MIN_TX_FEE_HOWLIES = 1 * COIN  # 1 HOWL minimum
+DEFAULT_TX_FEE_HOWLIES = 1 * COIN  # default wallet fee suggestion
 
 # --- Network ---
 DEFAULT_P2P_PORT = 42069
