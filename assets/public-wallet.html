@@ -686,9 +686,10 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
           <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;justify-content:center">
             <select class="chain-select" id="walletSelect" style="margin:0;flex:1;min-width:140px;max-width:220px"></select>
             <button type="button" class="chip" id="btnWalletNew" style="cursor:pointer" title="Create another wallet">+ New</button>
-            <button type="button" class="chip" id="btnWalletImport" style="cursor:pointer" title="Import recovery phrase">Import</button>
+            <button type="button" class="chip" id="btnWalletImport" style="cursor:pointer" title="Import recovery phrase">Import phrase</button>
+            <button type="button" class="chip" id="btnWalletImportKey" style="cursor:pointer" title="Import HOWL private key (64 hex)">Import key</button>
           </div>
-          <p class="hint" id="walletSwitchHint" style="margin:6px 0 0">Switch · create · import as many as you need</p>
+          <p class="hint" id="walletSwitchHint" style="margin:6px 0 0">Switch · create · import phrase or private key</p>
         </div>
       </div>
       <div class="actions">
@@ -1236,9 +1237,9 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
           <button class="btn danger hidden" type="button" id="totpOffBtn" onclick="disableTotp()">Turn off 2FA</button>
         </div>
         <div class="sec-block">
-          <h3>Recovery phrase</h3>
-          <p class="hint">12 words restore this wallet on any device. Never share them.</p>
-          <button class="btn sec" type="button" onclick="revealSeed()">Reveal recovery phrase</button>
+          <h3 id="recoveryTitle">Recovery</h3>
+          <p class="hint" id="recoveryHint">12-word phrase or private key restores this wallet. Never share it.</p>
+          <button class="btn sec" type="button" id="revealSeedBtn" onclick="revealSeed()">Reveal recovery phrase</button>
           <div id="seedBox" class="hidden">
             <div class="words" id="seedWords"></div>
             <button class="btn sec" type="button" onclick="hideSeed()">Hide</button>
@@ -1258,7 +1259,8 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 
 <script type="module">
 import {
-  createMnemonic, checkMnemonic, keypairFromMnemonic, ethAddressFromMnemonic,
+  createMnemonic, checkMnemonic, keypairFromMnemonic, keypairFromPrivateHex,
+  ethAddressFromMnemonic, ethAddressFromPrivateHex, normalizePrivateKeyHex,
   solAddressFromMnemonic, tezosAddressFromMnemonic,
   utxoAddressFromMnemonic, btcAddressFromMnemonic, trxAddressFromMnemonic,
   xrpAddressFromMnemonic, xlmAddressFromMnemonic,
@@ -1494,6 +1496,15 @@ async function decryptWithRawKey(rawKeyBytes, blob){
 function newWalletId(){
   return "w_" + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b=>b.toString(16).padStart(2,"0")).join("");
 }
+/** HOWL address for a vault entry (mnemonic or imported private key). */
+function walletEntryAddress(w){
+  if(!w) return "";
+  try{
+    if(w.mnemonic) return keypairFromMnemonic(w.mnemonic, 0).address;
+    if(w.privateKeyHex) return keypairFromPrivateHex(w.privateKeyHex).address;
+  }catch(_){}
+  return "";
+}
 function normalizeMultiVault(obj){
   // Accept v3 multi, v2 single object, or plain string mnemonic
   if(typeof obj === "string"){
@@ -1510,9 +1521,10 @@ function normalizeMultiVault(obj){
     }
     return obj;
   }
-  // v2 single-wallet payload
+  // v2 single-wallet payload (mnemonic or private key)
   const phrase = obj?.mnemonic;
-  if(!phrase) throw new Error("Invalid vault");
+  const priv = obj?.privateKeyHex;
+  if(!phrase && !priv) throw new Error("Invalid vault");
   const id = newWalletId();
   return {
     version: 3,
@@ -1520,7 +1532,8 @@ function normalizeMultiVault(obj){
     wallets: [{
       id,
       name: "Main",
-      mnemonic: phrase,
+      mnemonic: phrase || null,
+      privateKeyHex: priv || null,
       totpSecret: obj.totpSecret || null,
       totpEnabled: !!obj.totpEnabled,
       createdAt: Date.now(),
@@ -1536,9 +1549,7 @@ function persistWalletIndex(){
     const idx = {
       activeId: multiVault?.activeId || null,
       wallets: (multiVault?.wallets || []).map(w=>{
-        let address = "";
-        try{ address = keypairFromMnemonic(w.mnemonic, 0).address; }catch(_){}
-        return { id: w.id, name: w.name || "Wallet", address, createdAt: w.createdAt || 0 };
+        return { id: w.id, name: w.name || "Wallet", address: walletEntryAddress(w), createdAt: w.createdAt || 0 };
       }),
     };
     localStorage.setItem(LS_WALLET_INDEX, JSON.stringify(idx));
@@ -1623,7 +1634,7 @@ function hasBiometricUnlock(){
 
 async function setupBiometric(){
   if(!window.PublicKeyCredential){ toast("Biometrics not supported here"); return; }
-  if(!mnemonic){ toast("Unlock the wallet first, then enable Face ID"); return; }
+  if(!keypair && !multiVault){ toast("Unlock the wallet first, then enable Face ID"); return; }
   try{
     const challenge = crypto.getRandomValues(new Uint8Array(32));
     const userId = crypto.getRandomValues(new Uint8Array(16));
@@ -1640,8 +1651,10 @@ async function setupBiometric(){
     if(!cred) throw new Error("Cancelled");
     localStorage.setItem(LS_BIO, JSON.stringify({ id: bufToB64(cred.rawId) }));
     // Store vault for PIN-free unlock after Face ID succeeds
+    const entry = activeWalletEntry();
     await saveBioVault(multiVault || {
-      mnemonic,
+      mnemonic: mnemonic || null,
+      privateKeyHex: entry?.privateKeyHex || keypair?.privateKeyHex || null,
       totpSecret: meta.totpSecret || null,
       totpEnabled: !!meta.totpEnabled,
     });
@@ -2686,6 +2699,7 @@ function showApp(){
   wireUnitToggle();
   syncUnitToggleUI();
   updatePortfolioTotal();
+  renderWalletSwitcher();
   renderHomeAssets();
   renderAssetSeg();
   renderToolbar("home");
@@ -2719,6 +2733,18 @@ function updateSecUI(){
   $("secStatus").textContent = status;
   const hint = $("moreSecHint");
   if(hint) hint.textContent = status || "Face ID · 2FA · recovery";
+  // Recovery section: phrase vs imported private key
+  const hasPhrase = !!mnemonic;
+  const hasKeyOnly = !hasPhrase && !!(keypair?.privateKeyHex);
+  if($("recoveryTitle")) $("recoveryTitle").textContent = hasKeyOnly ? "Private key" : "Recovery phrase";
+  if($("recoveryHint")){
+    $("recoveryHint").textContent = hasKeyOnly
+      ? "This wallet was imported by private key (no 12-word phrase). HOWL + ETH only — not multi-chain seed paths. Never share the key."
+      : "12 words restore this wallet (and multi-chain addresses) on any device. Never share them.";
+  }
+  if($("revealSeedBtn")){
+    $("revealSeedBtn").textContent = hasKeyOnly ? "Reveal private key" : "Reveal recovery phrase";
+  }
 }
 
 function getToolbarIds(){
@@ -5514,10 +5540,20 @@ async function doSend(){
 
 function copyText(t){ navigator.clipboard.writeText(t).then(()=>toast("Copied")); }
 function revealSeed(){
-  if(!mnemonic) return;
-  if(!confirm("Only reveal if no one can see your screen.")) return;
-  $("seedWords").innerHTML = mnemonic.split(/\s+/).map((w,i)=>`<div class="word"><b>${i+1}.</b> ${w}</div>`).join("");
-  $("seedBox").classList.remove("hidden");
+  if(mnemonic){
+    if(!confirm("Only reveal if no one can see your screen.")) return;
+    $("seedWords").innerHTML = mnemonic.split(/\s+/).map((w,i)=>`<div class="word"><b>${i+1}.</b> ${w}</div>`).join("");
+    $("seedBox").classList.remove("hidden");
+    return;
+  }
+  const priv = keypair?.privateKeyHex || activeWalletEntry()?.privateKeyHex;
+  if(priv){
+    if(!confirm("Only reveal if no one can see your screen. This is your full private key.")) return;
+    $("seedWords").innerHTML = `<div class="word" style="grid-column:1/-1;word-break:break-all;font-family:ui-monospace,Menlo,monospace;font-size:.78rem"><b>Private key</b><br>${escHtml(priv)}</div>`;
+    $("seedBox").classList.remove("hidden");
+    return;
+  }
+  toast("No recovery material for this wallet");
 }
 function hideSeed(){ $("seedBox").classList.add("hidden"); $("seedWords").innerHTML=""; }
 
@@ -5528,7 +5564,7 @@ function lockWallet(){
   toast("Locked");
 }
 function wipeWallet(){
-  if(!confirm("Remove ALL wallets from this device? Keep recovery phrases safe.")) return;
+  if(!confirm("Remove ALL wallets from this device? Keep recovery phrases / private keys safe.")) return;
   localStorage.removeItem(LS_ENC);
   localStorage.removeItem(LS_META);
   localStorage.removeItem(LS_BIO);
@@ -5537,6 +5573,12 @@ function wipeWallet(){
   localStorage.removeItem(LS_CUSTOM);
   localStorage.removeItem(LS_WALLET_INDEX);
   lockWallet();
+}
+
+function clearMultiChainKeys(){
+  solInfo = null;
+  xtzInfo = null;
+  multiInfo = {};
 }
 
 function deriveAllFromMnemonic(phrase){
@@ -5558,9 +5600,24 @@ function deriveAllFromMnemonic(phrase){
   try { multiInfo.xlm = xlmAddressFromMnemonic(mnemonic, 0); } catch(_){}
 }
 
+/** HOWL (+ ETH from same secp256k1 key). No BIP39 multi-chain paths. */
+function deriveAllFromPrivateKey(privateKeyHex){
+  const keyHex = normalizePrivateKeyHex(privateKeyHex);
+  mnemonic = null;
+  keypair = keypairFromPrivateHex(keyHex);
+  try { ethInfo = ethAddressFromPrivateHex(keyHex); } catch { ethInfo = null; }
+  clearMultiChainKeys();
+}
+
 async function activateWalletEntry(entry, pin){
-  if(!entry?.mnemonic) throw new Error("Wallet entry missing");
-  deriveAllFromMnemonic(entry.mnemonic);
+  if(!entry) throw new Error("Wallet entry missing");
+  if(entry.mnemonic){
+    deriveAllFromMnemonic(entry.mnemonic);
+  } else if(entry.privateKeyHex){
+    deriveAllFromPrivateKey(entry.privateKeyHex);
+  } else {
+    throw new Error("Wallet has no recovery phrase or private key");
+  }
   activeWalletId = entry.id;
   if(multiVault) multiVault.activeId = entry.id;
   walletPin = pin != null ? pin : walletPin;
@@ -5571,11 +5628,12 @@ async function activateWalletEntry(entry, pin){
   persistWalletIndex();
   localPendingNonce = {};
   renderWalletSwitcher();
+  try{ updateSecUI(); }catch(_){}
 }
 
 /** Open or create session. vaultExtras may be multi-vault or single wallet fields. */
 async function openSession(phrase, pin, vaultExtras={}){
-  // If vaultExtras is already multi v3 (from unlock), activate active wallet
+  // If vaultExtras is already multi v3 (from unlock / key import), activate active wallet
   if(vaultExtras && vaultExtras.version === 3 && Array.isArray(vaultExtras.wallets)){
     multiVault = normalizeMultiVault(vaultExtras);
     const entry = activeWalletEntry();
@@ -5589,6 +5647,7 @@ async function openSession(phrase, pin, vaultExtras={}){
     return;
   }
 
+  if(!phrase) throw new Error("Recovery phrase or private-key vault required");
   deriveAllFromMnemonic(phrase);
   // Merge into multiVault
   if(!multiVault){
@@ -5643,10 +5702,10 @@ function renderWalletSwitcher(){
     return;
   }
   sel.innerHTML = list.map(w=>{
-    let addr = "";
-    try{ addr = keypairFromMnemonic(w.mnemonic, 0).address; }catch(_){}
+    const addr = walletEntryAddress(w);
     const short = addr ? (addr.slice(0,6)+"…"+addr.slice(-4)) : "";
-    const label = (w.name || "Wallet") + (short ? " · " + short : "");
+    const tag = (!w.mnemonic && w.privateKeyHex) ? " · key" : "";
+    const label = (w.name || "Wallet") + (short ? " · " + short : "") + tag;
     return `<option value="${escAttr(w.id)}" ${w.id===activeWalletId?"selected":""}>${escHtml(label)}</option>`;
   }).join("");
   if(!sel.dataset.wired){
@@ -5667,6 +5726,10 @@ function renderWalletSwitcher(){
   if($("btnWalletImport") && !$("btnWalletImport").dataset.wired){
     $("btnWalletImport").dataset.wired = "1";
     $("btnWalletImport").onclick = ()=> promptImportWallet();
+  }
+  if($("btnWalletImportKey") && !$("btnWalletImportKey").dataset.wired){
+    $("btnWalletImportKey").dataset.wired = "1";
+    $("btnWalletImportKey").onclick = ()=> promptImportPrivateKey();
   }
   if($("walletSwitchHint")){
     $("walletSwitchHint").textContent = list.length + " wallet" + (list.length===1?"":"s") + " on this device";
@@ -5735,13 +5798,74 @@ async function promptImportWallet(){
   }
   const id = newWalletId();
   multiVault.wallets.push({
-    id, name, mnemonic: norm, totpSecret: null, totpEnabled: false, createdAt: Date.now(),
+    id, name, mnemonic: norm, privateKeyHex: null, totpSecret: null, totpEnabled: false, createdAt: Date.now(),
   });
   multiVault.activeId = id;
   if(walletPin) await saveVault(multiVault, walletPin);
   else if(hasBiometricUnlock()) await saveBioVault(multiVault);
   await switchWallet(id);
   toast("Imported \"" + name + "\"");
+}
+
+/**
+ * Import a HOWL wallet from a raw secp256k1 private key (64 hex chars).
+ * Same format as CLI: howl wallet import-key / KeyPair.from_private_hex.
+ * HOWL + ETH only (same curve); SOL/BTC/etc. need a recovery phrase.
+ */
+async function promptImportPrivateKey(){
+  if(!walletPin && !hasBiometricUnlock()){
+    toast("Unlock with PIN first to import wallets");
+    return;
+  }
+  const name = (prompt("Name for imported key wallet", "Key import") || "").trim() || "Key import";
+  const raw = (prompt("Paste HOWL private key (64 hex characters, optional 0x prefix)") || "").trim();
+  if(!raw) return;
+  let keyHex;
+  try{
+    keyHex = normalizePrivateKeyHex(raw);
+  }catch(e){
+    toast(e.message || "Invalid private key");
+    return;
+  }
+  let preview;
+  try{
+    preview = keypairFromPrivateHex(keyHex);
+  }catch(e){
+    toast(e.message || "Invalid private key");
+    return;
+  }
+  if(!confirm(
+    "Import wallet \"" + name + "\"?\n\nHOWL address:\n" + preview.address +
+    "\n\nThis is HOWL (+ ETH from the same key). Multi-chain seed paths (SOL, BTC, …) need a 12-word phrase."
+  )) return;
+  if(!multiVault) multiVault = { version: 3, activeId: null, wallets: [] };
+  const existing = multiVault.wallets.find(w => {
+    if(w.privateKeyHex && w.privateKeyHex.toLowerCase().replace(/^0x/,"") === keyHex) return true;
+    try{
+      if(w.mnemonic && keypairFromMnemonic(w.mnemonic, 0).privateKeyHex === keyHex) return true;
+    }catch(_){}
+    return false;
+  });
+  if(existing){
+    toast("That key is already on this device");
+    await switchWallet(existing.id);
+    return;
+  }
+  const id = newWalletId();
+  multiVault.wallets.push({
+    id,
+    name,
+    mnemonic: null,
+    privateKeyHex: keyHex,
+    totpSecret: null,
+    totpEnabled: false,
+    createdAt: Date.now(),
+  });
+  multiVault.activeId = id;
+  if(walletPin) await saveVault(multiVault, walletPin);
+  else if(hasBiometricUnlock()) await saveBioVault(multiVault);
+  await switchWallet(id);
+  toast("Imported key wallet \"" + name + "\"");
 }
 
 function startTotpSetup(){
@@ -5979,11 +6103,12 @@ function uiCreate(){
   showGate(`
     <button class="btn" type="button" id="btnCreate">Create wallet</button>
     <button class="btn sec" type="button" id="btnRestore">Restore with phrase</button>
+    <button class="btn sec" type="button" id="btnRestoreKey">Import private key</button>
   `);
   $("btnCreate").onclick = ()=>{
     const phrase = createMnemonic();
     showGate(`
-      <p class="hint">Write these 12 words offline. They restore HOWL + ETH deposit keys.</p>
+      <p class="hint">Write these 12 words offline. They restore HOWL + multi-chain deposit keys.</p>
       <div class="words">${phrase.split(" ").map((w,i)=>`<div class="word"><b>${i+1}.</b> ${w}</div>`).join("")}</div>
       <label>PIN (encrypts wallet on this device)</label>
       <input class="field" id="pin1" type="password" inputmode="numeric" maxlength="8" placeholder="4–8 digits"/>
@@ -6021,6 +6146,43 @@ function uiCreate(){
       }catch(e){ $("gErr").textContent=e.message; }
     };
   };
+  $("btnRestoreKey").onclick = ()=>{
+    showGate(`
+      <p class="hint">Paste a raw HOWL secp256k1 private key (64 hex chars). Same format as the CLI import. HOWL + ETH only — multi-chain seed paths need a 12-word phrase.</p>
+      <label>Private key</label>
+      <textarea class="field" id="restKey" rows="2" style="resize:vertical;font-family:ui-monospace,Menlo,monospace;font-size:.85rem" placeholder="64 hex characters"></textarea>
+      <label>Device PIN</label>
+      <input class="field" id="restKeyPin" type="password" inputmode="numeric" maxlength="8"/>
+      <div class="err" id="gErr"></div>
+      <button class="btn" type="button" id="btnDoRestKey">Import key</button>
+      <button class="btn sec" type="button" id="btnBackKey">Back</button>
+    `);
+    $("btnBackKey").onclick = uiCreate;
+    $("btnDoRestKey").onclick = async ()=>{
+      try{
+        const pin = $("restKeyPin").value.trim();
+        if(!/^\d{4,8}$/.test(pin)) throw new Error("PIN must be 4–8 digits");
+        const keyHex = normalizePrivateKeyHex($("restKey").value);
+        const preview = keypairFromPrivateHex(keyHex);
+        const id = newWalletId();
+        const multi = {
+          version: 3,
+          activeId: id,
+          wallets: [{
+            id,
+            name: "Main",
+            mnemonic: null,
+            privateKeyHex: keyHex,
+            totpSecret: null,
+            totpEnabled: false,
+            createdAt: Date.now(),
+          }],
+        };
+        await openSession(null, pin, multi);
+        toast("Imported · " + preview.address.slice(0, 8) + "…");
+      }catch(e){ $("gErr").textContent = e.message || "Import failed"; }
+    };
+  };
 }
 
 function uiUnlock(){
@@ -6047,8 +6209,9 @@ function uiUnlock(){
     }
     meta.totpEnabled = !!(entry?.totpEnabled);
     meta.hasTotp = !!entry?.totpSecret;
-    // PIN may be null after Face ID unlock; openSession still works
-    await openSession(entry.mnemonic, pinOrNull, multi);
+    // PIN may be null after Face ID unlock; openSession still works.
+    // phrase may be null for private-key-only wallets — multi vault path uses entry.
+    await openSession(entry.mnemonic || null, pinOrNull, multi);
   }
   async function tryOpen(fromBio){
     try{

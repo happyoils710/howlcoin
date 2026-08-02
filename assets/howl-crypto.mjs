@@ -189,6 +189,56 @@ export function keypairFromMnemonic(phrase, index = 0, passphrase = "") {
   return { privateKeyHex: privHex, publicKeyHex: pubHex, address, index, seedHex: bytesToHex(seed) };
 }
 
+/** Normalize + validate a raw secp256k1 private key (64 hex chars, optional 0x). */
+export function normalizePrivateKeyHex(privateKeyHex) {
+  const keyHex = String(privateKeyHex || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^0x/, "")
+    .replace(/\s+/g, "");
+  if (!/^[0-9a-f]{64}$/.test(keyHex)) {
+    throw new Error("Private key must be 64 hex characters (32 bytes)");
+  }
+  const n = BigInt("0x" + keyHex);
+  if (n === 0n || n >= CURVE_ORDER) {
+    throw new Error("Invalid private key value");
+  }
+  return keyHex;
+}
+
+/**
+ * HOWL keypair from a raw secp256k1 private key (matches KeyPair.from_private_hex).
+ * No BIP39 seed — multi-chain paths (SOL/BTC/…) are not available.
+ */
+export function keypairFromPrivateHex(privateKeyHex) {
+  const keyHex = normalizePrivateKeyHex(privateKeyHex);
+  const priv = hexToBytes(keyHex);
+  const pubUncompressed = secp.getPublicKey(priv, false);
+  const pubHex = bytesToHex(pubUncompressed);
+  const address = pubkeyToAddress(pubUncompressed);
+  return {
+    privateKeyHex: keyHex,
+    publicKeyHex: pubHex,
+    address,
+    index: null,
+    imported: true,
+  };
+}
+
+/** Ethereum address from the same raw secp256k1 private key (not BIP44-derived). */
+export function ethAddressFromPrivateHex(privateKeyHex) {
+  const keyHex = normalizePrivateKeyHex(privateKeyHex);
+  const priv = hexToBytes(keyHex);
+  const pubUncompressed = secp.getPublicKey(priv, false);
+  const hash = keccak_256(pubUncompressed.slice(1));
+  const addr = "0x" + bytesToHex(hash.slice(-20));
+  return {
+    address: addr,
+    privateKeyHex: keyHex,
+    path: "imported",
+  };
+}
+
 /** Ethereum address from same mnemonic (for ETH + ERC-20 stables / custom tokens). */
 export function ethAddressFromMnemonic(phrase, index = 0, passphrase = "") {
   const norm = phrase.trim().toLowerCase().split(/\s+/).join(" ");
