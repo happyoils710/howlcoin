@@ -51,7 +51,21 @@ html[data-theme="light"]{
   --font-ui:Inter,system-ui,sans-serif; --font-display:Inter,system-ui,sans-serif;
   --grid-opacity:0; --fx:0;
 }
+/* Bones — pure black & white, no gradients, square howl cut */
+html[data-theme="bones"]{
+  --bg:#000000; --void:#000000; --card:#000000; --card2:#0a0a0a;
+  --border:#ffffff; --border2:#ffffff;
+  --text:#ffffff; --muted:#a0a0a0;
+  --green:#ffffff; --cyan:#ffffff; --mag:#ffffff; --pink:#ffffff;
+  --amber:#ffffff; --danger:#ffffff; --blue:#ffffff;
+  --glow:none; --top-bg:#000000; --bottom-bg:#000000;
+  --btn-fg:#000000; --field-bg:#000000;
+  --font-ui:Inter,system-ui,sans-serif; --font-display:Inter,system-ui,sans-serif;
+  --grid-opacity:0; --fx:0;
+}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+/* Sharp edges everywhere (no rounded UI) */
+*,*::before,*::after{border-radius:0!important}
 html,body{margin:0;min-height:100%;font-family:var(--font-ui);
   background:var(--bg);color:var(--text);line-height:1.45;
   overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch}
@@ -70,6 +84,141 @@ html[data-theme="dark"] body::before{
 html[data-theme="light"] body::before{
   opacity:1;
   background:radial-gradient(800px 400px at 50% -10%,rgba(13,159,110,.06),transparent 50%),var(--bg);
+}
+html[data-theme="bones"] body::before{
+  opacity:1;
+  background:#000; /* flat black — no gradient */
+}
+html[data-theme="bones"] body::after{
+  display:none !important;
+  opacity:0 !important;
+  background:none !important;
+  animation:none !important;
+}
+html[data-theme="bones"] .screen h1{
+  background:none !important;
+  -webkit-background-clip:unset !important;
+  background-clip:unset !important;
+  -webkit-text-fill-color:#fff;
+  color:#fff !important;
+}
+html[data-theme="bones"] .card{
+  background:#000 !important;
+  box-shadow:none !important;
+  backdrop-filter:none !important;
+}
+html[data-theme="bones"] .card::before{display:none !important}
+html[data-theme="bones"] .btn{
+  background:#fff !important;
+  color:#000 !important;
+  border:1px solid #fff !important;
+  box-shadow:none !important;
+}
+html[data-theme="bones"] .btn.sec{
+  background:#000 !important;
+  color:#fff !important;
+  border-color:#fff !important;
+}
+html[data-theme="bones"] .btn.danger{
+  background:#000 !important;
+  color:#fff !important;
+  border:1px solid #fff !important;
+  text-decoration:underline;
+}
+html[data-theme="bones"] .field,
+html[data-theme="bones"] .chain-select,
+html[data-theme="bones"] select{
+  background:#000 !important;
+  color:#fff !important;
+  border-color:#fff !important;
+  box-shadow:none !important;
+}
+html[data-theme="bones"] .field:focus{
+  box-shadow:none !important;
+  outline:2px solid #fff;
+  outline-offset:0;
+}
+html[data-theme="bones"] .panel,
+html[data-theme="bones"] .bal,
+html[data-theme="bones"] .action,
+html[data-theme="bones"] .asset-row,
+html[data-theme="bones"] .menu-row,
+html[data-theme="bones"] .sres,
+html[data-theme="bones"] .discover-card,
+html[data-theme="bones"] .swap-leg,
+html[data-theme="bones"] .quote-card,
+html[data-theme="bones"] .top,
+html[data-theme="bones"] .bottom,
+html[data-theme="bones"] .tabs-sheet,
+html[data-theme="bones"] .search-shell{
+  background:#000 !important;
+  box-shadow:none !important;
+  backdrop-filter:none !important;
+}
+html[data-theme="bones"] .qr{
+  background:#fff !important;
+  box-shadow:none !important;
+}
+html[data-theme="bones"] .hud-line,
+html[data-theme="bones"] .seg button.on,
+html[data-theme="bones"] .unit-toggle button.on,
+html[data-theme="bones"] .theme-pill.on,
+html[data-theme="bones"] .chip.ok,
+html[data-theme="bones"] .badge.on{
+  background:#fff !important;
+  color:#000 !important;
+  border-color:#fff !important;
+  box-shadow:none !important;
+  text-shadow:none !important;
+}
+html[data-theme="bones"] .unit-toggle button.on,
+html[data-theme="bones"] .seg button.on,
+html[data-theme="bones"] .theme-pill.on{
+  color:#000 !important;
+}
+html[data-theme="bones"] .tab.on{text-shadow:none !important}
+html[data-theme="bones"] .browser-search-hero .search-shell .go{
+  background:#fff !important;
+  color:#000 !important;
+}
+html[data-theme="bones"] .swap-flip{
+  background:#000 !important;
+  color:#fff !important;
+  box-shadow:none !important;
+}
+html[data-theme="bones"] #toast,
+html[data-theme="bones"] .ptr{
+  background:#000 !important;
+  color:#fff !important;
+  border:1px solid #fff !important;
+  box-shadow:none !important;
+}
+html[data-theme="bones"] .spin{
+  border-color:#333 !important;
+  border-top-color:#fff !important;
+}
+html[data-theme="bones"] .screen img.logo,
+html[data-theme="bones"] .top img{
+  filter:grayscale(1) contrast(1.15);
+  box-shadow:none !important;
+  border-color:#fff !important;
+  animation:none !important;
+}
+html[data-theme="bones"] .word{
+  background:#000 !important;
+  border-color:#fff !important;
+}
+html[data-theme="bones"] .warnbox{
+  background:#000 !important;
+  border:1px solid #fff !important;
+  color:#fff !important;
+}
+html[data-theme="bones"] .item .r,
+html[data-theme="bones"] .bal .amt,
+html[data-theme="bones"] .asset-row .bal,
+html[data-theme="bones"] .top .t span,
+html[data-theme="bones"] .ok{
+  color:#fff !important;
 }
 body::after{
   content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:var(--grid-opacity);
@@ -175,7 +324,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
   backdrop-filter:blur(14px);position:relative;overflow:hidden}
 .panel h2{margin:0 0 12px;font-family:var(--font-display);font-size:.68rem;text-transform:uppercase;
   letter-spacing:.12em;color:var(--cyan);font-weight:700}
-.theme-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px}
+.theme-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 .theme-pill{border:1px solid var(--border);background:var(--card2);color:var(--text);border-radius:14px;
   padding:12px 8px;font:inherit;font-weight:700;cursor:pointer;text-align:center}
 .theme-pill.on{border-color:var(--green);color:var(--green);box-shadow:0 0 0 2px color-mix(in srgb,var(--green) 25%,transparent)}
@@ -602,7 +751,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <div class="menu-list">
           <button type="button" class="menu-row" onclick="showPage('sec')"><span class="mi">🛡</span><div><div class="mt">Security</div><div class="ms" id="moreSecHint">Face ID · 2FA · recovery</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('toolbar')"><span class="mi">☰</span><div><div class="mt">Customize toolbar</div><div class="ms">Pick bottom icons · Search · Discover</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="showPage('appearance')"><span class="mi">◐</span><div><div class="mt">Appearance</div><div class="ms" id="themeHint">Light · Dark · Neo</div></div><span class="chev">›</span></button>
+          <button type="button" class="menu-row" onclick="showPage('appearance')"><span class="mi">◐</span><div><div class="mt">Appearance</div><div class="ms" id="themeHint">Light · Dark · Neo · Bones</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="refresh();toast('Synced')"><span class="mi">↻</span><div><div class="mt">Refresh data</div><div class="ms">Reload balances &amp; chain</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="window.open('https://howlscan.org/','_blank')"><span class="mi">⎋</span><div><div class="mt">Howlscan</div><div class="ms">Block explorer</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="lockWallet()"><span class="mi">🔒</span><div><div class="mt">Lock wallet</div><div class="ms">Require unlock again</div></div><span class="chev">›</span></button>
@@ -820,11 +969,12 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>Appearance</h1></div>
       <div class="panel">
         <h2>Theme</h2>
-        <p class="hint">Choose how the wallet looks. Neo is the neon Howl look.</p>
+        <p class="hint">Choose how the wallet looks. <b>Bones</b> is pure black &amp; white — no color, no gradients. All themes use sharp edges.</p>
         <div class="theme-row">
           <button type="button" class="theme-pill" data-theme="light" onclick="setTheme('light')">Light<small>Clean daylight</small></button>
           <button type="button" class="theme-pill" data-theme="dark" onclick="setTheme('dark')">Dark<small>Low glare</small></button>
           <button type="button" class="theme-pill" data-theme="neo" onclick="setTheme('neo')">Neo<small>Cyber glow</small></button>
+          <button type="button" class="theme-pill" data-theme="bones" onclick="setTheme('bones')">Bones<small>B&amp;W · no gradient</small></button>
         </div>
       </div>
       <div class="panel">
@@ -2760,18 +2910,26 @@ async function loadBridgeOrders(){
 }
 
 function setTheme(name){
-  const t = ["light","dark","neo"].includes(name) ? name : "neo";
+  const t = ["light","dark","neo","bones"].includes(name) ? name : "neo";
   document.documentElement.setAttribute("data-theme", t);
   localStorage.setItem(LS_THEME, t);
   const meta = $("themeColorMeta");
   if(meta){
-    meta.content = t==="light" ? "#f4f6fa" : t==="dark" ? "#0c0e12" : "#03010a";
+    meta.content = t==="light" ? "#f4f6fa"
+      : t==="dark" ? "#0c0e12"
+      : t==="bones" ? "#000000"
+      : "#03010a";
   }
   document.querySelectorAll(".theme-pill").forEach(p=>{
     p.classList.toggle("on", p.dataset.theme === t);
   });
   const hint = $("themeHint");
-  if(hint) hint.textContent = t==="neo" ? "Neo cyber glow" : t==="dark" ? "Dark" : "Light";
+  if(hint){
+    hint.textContent = t==="neo" ? "Neo cyber glow"
+      : t==="dark" ? "Dark"
+      : t==="bones" ? "Bones · B&W"
+      : "Light";
+  }
 }
 function applyStoredTheme(){
   setTheme(localStorage.getItem(LS_THEME) || "neo");
