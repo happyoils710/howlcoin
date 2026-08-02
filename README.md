@@ -1,11 +1,13 @@
 # Howlcoin (HOWL)
 
 ```
- _   _                 _           _
-| | | | _____      __ | | ___ ___ (_)_ __
-| |_| |/ _ \ \ /\ / / | |/ __/ _ \| | '_ \
-|  _  | (_) \ V  V /  | | (_| (_) | | | | |
-|_| |_|\___/ \_/\_/   |_|\___\___/|_|_| |_|
+        __    __
+       /  \__/  \      _   _                 _           _
+      |  ◕    ◕  |    | | | | _____      __ | | ___ ___ (_)_ __
+       \   ▽    /     | |_| |/ _ \ \ /\ / / | |/ __/ _ \| | '_ \
+        \______/      |  _  | (_) \ V  V /  | | (_| (_) | | | | |
+       /|      |\     |_| |_|\___/ \_/\_/   |_|\___\___/|_|_| |_|
+      (_|  ▬▬  |_)           Scrypt meme coin · ticker HOWL  ·  awoo
 ```
 
 **Scrypt proof-of-work meme coin** — same *algorithm family* as early Dogecoin, built to actually run and mine on your machine.
