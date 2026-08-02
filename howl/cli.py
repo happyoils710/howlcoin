@@ -403,11 +403,85 @@ def _resolve_seeds(args: argparse.Namespace) -> list:
     return seeds
 
 
+def _pids_listening_on(port: int) -> list:
+    """Return PIDs listening on TCP port (macOS/Linux via lsof)."""
+    import subprocess
+
+    try:
+        out = subprocess.check_output(
+            ["lsof", "-nP", f"-iTCP:{int(port)}", "-sTCP:LISTEN", "-t"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        return []
+    pids = []
+    for line in out.splitlines():
+        line = line.strip()
+        if line.isdigit():
+            pids.append(int(line))
+    return pids
+
+
+def free_howl_ports(*ports: int, force: bool = True) -> None:
+    """
+    Stop leftover Howlcoin/Python listeners on P2P + dashboard ports.
+    Avoids macOS Errno 48 Address already in use when an old node is still running.
+    """
+    import os
+    import signal
+    import time
+
+    me = os.getpid()
+    killed = []
+    for port in ports:
+        for pid in _pids_listening_on(port):
+            if pid == me:
+                continue
+            try:
+                # Prefer graceful stop
+                os.kill(pid, signal.SIGTERM)
+                killed.append((pid, port))
+            except ProcessLookupError:
+                pass
+            except PermissionError:
+                print(f"Need permission to stop PID {pid} on port {port}")
+    if killed:
+        time.sleep(0.8)
+        # Force if still listening
+        if force:
+            for port in ports:
+                for pid in _pids_listening_on(port):
+                    if pid == me:
+                        continue
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                        print(f"Force-stopped PID {pid} (port {port})")
+                    except ProcessLookupError:
+                        pass
+                    except PermissionError:
+                        print(f"Could not force-stop PID {pid} on port {port}")
+        still = []
+        for port in ports:
+            still.extend(_pids_listening_on(port))
+        if still:
+            print(
+                f"WARNING: ports still busy (PIDs {sorted(set(still))}). "
+                f"Try: lsof -nP -iTCP:{ports[0]} -sTCP:LISTEN"
+            )
+        else:
+            uniq = sorted({p for p, _ in killed})
+            print(f"Freed ports {', '.join(str(p) for p in ports)} (stopped PID(s): {uniq})")
+
+
 def cmd_node(args: argparse.Namespace) -> None:
     """Run P2P node + web dashboard (the full local Howlcoin experience)."""
     import signal
     import threading
     import webbrowser
+
+    # Free leftover listeners before bind (desktop double-click often leaves one running)
+    free_howl_ports(int(args.port), int(args.rpc_port), force=True)
 
     dd = data_dir(args)
     wallet_path = dd / WALLET_FILE

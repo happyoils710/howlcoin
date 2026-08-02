@@ -23,14 +23,30 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 1
 fi
 
-# Stop previous local node (this user only)
-pkill -f "python3 -m howl node" 2>/dev/null || true
-pkill -f "python3 -m howl go" 2>/dev/null || true
-pkill -f "Python -m howl node" 2>/dev/null || true
-pkill -f "Python -m howl go" 2>/dev/null || true
-pkill -f "python.*-m howl node" 2>/dev/null || true
-pkill -f "python.*-m howl go" 2>/dev/null || true
-sleep 0.8
+# Stop previous local node (any Python binary path — Anaconda, CLT, etc.)
+echo "Stopping any old Howlcoin node on ports 42069 / 42070…"
+for port in 42069 42070; do
+  pids=$(lsof -nP -iTCP:$port -sTCP:LISTEN -t 2>/dev/null || true)
+  if [[ -n "$pids" ]]; then
+    echo "  port $port → kill $pids"
+    kill $pids 2>/dev/null || true
+  fi
+done
+# Name-based fallback (covers odd process titles)
+pkill -f "howl node" 2>/dev/null || true
+pkill -f "howl go" 2>/dev/null || true
+pkill -f "-m howl node" 2>/dev/null || true
+pkill -f "-m howl go" 2>/dev/null || true
+sleep 1
+# Force if still held
+for port in 42069 42070; do
+  pids=$(lsof -nP -iTCP:$port -sTCP:LISTEN -t 2>/dev/null || true)
+  if [[ -n "$pids" ]]; then
+    echo "  force-kill port $port → $pids"
+    kill -9 $pids 2>/dev/null || true
+  fi
+done
+sleep 0.5
 
 # Optional soft update (ignore failures if offline)
 git fetch origin --quiet 2>/dev/null || true

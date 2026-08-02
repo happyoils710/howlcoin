@@ -1529,7 +1529,17 @@ class Dashboard:
 
     def serve_forever(self) -> None:
         handler = self.make_handler()
-        self._httpd = ThreadingHTTPServer((self.host, self.port), handler)
+        # Allow quick restart after crash / double-click relaunch
+        ThreadingHTTPServer.allow_reuse_address = True
+        try:
+            self._httpd = ThreadingHTTPServer((self.host, self.port), handler)
+        except OSError as e:
+            raise SystemExit(
+                f"Dashboard port {self.host}:{self.port} already in use ({e}).\n"
+                f"Stop the other node, or run:\n"
+                f"  lsof -nP -iTCP:{self.port} -sTCP:LISTEN\n"
+                f"  kill $(lsof -t -iTCP:{self.port} -sTCP:LISTEN)"
+            ) from e
         print(f"Howlcoin wallet → http://{self.host}:{self.port}/")
         print(f"  chain height {self.chain.height()} · wallet {self.wallet.address}")
         self._httpd.serve_forever()
