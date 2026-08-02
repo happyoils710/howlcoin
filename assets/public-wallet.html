@@ -10,6 +10,16 @@
 <link rel="icon" href="/assets/howlcoin-logo-meme-pup-coin.jpg"/>
 <link rel="apple-touch-icon" href="/assets/howlcoin-logo-meme-pup-coin.jpg"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
+<script>
+/* Keep appearance across Howlscan ↔ /app */
+(function(){
+  try{
+    var t=localStorage.getItem('howl_theme_v1')||localStorage.getItem('howlscan_theme_v1')||'neo';
+    if(['light','dark','neo','bones'].indexOf(t)<0) t='neo';
+    document.documentElement.setAttribute('data-theme', t);
+  }catch(e){}
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Rajdhani:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <script src="/assets/howl-native-bridge.js"></script>
@@ -2387,6 +2397,9 @@ function renderAssetDetail(){
         ${a.note?`<p class="hint">${escHtml(a.note)}</p>`:""}
         ${a.contract?`<p class="hint mono" style="font-size:.7rem">Contract: ${escHtml(a.contract)}</p>`:""}
         ${a.mint?`<p class="hint mono" style="font-size:.7rem">Mint: ${escHtml(a.mint)}</p>`:""}
+        ${a.code?`<p class="hint mono" style="font-size:.7rem">Code: ${escHtml(a.code)}</p>`:""}
+        ${a.issuer?`<p class="hint mono" style="font-size:.7rem">Issuer: ${escHtml(a.issuer)}</p>`:""}
+        ${a.tokenId!=null && a.kind==="fa"?`<p class="hint mono" style="font-size:.7rem">Token ID: ${escHtml(String(a.tokenId))}</p>`:""}
       </div>`;
   }
   loadAssetTransactions(a);
@@ -3152,7 +3165,11 @@ async function loadBridgeOrders(){
 function setTheme(name){
   const t = ["light","dark","neo","bones"].includes(name) ? name : "neo";
   document.documentElement.setAttribute("data-theme", t);
-  localStorage.setItem(LS_THEME, t);
+  // Keep Howlscan website theme in sync (explorer / whitepaper / token)
+  try{
+    localStorage.setItem(LS_THEME, t);
+    localStorage.setItem("howlscan_theme_v1", t);
+  }catch(_){}
   const meta = $("themeColorMeta");
   if(meta){
     meta.content = t==="light" ? "#f4f6fa"
@@ -3172,7 +3189,14 @@ function setTheme(name){
   }
 }
 function applyStoredTheme(){
-  setTheme(localStorage.getItem(LS_THEME) || "neo");
+  let t = "neo";
+  try{
+    const a = localStorage.getItem(LS_THEME);
+    const b = localStorage.getItem("howlscan_theme_v1");
+    if(["light","dark","neo","bones"].includes(a)) t = a;
+    else if(["light","dark","neo","bones"].includes(b)) t = b;
+  }catch(_){}
+  setTheme(t);
 }
 
 function ensureActiveTab(){
@@ -4947,7 +4971,7 @@ function boot(skipInstallPrompt){
   }
   if(localStorage.getItem(LS_CREATED) && localStorage.getItem(LS_ENC)) uiUnlock();
   else uiCreate();
-  renderCustomList();
+  renderCustomTokenForms();
 }
 
 window.showPage = showPage;

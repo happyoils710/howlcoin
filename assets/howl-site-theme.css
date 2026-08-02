@@ -1,0 +1,181 @@
+/**
+ * Howlscan site-wide appearance (Light · Dark · Neo · Bones)
+ * Shared by explorer, whitepaper, token, wallet guide.
+ */
+html[data-theme="dark"], :root {
+  --bg: #0c0f14;
+  --bg2: #12161e;
+  --panel: #161b26;
+  --panel2: #1a2130;
+  --border: #252d3d;
+  --text: #e8edf7;
+  --muted: #8b95a8;
+  --link: #4da3ff;
+  --green: #3dff9a;
+  --amber: #ffb020;
+  --red: #ff6b7a;
+  --chip: #222a3a;
+  --row: #121722;
+  --rowh: #1a2233;
+  --top-bg: rgba(12, 15, 20, 0.94);
+  --bottom-bg: rgba(12, 15, 20, 0.96);
+  --btn-bg: #1f55c9;
+  --btn-fg: #fff;
+  --active-bg: rgba(77, 163, 255, 0.15);
+  --active-border: rgba(77, 163, 255, 0.45);
+  --active-text: #9cc9ff;
+  --ok-bg: rgba(61, 255, 154, 0.12);
+  --warn-bg: rgba(255, 176, 32, 0.12);
+  --primary-border: rgba(61, 255, 154, 0.4);
+  --note-bg: rgba(255, 176, 32, 0.08);
+  --note-border: rgba(255, 176, 32, 0.25);
+  --note-text: #ffd78a;
+  --fx: 0;
+}
+html[data-theme="light"] {
+  --bg: #f4f6fa;
+  --bg2: #eef1f6;
+  --panel: #ffffff;
+  --panel2: #f0f3f8;
+  --border: #d8dee8;
+  --text: #0f1419;
+  --muted: #5c667a;
+  --link: #1565c0;
+  --green: #0d9f6e;
+  --amber: #d97706;
+  --red: #dc2626;
+  --chip: #e8ecf2;
+  --row: #ffffff;
+  --rowh: #eef2f8;
+  --top-bg: rgba(255, 255, 255, 0.94);
+  --bottom-bg: rgba(255, 255, 255, 0.96);
+  --btn-bg: #1565c0;
+  --btn-fg: #fff;
+  --active-bg: rgba(21, 101, 192, 0.1);
+  --active-border: rgba(21, 101, 192, 0.4);
+  --active-text: #1565c0;
+  --ok-bg: rgba(13, 159, 110, 0.12);
+  --warn-bg: rgba(217, 119, 6, 0.12);
+  --primary-border: rgba(13, 159, 110, 0.45);
+  --note-bg: rgba(217, 119, 6, 0.08);
+  --note-border: rgba(217, 119, 6, 0.3);
+  --note-text: #92400e;
+  --fx: 0;
+}
+html[data-theme="neo"] {
+  --bg: #03010a;
+  --bg2: #050214;
+  --panel: rgba(12, 8, 32, 0.92);
+  --panel2: rgba(8, 6, 24, 0.95);
+  --border: rgba(0, 255, 200, 0.22);
+  --text: #eef6ff;
+  --muted: #8b9bbf;
+  --link: #00e5ff;
+  --green: #00ffc6;
+  --amber: #ffc14d;
+  --red: #ff4d6d;
+  --chip: rgba(8, 6, 24, 0.9);
+  --row: rgba(8, 6, 24, 0.75);
+  --rowh: rgba(0, 255, 198, 0.08);
+  --top-bg: rgba(3, 1, 12, 0.9);
+  --bottom-bg: rgba(3, 1, 12, 0.96);
+  --btn-bg: #00ffc6;
+  --btn-fg: #03140f;
+  --active-bg: rgba(0, 255, 198, 0.12);
+  --active-border: rgba(0, 255, 198, 0.5);
+  --active-text: #00ffc6;
+  --ok-bg: rgba(0, 255, 198, 0.12);
+  --warn-bg: rgba(255, 193, 77, 0.12);
+  --primary-border: rgba(0, 255, 198, 0.45);
+  --note-bg: rgba(255, 193, 77, 0.08);
+  --note-border: rgba(255, 193, 77, 0.28);
+  --note-text: #ffd78a;
+  --fx: 1;
+}
+html[data-theme="bones"] {
+  --bg: #000;
+  --bg2: #000;
+  --panel: #000;
+  --panel2: #0a0a0a;
+  --border: #fff;
+  --text: #fff;
+  --muted: #a0a0a0;
+  --link: #fff;
+  --green: #fff;
+  --amber: #fff;
+  --red: #fff;
+  --chip: #0a0a0a;
+  --row: #000;
+  --rowh: #111;
+  --top-bg: #000;
+  --bottom-bg: #000;
+  --btn-bg: #fff;
+  --btn-fg: #000;
+  --active-bg: #fff;
+  --active-border: #fff;
+  --active-text: #000;
+  --ok-bg: #111;
+  --warn-bg: #111;
+  --primary-border: #fff;
+  --note-bg: #000;
+  --note-border: #fff;
+  --note-text: #fff;
+  --fx: 0;
+}
+
+/* Sharp edges site-wide */
+*, *::before, *::after {
+  border-radius: 0 !important;
+}
+
+html[data-theme="bones"] img.logo,
+html[data-theme="bones"] .topbar img {
+  filter: grayscale(1) contrast(1.1);
+}
+
+/* Compact theme control used on static pages */
+.howl-theme-select {
+  border: 1px solid var(--border);
+  background: var(--chip);
+  color: var(--text);
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  min-height: 40px;
+  cursor: pointer;
+  max-width: 120px;
+}
+.howl-theme-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.howl-theme-pill {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  padding: 10px 8px;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.78rem;
+  cursor: pointer;
+  text-align: center;
+}
+.howl-theme-pill small {
+  display: block;
+  font-weight: 500;
+  color: var(--muted);
+  font-size: 0.68rem;
+  margin-top: 3px;
+}
+.howl-theme-pill.on {
+  border-color: var(--green);
+  color: var(--green);
+  background: var(--active-bg);
+}
+html[data-theme="bones"] .howl-theme-pill.on {
+  background: #fff;
+  color: #000;
+}

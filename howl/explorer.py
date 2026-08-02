@@ -1321,15 +1321,16 @@ EXPLORER_HTML = r"""<!DOCTYPE html>
 <title>Howlscan — Howlcoin Block Explorer</title>
 <link rel="icon" href="/assets/howlcoin-logo-meme-pup-coin.jpg"/>
 <script>
-/* Apply theme before paint to avoid flash */
+/* Apply theme before paint (site + wallet keys stay in sync) */
 (function(){
   try{
-    var t=localStorage.getItem('howlscan_theme_v1')||'dark';
+    var t=localStorage.getItem('howlscan_theme_v1')||localStorage.getItem('howl_theme_v1')||'dark';
     if(['light','dark','neo','bones'].indexOf(t)<0) t='dark';
     document.documentElement.setAttribute('data-theme', t);
   }catch(e){}
 })();
 </script>
+<link rel="stylesheet" href="/assets/howl-site-theme.css"/>
 <style>
 /* —— Themes (match wallet: Light · Dark · Neo · Bones) —— */
 html[data-theme="dark"], :root{
@@ -1684,6 +1685,7 @@ let net='public', networks=[];
 const SEED = '147.182.223.204:42069';
 const REPO = 'https://github.com/happyoils710/howlcoin';
 const LS_THEME = 'howlscan_theme_v1';
+const LS_THEME_WALLET = 'howl_theme_v1';
 const THEMES = ['light','dark','neo','bones'];
 const $ = s => document.querySelector(s);
 const app = () => $('#app');
@@ -1691,7 +1693,11 @@ const app = () => $('#app');
 function setTheme(name){
   const t = THEMES.includes(name) ? name : 'dark';
   document.documentElement.setAttribute('data-theme', t);
-  try{ localStorage.setItem(LS_THEME, t); }catch(e){}
+  // Persist on both keys so /app wallet and every Howlscan page stay aligned
+  try{
+    localStorage.setItem(LS_THEME, t);
+    localStorage.setItem(LS_THEME_WALLET, t);
+  }catch(e){}
   const meta = document.getElementById('themeColorMeta');
   if(meta){
     meta.content = t==='light' ? '#f4f6fa'
@@ -1701,16 +1707,29 @@ function setTheme(name){
   }
   const sel = document.getElementById('themeSelect');
   if(sel && sel.value !== t) sel.value = t;
-  document.querySelectorAll('.theme-pill').forEach(p=>{
+  document.querySelectorAll('.theme-pill, .howl-theme-pill').forEach(p=>{
     p.classList.toggle('on', p.getAttribute('data-theme') === t);
   });
 }
+function readStoredTheme(){
+  try{
+    const a = localStorage.getItem(LS_THEME);
+    const b = localStorage.getItem(LS_THEME_WALLET);
+    if(THEMES.includes(a)) return a;
+    if(THEMES.includes(b)) return b;
+  }catch(e){}
+  return 'dark';
+}
 function applyStoredTheme(){
-  let t = 'dark';
-  try{ t = localStorage.getItem(LS_THEME) || 'dark'; }catch(e){}
-  setTheme(t);
+  setTheme(readStoredTheme());
 }
 applyStoredTheme();
+// Keep theme through hash routes, back/forward, and tab focus
+window.addEventListener('hashchange', applyStoredTheme);
+window.addEventListener('pageshow', applyStoredTheme);
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible') applyStoredTheme();
+});
 async function api(p){const r=await fetch(p); const j=await r.json(); if(!r.ok) throw new Error(j.error||r.statusText); return j}
 function short(h,n=12){if(!h)return '—'; h=String(h); return h.length<=n?h:h.slice(0,n)+'…'}
 function fmtAmt(a){if(a==null||a==='')return '—'; const n=Number(a)/1e8; return n.toLocaleString(undefined,{maximumFractionDigits:8})+' HOWL'}
@@ -2434,20 +2453,47 @@ class ExplorerServer:
                     page = f"""<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="theme-color" content="#0c0f14" id="themeColorMeta"/>
 <title>HOWL Token Info — Howlcoin</title>
 <link rel="icon" href="/assets/howlcoin-logo-meme-pup-coin.jpg"/>
+<script>
+(function(){{
+  try{{
+    var t=localStorage.getItem('howlscan_theme_v1')||localStorage.getItem('howl_theme_v1')||'dark';
+    if(['light','dark','neo','bones'].indexOf(t)<0) t='dark';
+    document.documentElement.setAttribute('data-theme', t);
+  }}catch(e){{}}
+}})();
+</script>
+<link rel="stylesheet" href="/assets/howl-site-theme.css"/>
 <style>
-body{{font-family:system-ui,sans-serif;background:#0c0f14;color:#e8edf7;margin:0;padding:24px;line-height:1.5}}
-a{{color:#3dff9a}} .mono{{font-family:ui-monospace,Menlo,monospace;font-size:.85rem;word-break:break-all}}
-.card{{max-width:720px;margin:0 auto;background:#161b26;border:1px solid #252d3d;border-radius:16px;padding:20px}}
-h1{{margin:0 0 8px;font-size:1.4rem}} h1 span{{color:#3dff9a}}
-.muted{{color:#8b95a8;font-size:.9rem}}
+*{{box-sizing:border-box}}
+body{{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:24px;line-height:1.5}}
+a{{color:var(--green)}} .mono{{font-family:ui-monospace,Menlo,monospace;font-size:.85rem;word-break:break-all}}
+.topbar{{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 auto 16px;max-width:720px}}
+.topbar a{{color:var(--text);text-decoration:none;border:1px solid var(--border);background:var(--chip);
+  padding:8px 12px;font-weight:600;font-size:.85rem}}
+.card{{max-width:720px;margin:0 auto;background:var(--panel);border:1px solid var(--border);padding:20px}}
+h1{{margin:0 0 8px;font-size:1.4rem}} h1 span{{color:var(--green)}}
+.muted{{color:var(--muted);font-size:.9rem}}
 table{{width:100%;border-collapse:collapse;margin:16px 0}}
-th,td{{text-align:left;padding:10px 8px;border-bottom:1px solid #252d3d;vertical-align:top}}
-th{{color:#8b95a8;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;width:34%}}
-.badge{{display:inline-block;padding:4px 10px;border-radius:999px;background:rgba(61,255,154,.12);color:#3dff9a;font-size:.75rem;font-weight:700}}
-.note{{margin-top:16px;padding:12px;border-radius:12px;background:rgba(255,176,32,.08);border:1px solid rgba(255,176,32,.25);font-size:.88rem;color:#ffd78a}}
+th,td{{text-align:left;padding:10px 8px;border-bottom:1px solid var(--border);vertical-align:top}}
+th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;width:34%}}
+.badge{{display:inline-block;padding:4px 10px;background:var(--ok-bg);color:var(--green);font-size:.75rem;font-weight:700}}
+.note{{margin-top:16px;padding:12px;background:var(--note-bg);border:1px solid var(--note-border);font-size:.88rem;color:var(--note-text)}}
 </style></head><body>
+<div class="topbar">
+  <a href="/">Explorer</a>
+  <a href="/whitepaper">White paper</a>
+  <a href="/wallet">Wallet</a>
+  <div style="flex:1"></div>
+  <select class="howl-theme-select" id="themeSelect" title="Appearance" aria-label="Appearance" onchange="HowlTheme.set(this.value)">
+    <option value="dark">Dark</option>
+    <option value="light">Light</option>
+    <option value="neo">Neo</option>
+    <option value="bones">Bones</option>
+  </select>
+</div>
 <div class="card">
   <div class="badge">OFFICIAL · LISTING INFO</div>
   <h1>Howl<span>coin</span> (HOWL)</h1>
@@ -2461,6 +2507,7 @@ th{{color:#8b95a8;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em
     <a href="/">Howlscan</a> · <a href="/whitepaper">White paper</a>
   </p>
 </div>
+<script src="/assets/howl-site-theme.js"></script>
 </body></html>"""
                     return self._bytes(200, page.encode("utf-8"), "text/html; charset=utf-8")
 

@@ -3,29 +3,39 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="theme-color" content="#0c0f14" id="themeColorMeta"/>
 <title>Howlcoin Wallet</title>
 <link rel="icon" href="/assets/howlcoin-logo-meme-pup-coin.jpg"/>
+<script>
+(function(){
+  try{
+    var t=localStorage.getItem('howlscan_theme_v1')||localStorage.getItem('howl_theme_v1')||'dark';
+    if(['light','dark','neo','bones'].indexOf(t)<0) t='dark';
+    document.documentElement.setAttribute('data-theme', t);
+  }catch(e){}
+})();
+</script>
+<link rel="stylesheet" href="/assets/howl-site-theme.css"/>
 <style>
-:root{--bg:#0c0f14;--panel:#161b26;--border:#252d3d;--text:#e8edf7;--muted:#8b95a8;--link:#4da3ff;--green:#3dff9a;--chip:#222a3a}
 *{box-sizing:border-box}
 body{margin:0;font-family:Inter,system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.55}
 a{color:var(--link);text-decoration:none}
 .topbar{display:flex;align-items:center;gap:14px;padding:12px 20px;border-bottom:1px solid var(--border);
-  background:rgba(12,15,20,.92);position:sticky;top:0}
-.topbar img{width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid rgba(61,255,154,.45)}
+  background:var(--top-bg);position:sticky;top:0;flex-wrap:wrap;z-index:20}
+.topbar img{width:40px;height:40px;object-fit:cover;border:2px solid color-mix(in srgb,var(--green) 45%,transparent)}
 .brand{font-weight:750}.brand span{color:var(--green)}
 .brand small{display:block;font-weight:500;color:var(--muted);font-size:.75rem}
 .grow{flex:1}
-.chipbtn{border:1px solid var(--border);background:var(--chip);color:var(--text);border-radius:8px;
+.chipbtn{border:1px solid var(--border);background:var(--chip);color:var(--text);
   padding:8px 12px;font:inherit;font-size:.85rem;font-weight:600;text-decoration:none;display:inline-block}
-.chipbtn.primary{border-color:rgba(61,255,154,.45);color:var(--green)}
+.chipbtn.primary{border-color:var(--primary-border);color:var(--green)}
 .wrap{max-width:720px;margin:0 auto;padding:28px 20px 60px}
-.card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:22px 24px;margin-bottom:16px}
+.card{background:var(--panel);border:1px solid var(--border);padding:22px 24px;margin-bottom:16px}
 h1{margin:0 0 8px;font-size:1.6rem}
 h2{margin:0 0 10px;font-size:1.05rem;color:var(--green)}
 .muted{color:var(--muted)}
-.btn{display:inline-block;margin:6px 6px 6px 0;padding:14px 18px;border-radius:12px;font-weight:700;
-  border:1px solid rgba(61,255,154,.45);background:rgba(61,255,154,.12);color:var(--green);text-decoration:none;font-size:1rem}
+.btn{display:inline-block;margin:6px 6px 6px 0;padding:14px 18px;font-weight:700;
+  border:1px solid var(--primary-border);background:var(--ok-bg);color:var(--green);text-decoration:none;font-size:1rem}
 .btn:hover{filter:brightness(1.08);text-decoration:none}
 ul{margin:8px 0;padding-left:1.2rem}
 li{margin:6px 0}
@@ -36,6 +46,12 @@ li{margin:6px 0}
   <a href="/"><img src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt="HOWL"/></a>
   <a href="/" class="brand" style="color:inherit;text-decoration:none">Howl<span>scan</span><small>Howlcoin block explorer</small></a>
   <div class="grow"></div>
+  <select class="howl-theme-select" id="themeSelect" title="Appearance" aria-label="Appearance" onchange="HowlTheme.set(this.value)">
+    <option value="dark">Dark</option>
+    <option value="light">Light</option>
+    <option value="neo">Neo</option>
+    <option value="bones">Bones</option>
+  </select>
   <a class="chipbtn" href="/">Explorer</a>
   <a class="chipbtn primary" href="/wallet">Wallet</a>
   <a class="chipbtn" href="/#/run">Run a node</a>
@@ -52,7 +68,7 @@ li{margin:6px 0}
       <li><b>Syncs</b> HOWL balance &amp; history from the live public ledger</li>
       <li><b>Send / receive</b> HOWL (network fee paid to miners)</li>
       <li><b>Face ID / Touch ID</b> unlock + <b>Google Authenticator</b> 2FA</li>
-      <li><b>Deposits</b> for <b>SOL</b>, ETH, USDT/USDC (ERC-20 + SPL), top tokens, and <b>custom ERC-20s</b></li>
+      <li><b>Deposits</b> for <b>SOL</b>, ETH, USDT/USDC (ERC-20 + SPL), top tokens, and <b>custom tokens</b></li>
       <li><b>Swap</b> on Solana via Jupiter (SOL ↔ USDC/USDT)</li>
       <li><b>DApp browser</b> with bookmarks (Jupiter, Raydium, Uniswap, …)</li>
       <li><b>Create</b> or <b>restore</b> with a 12-word recovery phrase on any device</li>
@@ -69,5 +85,6 @@ li{margin:6px 0}
     <a class="chipbtn" href="/#/run">Run a node instructions</a>
   </div>
 </div>
+<script src="/assets/howl-site-theme.js"></script>
 </body>
 </html>
