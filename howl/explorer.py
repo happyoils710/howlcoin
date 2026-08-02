@@ -38,6 +38,52 @@ from .wallet import format_howl
 
 # Live seed node RPC (for broadcasting browser-signed txs into the public mempool)
 NODE_RPC = os.environ.get("HOWL_NODE_RPC", "http://127.0.0.1:42070").rstrip("/")
+# Server-side Solana RPC (browser mainnet endpoints often 403 howlscan.org origin)
+SOLANA_RPC = os.environ.get(
+    "SOLANA_RPC", "https://api.mainnet-beta.solana.com"
+).rstrip("/")
+
+
+def solana_rpc_call(method: str, params: list, timeout: int = 20) -> Any:
+    """JSON-RPC to Solana from the server (avoids browser CORS / origin bans)."""
+    body = json.dumps(
+        {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+    ).encode()
+    endpoints = [
+        SOLANA_RPC,
+        "https://api.mainnet-beta.solana.com",
+        "https://solana-rpc.publicnode.com",
+    ]
+    # de-dupe preserve order
+    seen = set()
+    uniq = []
+    for e in endpoints:
+        if e and e not in seen:
+            seen.add(e)
+            uniq.append(e)
+    last_err: Optional[Exception] = None
+    for url in uniq:
+        try:
+            req = urllib.request.Request(
+                url,
+                data=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "User-Agent": "Howlscan/0.5 (+https://howlscan.org)",
+                    "Accept": "application/json",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+            if data.get("error"):
+                last_err = RuntimeError(str(data["error"]))
+                continue
+            return data.get("result")
+        except Exception as e:
+            last_err = e
+            continue
+    raise RuntimeError(f"Solana RPC failed: {last_err}")
 
 # Optional wrapped-token contracts (for CMC/CoinCodex when you deploy them)
 # HOWL is a *native* Scrypt coin — it has no default EVM/SPL contract.
@@ -2250,6 +2296,110 @@ th{{color:#8b95a8;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em
                     chain = hub.get("public")
                     return self._json(200, howl_token_info(chain))
 
+                # Solana balance / history proxy (public RPCs block browser Origin: howlscan.org)
+                if path in ("/api/public/sol/balance", "/api/sol/balance"):
+                    addr = (qs.get("address") or qs.get("addr") or [""])[0].strip()
+                    if not addr or len(addr) < 32:
+                        return self._json(400, {"error": "address required"})
+                    try:
+                        res = solana_rpc_call(
+                            "getBalance", [addr, {"commitment": "confirmed"}]
+                        )
+                        lamports = 0
+                        if isinstance(res, dict):
+                            lamports = int(res.get("value") or 0)
+                        else:
+                            lamports = int(res or 0)
+                        return self._json(
+                            200,
+                            {
+                                "address": addr,
+                                "lamports": lamports,
+                                "sol": lamports / 1e9,
+                                "source": "howlscan-proxy",
+                            },
+                        )
+                    except Exception as e:
+                        return self._json(502, {"error": f"sol balance failed: {e}"})
+
+                if path in ("/api/public/sol/signatures", "/api/sol/signatures"):
+                    addr = (qs.get("address") or qs.get("addr") or [""])[0].strip()
+                    try:
+                        limit = int((qs.get("limit") or ["15"])[0])
+                    except ValueError:
+                        limit = 15
+                    limit = max(1, min(40, limit))
+                    if not addr:
+                        return self._json(400, {"error": "address required"})
+                    try:
+                        sigs = solana_rpc_call(
+                            "getSignaturesForAddress", [addr, {"limit": limit}]
+                        )
+                        return self._json(
+                            200, {"address": addr, "signatures": sigs or []}
+                        )
+                    except Exception as e:
+                        return self._json(502, {"error": f"sol signatures failed: {e}"})
+
+                if path in ("/api/public/sol/tx", "/api/sol/tx"):
+                    sig = (qs.get("sig") or qs.get("signature") or [""])[0].strip()
+                    if not sig:
+                        return self._json(400, {"error": "signature required"})
+                    try:
+                        tx = solana_rpc_call(
+                            "getTransaction",
+                            [
+                                sig,
+                                {
+                                    "encoding": "jsonParsed",
+                                    "maxSupportedTransactionVersion": 0,
+                                    "commitment": "confirmed",
+                                },
+                            ],
+                        )
+                        return self._json(200, {"signature": sig, "transaction": tx})
+                    except Exception as e:
+                        return self._json(502, {"error": f"sol tx failed: {e}"})
+
+                if path in (
+                    "/api/public/sol/token-balance",
+                    "/api/sol/token-balance",
+                ):
+                    owner = (qs.get("owner") or qs.get("address") or [""])[0].strip()
+                    mint = (qs.get("mint") or [""])[0].strip()
+                    if not owner or not mint:
+                        return self._json(400, {"error": "owner and mint required"})
+                    try:
+                        res = solana_rpc_call(
+                            "getTokenAccountsByOwner",
+                            [
+                                owner,
+                                {"mint": mint},
+                                {"encoding": "jsonParsed", "commitment": "confirmed"},
+                            ],
+                        )
+                        total = 0.0
+                        for acc in (res or {}).get("value") or []:
+                            info = (
+                                ((acc.get("account") or {}).get("data") or {})
+                                .get("parsed")
+                                or {}
+                            ).get("info") or {}
+                            ta = info.get("tokenAmount") or {}
+                            if ta.get("uiAmount") is not None:
+                                total += float(ta["uiAmount"])
+                        return self._json(
+                            200,
+                            {
+                                "owner": owner,
+                                "mint": mint,
+                                "uiAmount": total,
+                                "source": "howlscan-proxy",
+                            },
+                        )
+                    except Exception as e:
+                        return self._json(502, {"error": f"sol token balance failed: {e}"})
+
                 if path in ("/api/public/search", "/api/search"):
                     q = (qs.get("q") or qs.get("query") or [""])[0]
                     try:
@@ -2556,6 +2706,33 @@ th{{color:#8b95a8;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em
                                 return self._json(200, o)
                             except Exception as e:
                                 return self._json(400, {"error": str(e)})
+
+                # Generic Solana JSON-RPC proxy (POST body: {method, params})
+                if path in ("/api/public/sol/rpc", "/api/sol/rpc"):
+                    method = str(body.get("method") or "")
+                    params = body.get("params")
+                    if not method:
+                        return self._json(400, {"error": "method required"})
+                    if params is None:
+                        params = []
+                    if not isinstance(params, list):
+                        return self._json(400, {"error": "params must be array"})
+                    # allowlist methods used by the wallet
+                    allowed = {
+                        "getBalance",
+                        "getSignaturesForAddress",
+                        "getTransaction",
+                        "getTokenAccountsByOwner",
+                        "getHealth",
+                        "getSlot",
+                    }
+                    if method not in allowed:
+                        return self._json(400, {"error": f"method not allowed: {method}"})
+                    try:
+                        result = solana_rpc_call(method, params)
+                        return self._json(200, {"result": result})
+                    except Exception as e:
+                        return self._json(502, {"error": str(e)})
 
                 # Browser wallets broadcast signed txs → live seed node mempool + P2P
                 if path in ("/api/public/broadcast", "/api/broadcast"):

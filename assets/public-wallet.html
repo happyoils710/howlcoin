@@ -1225,32 +1225,41 @@ async function erc20Balance(contract, addr, decimals){
   const raw = BigInt(hex || "0x0");
   return Number(raw) / 10 ** decimals;
 }
-async function solRpc(method, params, opts){
-  const tryList = opts?.rpcList || SOL_RPC_LIST;
+/**
+ * Solana RPC via Howlscan proxy first (public Solana endpoints 403 browser
+ * Origin: howlscan.org). Falls back to direct RPCs if proxy is down.
+ */
+async function solRpc(method, params){
+  // 1) Howlscan server proxy
+  try{
+    const r = await fetch(API + "/api/public/sol/rpc", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ method, params: params || [] }),
+    });
+    const j = await r.json().catch(()=>({}));
+    if(r.ok && j.result !== undefined) return j.result;
+    if(r.ok && !j.error) return j.result;
+  }catch(_){}
+
+  // 2) Direct public endpoints (often blocked from howlscan.org origin)
   let lastErr = null;
-  for(const endpoint of tryList){
+  for(const endpoint of SOL_RPC_LIST){
     try{
       const r = await fetch(endpoint, {
         method:"POST",
         headers:{ "Content-Type":"application/json" },
         body: JSON.stringify({ jsonrpc:"2.0", id:1, method, params }),
       });
-      if(!r.ok){
-        lastErr = new Error("HTTP " + r.status);
-        continue;
-      }
+      if(!r.ok){ lastErr = new Error("HTTP " + r.status); continue; }
       const j = await r.json();
       if(j.error){
         lastErr = new Error(j.error.message || "Solana RPC error");
-        // rate limit / banned → try next
-        if(/rate|limit|403|429|blocked/i.test(String(j.error.message||""))) continue;
-        throw lastErr;
+        continue;
       }
-      SOL_RPC = endpoint; // remember working endpoint
+      SOL_RPC = endpoint;
       return j.result;
-    }catch(e){
-      lastErr = e;
-    }
+    }catch(e){ lastErr = e; }
   }
   throw lastErr || new Error("All Solana RPCs failed");
 }
@@ -1264,12 +1273,24 @@ function formatSolAmount(solNum){
 }
 async function solBalance(addr){
   if(!addr) throw new Error("No Solana address");
+  // Prefer dedicated balance proxy (simple GET, cached less aggressively)
+  try{
+    const j = await api("/api/public/sol/balance?address=" + encodeURIComponent(addr));
+    if(j.sol != null) return Number(j.sol);
+    if(j.lamports != null) return Number(j.lamports) / 1e9;
+  }catch(_){}
   const res = await solRpc("getBalance", [addr, { commitment: "confirmed" }]);
   const lamports = Number(res?.value ?? res ?? 0);
   return lamports / 1e9;
 }
 async function splBalance(mint, owner){
-  // getTokenAccountsByOwner filtered by mint
+  try{
+    const j = await api(
+      "/api/public/sol/token-balance?owner=" + encodeURIComponent(owner) +
+      "&mint=" + encodeURIComponent(mint)
+    );
+    if(j.uiAmount != null) return Number(j.uiAmount);
+  }catch(_){}
   const res = await solRpc("getTokenAccountsByOwner", [
     owner,
     { mint },
@@ -1288,7 +1309,16 @@ async function splBalance(mint, owner){
 }
 /** Recent SOL transfers for an address (amount + direction). */
 async function solRecentTransfers(addr, limit = 15){
-  const sigs = await solRpc("getSignaturesForAddress", [addr, { limit }]) || [];
+  let sigs = [];
+  try{
+    const j = await api(
+      "/api/public/sol/signatures?address=" + encodeURIComponent(addr) +
+      "&limit=" + encodeURIComponent(String(limit))
+    );
+    sigs = j.signatures || [];
+  }catch(_){
+    sigs = await solRpc("getSignaturesForAddress", [addr, { limit }]) || [];
+  }
   const rows = [];
   for(const s of sigs.slice(0, limit)){
     const sig = s.signature;
@@ -1296,10 +1326,16 @@ async function solRecentTransfers(addr, limit = 15){
     let dir = "in";
     let title = s.err ? "Failed" : "Solana tx";
     try{
-      const tx = await solRpc("getTransaction", [
-        sig,
-        { encoding: "jsonParsed", maxSupportedTransactionVersion: 0, commitment: "confirmed" },
-      ]);
+      let tx = null;
+      try{
+        const j = await api("/api/public/sol/tx?sig=" + encodeURIComponent(sig));
+        tx = j.transaction;
+      }catch(_){
+        tx = await solRpc("getTransaction", [
+          sig,
+          { encoding: "jsonParsed", maxSupportedTransactionVersion: 0, commitment: "confirmed" },
+        ]);
+      }
       if(tx?.meta && !tx.meta.err){
         const keys = (tx.transaction?.message?.accountKeys || []).map(k=>
           typeof k === "string" ? k : (k.pubkey || "")
@@ -1499,7 +1535,7 @@ function assetActions(a){
     if(a.id === "sol" || a.id === "usdc_sol"){
       acts.push({ label: "Howl Swap → HOWL", fn: ()=>{ showPage("swap"); setSwapMode("howl"); if($("bridgeAsset")) $("bridgeAsset").value = a.id==="sol"?"sol":"usdc"; } });
     }
-    acts.push({ label: "Explorer", fn: ()=> openExternalUrl("https://solscan.io/account/"+encodeURIComponent(solInfo?.address||"")) });
+    acts.push({ label: "Open Solscan", fn: ()=> openExternalUrl("https://solscan.io/account/"+encodeURIComponent(solInfo?.address||"")) });
   }
   if(a.kind === "eth" || a.kind === "erc20"){
     acts.push({ label: "Uniswap", fn: ()=> openDapp("https://app.uniswap.org/") });
@@ -1537,11 +1573,22 @@ function renderAssetDetail(){
   const a = allAssets().find(x=>x.id===detailAssetId) || PRESET_ASSETS[0];
   if($("assetDetailTitle")) $("assetDetailTitle").textContent = a.symbol || "Asset";
   if($("assetNetBadge")) $("assetNetBadge").textContent = a.network || chainOfAsset(a);
-  if($("assetDetailBal")) $("assetDetailBal").textContent = assetBalanceText(a) + " " + assetDisplaySymbol(a);
+  const balTxt = assetBalanceText(a);
+  if($("assetDetailBal")) $("assetDetailBal").textContent = balTxt + " " + assetDisplaySymbol(a);
   if($("assetDetailName")) $("assetDetailName").textContent = (a.name || "") + (a.note ? " · " + a.note : "");
   const addr = assetAddress(a);
   if($("assetDetailAddr")) $("assetDetailAddr").textContent = addr || (a.kind==="external" ? "(use external wallet)" : "—");
-  const actions = assetActions(a);
+  let actions = assetActions(a);
+  // Always allow manual refresh on asset page
+  actions = [
+    { label: "↻ Refresh balance", fn: async ()=>{
+      toast("Refreshing…");
+      await refreshEthBalances();
+      renderAssetDetail();
+      toast("Balance updated");
+    } },
+    ...actions,
+  ];
   if($("assetActions")){
     $("assetActions").innerHTML = actions.map((act,i)=>
       `<button type="button" class="btn ${i===0?"":"sec"}" data-i="${i}">${escHtml(act.label)}</button>`
@@ -1549,6 +1596,10 @@ function renderAssetDetail(){
     $("assetActions").querySelectorAll("button").forEach(btn=>{
       btn.onclick = ()=> actions[Number(btn.dataset.i)]?.fn();
     });
+  }
+  // SOL helper status
+  if((a.kind === "sol" || a.kind === "spl") && ethBalances._solErr){
+    toast("Solana RPC: " + ethBalances._solErr);
   }
   // mini deposit / receive
   const mini = $("assetDepositMini");
@@ -1588,19 +1639,20 @@ async function loadAssetTransactions(a){
         };
       });
     } else if((a.kind === "sol" || a.kind === "spl") && solInfo?.address){
-      const r = await fetch(SOL_RPC, {
-        method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ jsonrpc:"2.0", id:1, method:"getSignaturesForAddress", params:[solInfo.address, { limit: 20 }] }),
-      });
-      const j = await r.json();
-      rows = (j.result||[]).map(s=>({
-        dir: "in",
-        title: s.err ? "Failed" : "Solana tx",
-        amount: a.symbol,
-        sub: (s.signature||"").slice(0,18)+"…" + (s.blockTime ? " · "+new Date(s.blockTime*1000).toLocaleString() : ""),
-        url: "https://solscan.io/tx/"+encodeURIComponent(s.signature||""),
-      }));
-    } else if((a.kind === "eth" || a.kind === "erc20") && ethInfo?.address){
+      if(a.kind === "sol"){
+        rows = await solRecentTransfers(solInfo.address, 20);
+      } else {
+        // SPL: list recent signatures; amount via token balance change is heavier — show links
+        const sigs = await solRpc("getSignaturesForAddress", [solInfo.address, { limit: 20 }]) || [];
+        rows = sigs.map(s=>({
+          dir: "in",
+          title: s.err ? "Failed" : (a.symbol + " activity"),
+          amount: a.symbol,
+          sub: (s.signature||"").slice(0,16)+"…" + (s.blockTime ? " · "+new Date(s.blockTime*1000).toLocaleString() : ""),
+          url: "https://solscan.io/tx/"+encodeURIComponent(s.signature||""),
+        }));
+      }
+    } else if((a.kind === "eth" || a.kind === "erc20" || a.kind === "evm") && ethInfo?.address){
       // Public Etherscan-less fallback: recent via eth_getBlock is heavy — use light note + link
       rows = [{
         dir: "in",
