@@ -490,6 +490,46 @@ class Blockchain:
             )
         return out
 
+    def recent_transactions(self, limit: int = 25) -> List[Dict[str, Any]]:
+        """Newest transactions across tip blocks + mempool (Blockchair-style feed)."""
+        limit = max(1, min(200, limit))
+        out: List[Dict[str, Any]] = []
+        for tx in reversed(self.mempool):
+            out.append(
+                {
+                    "txid": tx.get("txid"),
+                    "type": tx.get("type", "transfer"),
+                    "from": tx.get("from"),
+                    "to": tx.get("to"),
+                    "amount": tx.get("amount", 0),
+                    "fee": tx.get("fee", 0),
+                    "block_height": None,
+                    "confirmed": False,
+                    "timestamp": None,
+                }
+            )
+            if len(out) >= limit:
+                return out
+        for b in reversed(self.blocks):
+            for tx in reversed(b.get("transactions") or []):
+                out.append(
+                    {
+                        "txid": tx.get("txid"),
+                        "type": tx.get("type", "transfer"),
+                        "from": tx.get("from"),
+                        "to": tx.get("to"),
+                        "amount": tx.get("amount", 0),
+                        "fee": tx.get("fee", 0),
+                        "block_height": b["height"],
+                        "block_hash": b["hash"],
+                        "confirmed": True,
+                        "timestamp": b["header"].get("timestamp"),
+                    }
+                )
+                if len(out) >= limit:
+                    return out
+        return out
+
     def find_tx(self, txid_q: str) -> Optional[Dict[str, Any]]:
         q = txid_q.strip().lower()
         for b in self.blocks:
