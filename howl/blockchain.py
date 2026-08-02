@@ -770,6 +770,7 @@ class Blockchain:
                     "to": tx.get("to"),
                     "amount": tx.get("amount", 0),
                     "fee": tx.get("fee", 0),
+                    "nonce": tx.get("nonce"),
                     "memo": tx.get("memo", ""),
                     "confirmed": False,
                 }
