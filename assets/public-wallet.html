@@ -1034,8 +1034,17 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <p class="hint" id="nftMintHint">Pick a photo or image from your device, then mint on Howlcoin.</p>
         <label>Name</label>
         <input class="field" id="nftName" placeholder="Moon Howl #1" maxlength="80"/>
-        <label>Image from Photos / Files</label>
-        <input class="field" id="nftFile" type="file" accept="image/*" capture="environment" style="padding:10px"/>
+        <label>Image</label>
+        <!-- No capture attr on library picker — capture forces camera-only on iOS/Android -->
+        <input type="file" id="nftFile" accept="image/*,image/heic,image/heif,.heic,.heif,.jpg,.jpeg,.png,.webp,.gif"
+          style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" tabindex="-1"/>
+        <input type="file" id="nftFileCamera" accept="image/*" capture="environment"
+          style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" tabindex="-1"/>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 10px">
+          <button class="btn sec" type="button" id="nftPickLibrary" style="margin:0;min-height:48px;font-size:.72rem">Photos / Files</button>
+          <button class="btn sec" type="button" id="nftPickCamera" style="margin:0;min-height:48px;font-size:.72rem">Take photo</button>
+        </div>
+        <p class="hint" style="margin-top:0">Photos / Files opens your library, Downloads, iCloud, Drive, etc. Take photo uses the camera.</p>
         <div id="nftPreview" style="text-align:center;margin:8px 0"></div>
         <label>Or media URI (https / ipfs / leave blank if using photo)</label>
         <input class="field" id="nftUri" placeholder="https://… or auto from photo"/>
@@ -4358,28 +4367,53 @@ function wireNftPage(){
       refreshNfts();
     });
   }
+  async function onNftFileChosen(input){
+    const f = input?.files && input.files[0];
+    if(!f) return;
+    try{
+      toast("Preparing image…");
+      nftImageDataUrl = await compressImageFile(f);
+      const prev = $("nftPreview");
+      if(prev){
+        prev.innerHTML = `<img src="${nftImageDataUrl}" alt="preview" style="max-width:180px;max-height:180px;border:1px solid var(--border);object-fit:cover"/>
+          <p class="hint">Image ready — mint will upload to Howlscan media</p>`;
+      }
+      if($("nftUri") && !$("nftUri").value.trim()){
+        $("nftUri").placeholder = "(from image on mint)";
+      }
+      toast("Image ready");
+    }catch(e){
+      toast(e.message || "Image failed");
+      nftImageDataUrl = "";
+    }
+    // allow re-picking the same file
+    try{ input.value = ""; }catch(_){}
+  }
   const file = $("nftFile");
+  const cam = $("nftFileCamera");
   if(file && !file.dataset.wired){
     file.dataset.wired = "1";
-    file.addEventListener("change", async ()=>{
-      const f = file.files && file.files[0];
-      if(!f) return;
-      try{
-        toast("Compressing image…");
-        nftImageDataUrl = await compressImageFile(f);
-        const prev = $("nftPreview");
-        if(prev){
-          prev.innerHTML = `<img src="${nftImageDataUrl}" alt="preview" style="max-width:180px;max-height:180px;border:1px solid var(--border);object-fit:cover"/>
-            <p class="hint">Photo ready — mint will upload to Howlscan media</p>`;
-        }
-        if($("nftUri") && !$("nftUri").value.trim()){
-          $("nftUri").placeholder = "(from photo on mint)";
-        }
-        toast("Image ready");
-      }catch(e){
-        toast(e.message || "Image failed");
-        nftImageDataUrl = "";
-      }
+    file.addEventListener("change", ()=> onNftFileChosen(file));
+  }
+  if(cam && !cam.dataset.wired){
+    cam.dataset.wired = "1";
+    cam.addEventListener("change", ()=> onNftFileChosen(cam));
+  }
+  const libBtn = $("nftPickLibrary");
+  if(libBtn && !libBtn.dataset.wired){
+    libBtn.dataset.wired = "1";
+    libBtn.addEventListener("click", (e)=>{
+      e.preventDefault();
+      // Library / Files / cloud — must NOT use capture
+      $("nftFile")?.click();
+    });
+  }
+  const camBtn = $("nftPickCamera");
+  if(camBtn && !camBtn.dataset.wired){
+    camBtn.dataset.wired = "1";
+    camBtn.addEventListener("click", (e)=>{
+      e.preventDefault();
+      $("nftFileCamera")?.click();
     });
   }
   renderNftChainUI();
@@ -4475,11 +4509,41 @@ function copyNftRecvAddr(){
   else toast("No address");
 }
 
-/** Compress image for upload (JPEG, max edge 1280, ~350KB). */
+/** Compress image for upload (JPEG, max edge 1280, ~350KB). Supports HEIC via decode fallback. */
 async function compressImageFile(file, maxEdge = 1280, quality = 0.82, maxBytes = 350000){
-  if(!file || !file.type.startsWith("image/")) throw new Error("Choose an image file");
-  const bmp = await createImageBitmap(file);
-  let w = bmp.width, h = bmp.height;
+  if(!file) throw new Error("Choose an image file");
+  const name = (file.name || "").toLowerCase();
+  const type = (file.type || "").toLowerCase();
+  const looksImage = type.startsWith("image/")
+    || /\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/i.test(name)
+    || !type; // some mobile pickers omit type
+  if(!looksImage) throw new Error("Choose an image file (Photos, Files, or camera)");
+
+  let bmp = null;
+  try{
+    if(typeof createImageBitmap === "function"){
+      bmp = await createImageBitmap(file);
+    }
+  }catch(_){ bmp = null; }
+
+  // Fallback: <img> + object URL (helps some HEIC/cloud file picks)
+  if(!bmp){
+    const url = URL.createObjectURL(file);
+    try{
+      bmp = await new Promise((resolve, reject)=>{
+        const img = new Image();
+        img.onload = ()=> resolve(img);
+        img.onerror = ()=> reject(new Error("Could not read this image — try JPG/PNG, or Take photo"));
+        img.src = url;
+      });
+    } finally {
+      try{ URL.revokeObjectURL(url); }catch(_){}
+    }
+  }
+
+  let w = bmp.width || bmp.naturalWidth || 0;
+  let h = bmp.height || bmp.naturalHeight || 0;
+  if(!w || !h) throw new Error("Invalid image dimensions");
   const scale = Math.min(1, maxEdge / Math.max(w, h));
   w = Math.max(1, Math.round(w * scale));
   h = Math.max(1, Math.round(h * scale));
@@ -4487,6 +4551,8 @@ async function compressImageFile(file, maxEdge = 1280, quality = 0.82, maxBytes 
   canvas.width = w; canvas.height = h;
   const ctx = canvas.getContext("2d");
   ctx.drawImage(bmp, 0, 0, w, h);
+  if(typeof bmp.close === "function") try{ bmp.close(); }catch(_){}
+
   let q = quality;
   let blob = await new Promise(r => canvas.toBlob(r, "image/jpeg", q));
   while(blob && blob.size > maxBytes && q > 0.45){
@@ -4694,6 +4760,7 @@ async function mintNft(){
     nftImageDataUrl = "";
     if($("nftPreview")) $("nftPreview").innerHTML = "";
     if($("nftFile")) $("nftFile").value = "";
+    if($("nftFileCamera")) $("nftFileCamera").value = "";
     setTimeout(refreshNfts, 1500);
   }catch(e){ $("nftErr").textContent = e.message; }
 }
