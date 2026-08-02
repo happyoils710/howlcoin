@@ -11,17 +11,21 @@ Run:
 
 from __future__ import annotations
 
+import concurrent.futures
 import html as html_lib
 import json
 import mimetypes
 import os
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
+from email.utils import parsedate_to_datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .blockchain import Blockchain
 from .config import (
@@ -36,83 +40,94 @@ from .wallet import format_howl
 NODE_RPC = os.environ.get("HOWL_NODE_RPC", "http://127.0.0.1:42070").rstrip("/")
 
 
-def web_search(query: str, limit: int = 12) -> List[Dict[str, str]]:
-    """
-    Server-side web search so the wallet can show results in-app
-    (avoids third-party search pages that block iframes).
-    Uses DuckDuckGo HTML endpoint with a browser-like User-Agent
-    (bot UAs get an empty SERP from DDG).
-    """
-    q = (query or "").strip()
-    if not q:
-        return []
-    limit = max(1, min(20, int(limit)))
+# ---------------------------------------------------------------------------
+# Howl Search — multi-source open-web index (server-side, in-app results)
+# ---------------------------------------------------------------------------
 
-    # Browser UA is required — DDG HTML returns no result__a blocks for bot UAs.
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/122.0.0.0 Safari/537.36"
-        ),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-    }
+_BROWSER_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/122.0.0.0 Safari/537.36"
+)
+_HOWL_HEADERS = {
+    "User-Agent": _BROWSER_UA,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
 
-    def _fetch_ddg_html(qq: str) -> str:
-        # Prefer POST (matches the HTML form); fall back to GET.
-        post_url = "https://html.duckduckgo.com/html/"
-        data = urllib.parse.urlencode({"q": qq, "b": ""}).encode("utf-8")
+
+def _http_get(url: str, headers: Optional[Dict[str, str]] = None, timeout: int = 12) -> bytes:
+    req = urllib.request.Request(url, headers=headers or _HOWL_HEADERS, method="GET")
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read()
+
+
+def _http_post(
+    url: str,
+    data: bytes,
+    headers: Optional[Dict[str, str]] = None,
+    timeout: int = 12,
+) -> bytes:
+    h = dict(headers or _HOWL_HEADERS)
+    req = urllib.request.Request(url, data=data, headers=h, method="POST")
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read()
+
+
+def _clean_html(s: str) -> str:
+    s = re.sub(r"<[^>]+>", " ", s or "")
+    s = html_lib.unescape(s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _unwrap_ddg(href: str) -> str:
+    href = html_lib.unescape((href or "").strip())
+    if "uddg=" in href:
         try:
-            req = urllib.request.Request(
-                post_url, data=data, headers=headers, method="POST"
+            full = (
+                href
+                if "://" in href
+                else ("https:" + href if href.startswith("//") else href)
             )
-            with urllib.request.urlopen(req, timeout=12) as resp:
-                return resp.read().decode("utf-8", errors="ignore")
+            parsed = urllib.parse.urlparse(full)
+            qs = urllib.parse.parse_qs(parsed.query)
+            if qs.get("uddg"):
+                return urllib.parse.unquote(qs["uddg"][0])
         except Exception:
-            get_url = post_url + "?" + urllib.parse.urlencode({"q": qq})
-            req = urllib.request.Request(get_url, headers=headers, method="GET")
-            with urllib.request.urlopen(req, timeout=12) as resp:
-                return resp.read().decode("utf-8", errors="ignore")
+            pass
+        m = re.search(r"uddg=([^&]+)", href)
+        if m:
+            return urllib.parse.unquote(m.group(1))
+    if href.startswith("//"):
+        return "https:" + href
+    return href
 
-    page = _fetch_ddg_html(q)
 
-    def clean(s: str) -> str:
-        s = re.sub(r"<[^>]+>", " ", s or "")
-        s = html_lib.unescape(s)
-        return re.sub(r"\s+", " ", s).strip()
+def _is_ad_or_junk(link: str) -> bool:
+    low = (link or "").lower()
+    if "duckduckgo.com/y.js" in low or "ad_domain=" in low:
+        return True
+    if "bing.com/aclick" in low or "doubleclick" in low:
+        return True
+    return False
 
-    def unwrap_ddg(href: str) -> str:
-        href = html_lib.unescape((href or "").strip())
-        # //duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com&...
-        if "uddg=" in href:
-            try:
-                full = href if "://" in href else ("https:" + href if href.startswith("//") else href)
-                parsed = urllib.parse.urlparse(full)
-                qs = urllib.parse.parse_qs(parsed.query)
-                if qs.get("uddg"):
-                    return urllib.parse.unquote(qs["uddg"][0])
-            except Exception:
-                pass
-        # bare /l/?uddg=... paths
-        if "uddg=" in href:
-            m = re.search(r"uddg=([^&]+)", href)
-            if m:
-                return urllib.parse.unquote(m.group(1))
-        if href.startswith("//"):
-            return "https:" + href
-        return href
 
-    def is_ad_or_junk(link: str) -> bool:
-        low = link.lower()
-        if "duckduckgo.com/y.js" in low or "ad_domain=" in low:
-            return True
-        if "bing.com/aclick" in low or "doubleclick" in low:
-            return True
-        return False
+def _search_ddg(query: str, limit: int = 12) -> List[Dict[str, str]]:
+    """Open web results via DuckDuckGo HTML (when not bot-blocked)."""
+    post_url = "https://html.duckduckgo.com/html/"
+    data = urllib.parse.urlencode({"q": query, "b": ""}).encode("utf-8")
+    try:
+        page = _http_post(post_url, data, timeout=12).decode("utf-8", errors="ignore")
+    except Exception:
+        get_url = post_url + "?" + urllib.parse.urlencode({"q": query})
+        try:
+            page = _http_get(get_url, timeout=12).decode("utf-8", errors="ignore")
+        except Exception:
+            return []
 
-    # DDG HTML: <a rel="nofollow" class="result__a" href="...">title</a>
-    # Snippet often follows in .result__snippet
+    if "anomaly" in page.lower() and page.count("result__a") == 0:
+        return []
+
     blocks = re.findall(
         r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>'
         r'.*?class="result__snippet"[^>]*>(.*?)</(?:a|td|div)',
@@ -120,7 +135,6 @@ def web_search(query: str, limit: int = 12) -> List[Dict[str, str]]:
         flags=re.I | re.S,
     )
     if not blocks:
-        # Attribute order can vary — pull any result__a anchor
         blocks = []
         for m in re.finditer(
             r'<a\b([^>]*\bclass="[^"]*result__a[^"]*"[^>]*)>(.*?)</a>',
@@ -131,7 +145,6 @@ def web_search(query: str, limit: int = 12) -> List[Dict[str, str]]:
             hm = re.search(r'href="([^"]+)"', attrs, flags=re.I)
             if not hm:
                 continue
-            # nearby snippet (optional)
             tail = page[m.end() : m.end() + 800]
             sm = re.search(
                 r'class="result__snippet"[^>]*>(.*?)</(?:a|td|div)',
@@ -140,29 +153,633 @@ def web_search(query: str, limit: int = 12) -> List[Dict[str, str]]:
             )
             blocks.append((hm.group(1), title, sm.group(1) if sm else ""))
 
-    results: List[Dict[str, str]] = []
+    out: List[Dict[str, str]] = []
     seen = set()
     for href, title, snip in blocks:
-        link = unwrap_ddg(href)
-        if not link.startswith("http"):
+        link = _unwrap_ddg(href)
+        if not link.startswith("http") or _is_ad_or_junk(link):
             continue
-        if is_ad_or_junk(link):
-            continue
-        title_c = clean(title) or link
         key = link.split("#", 1)[0].rstrip("/")
         if key in seen:
             continue
         seen.add(key)
-        results.append(
+        out.append(
             {
-                "title": title_c[:200],
+                "title": (_clean_html(title) or link)[:200],
                 "url": link,
-                "snippet": clean(snip)[:280],
+                "snippet": _clean_html(snip)[:280],
+                "source": "web",
             }
         )
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _search_mojeek(query: str, limit: int = 12) -> List[Dict[str, str]]:
+    """Open web via Mojeek HTML (independent index — Howl Search source)."""
+    url = "https://www.mojeek.com/search?" + urllib.parse.urlencode({"q": query})
+    try:
+        page = _http_get(url, timeout=12).decode("utf-8", errors="ignore")
+    except Exception:
+        return []
+
+    out: List[Dict[str, str]] = []
+    seen = set()
+    for m in re.finditer(
+        r'class="title"[^>]*href="(https?://[^"]+)"[^>]*>(.*?)</a>',
+        page,
+        flags=re.I | re.S,
+    ):
+        link = html_lib.unescape(m.group(1).strip())
+        title = _clean_html(m.group(2))
+        if "mojeek.com" in link.lower():
+            continue
+        key = link.split("#", 1)[0].rstrip("/")
+        if key in seen:
+            continue
+        seen.add(key)
+        tail = page[m.end() : m.end() + 500]
+        sm = re.search(r'<p class="s">(.*?)</p>', tail, flags=re.I | re.S)
+        snip = _clean_html(sm.group(1)) if sm else ""
+        out.append(
+            {
+                "title": (title or link)[:200],
+                "url": link,
+                "snippet": snip[:280],
+                "source": "web",
+            }
+        )
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _search_open_web(query: str, limit: int = 12) -> List[Dict[str, str]]:
+    """Aggregate open-web SERPs; try multiple indexes for resilience."""
+    # Mojeek first (reliable), then DDG when available
+    primary = _search_mojeek(query, limit=limit)
+    if len(primary) >= max(3, limit // 2):
+        return primary[:limit]
+    secondary = _search_ddg(query, limit=limit)
+    seen = {r["url"].split("#", 1)[0].rstrip("/").lower() for r in primary}
+    for r in secondary:
+        key = r["url"].split("#", 1)[0].rstrip("/").lower()
+        if key in seen:
+            continue
+        primary.append(r)
+        seen.add(key)
+        if len(primary) >= limit:
+            break
+    return primary[:limit]
+
+
+def _search_wikipedia(query: str, limit: int = 4) -> List[Dict[str, str]]:
+    url = "https://en.wikipedia.org/w/api.php?" + urllib.parse.urlencode(
+        {
+            "action": "opensearch",
+            "search": query,
+            "limit": str(limit),
+            "namespace": "0",
+            "format": "json",
+        }
+    )
+    try:
+        raw = json.loads(
+            _http_get(
+                url,
+                headers={
+                    "User-Agent": "HowlSearch/0.5 (+https://howlscan.org)",
+                    "Accept": "application/json",
+                },
+                timeout=8,
+            ).decode("utf-8", errors="ignore")
+        )
+    except Exception:
+        return []
+    if not isinstance(raw, list) or len(raw) < 4:
+        return []
+    titles, descs, links = raw[1], raw[2], raw[3]
+    out = []
+    for i, title in enumerate(titles):
+        link = links[i] if i < len(links) else ""
+        if not link:
+            continue
+        out.append(
+            {
+                "title": str(title)[:200],
+                "url": link,
+                "snippet": (descs[i] if i < len(descs) else "")[:280] or "Wikipedia",
+                "source": "wiki",
+            }
+        )
+    return out
+
+
+def _search_coingecko(query: str, limit: int = 4) -> List[Dict[str, str]]:
+    """Crypto asset hits from CoinGecko public search."""
+    url = "https://api.coingecko.com/api/v3/search?" + urllib.parse.urlencode(
+        {"query": query}
+    )
+    try:
+        raw = json.loads(
+            _http_get(
+                url,
+                headers={
+                    "User-Agent": "HowlSearch/0.5 (+https://howlscan.org)",
+                    "Accept": "application/json",
+                },
+                timeout=8,
+            ).decode("utf-8", errors="ignore")
+        )
+    except Exception:
+        return []
+    coins = (raw or {}).get("coins") or []
+    out = []
+    for c in coins[:limit]:
+        cid = c.get("id") or ""
+        name = c.get("name") or cid
+        sym = (c.get("symbol") or "").upper()
+        if not cid:
+            continue
+        out.append(
+            {
+                "title": f"{name} ({sym})" if sym else name,
+                "url": f"https://www.coingecko.com/en/coins/{cid}",
+                "snippet": f"Crypto asset · market rank #{c.get('market_cap_rank') or '—'}",
+                "source": "crypto",
+            }
+        )
+    return out
+
+
+def web_search(query: str, limit: int = 12) -> List[Dict[str, str]]:
+    """
+    Howl Search — multi-source open-web search for in-app results.
+    Merges general web, Wikipedia, and crypto market pages.
+    """
+    q = (query or "").strip()
+    if not q:
+        return []
+    limit = max(1, min(20, int(limit)))
+
+    by_src: Dict[str, List[Dict[str, str]]] = {"web": [], "wiki": [], "crypto": []}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+        futs = {
+            pool.submit(_search_open_web, q, max(limit + 4, 12)): "web",
+            pool.submit(_search_wikipedia, q, 3): "wiki",
+            pool.submit(_search_coingecko, q, 3): "crypto",
+        }
+        for fut in concurrent.futures.as_completed(futs, timeout=18):
+            try:
+                src = futs[fut]
+                by_src[src] = fut.result() or []
+            except Exception:
+                continue
+
+    # Interleave sources so open-web always appears (not drowned by markets/wiki)
+    quotas = {
+        "web": max(limit - 4, limit // 2 + 1),
+        "crypto": min(3, max(1, limit // 4)),
+        "wiki": min(2, max(1, limit // 5)),
+    }
+    results: List[Dict[str, str]] = []
+    seen = set()
+
+    def take(src: str, n: int) -> None:
+        for item in by_src.get(src) or []:
+            if n <= 0 or len(results) >= limit:
+                return
+            link = item.get("url") or ""
+            if not link.startswith("http"):
+                continue
+            key = link.split("#", 1)[0].rstrip("/").lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            results.append(
+                {
+                    "title": (item.get("title") or link)[:200],
+                    "url": link,
+                    "snippet": (item.get("snippet") or "")[:280],
+                    "source": item.get("source") or src,
+                }
+            )
+            n -= 1
+
+    # Crypto + wiki first (small), then majority open web, then fill any remainder
+    take("crypto", quotas["crypto"])
+    take("wiki", quotas["wiki"])
+    take("web", quotas["web"])
+    for src in ("web", "crypto", "wiki"):
         if len(results) >= limit:
             break
+        take(src, limit - len(results))
     return results
+
+
+# ---------------------------------------------------------------------------
+# Discover — crypto tech radar (RSS + web scouts + optional Grok agent)
+# ---------------------------------------------------------------------------
+
+_DISCOVER_CACHE: Dict[str, Any] = {"ts": 0.0, "payload": None}
+_DISCOVER_TTL_SEC = 12 * 60  # 12 minutes
+
+_DISCOVER_FEEDS: List[Tuple[str, str]] = [
+    ("Cointelegraph", "https://cointelegraph.com/rss"),
+    ("Decrypt", "https://decrypt.co/feed"),
+    ("CryptoNews", "https://cryptonews.com/news/feed/"),
+    ("Bitcoin Magazine", "https://bitcoinmagazine.com/.rss/full/"),
+    ("Ethereum Blog", "https://blog.ethereum.org/feed.xml"),
+    ("Solana News", "https://solana.com/news/rss.xml"),
+    ("Crypto Tech (Reddit)", "https://www.reddit.com/r/CryptoTechnology/.rss"),
+]
+
+_CRYPTO_RELEVANCE = re.compile(
+    r"\b(crypto|bitcoin|btc|ethereum|eth\b|solana|defi|nft|blockchain|web3|"
+    r"layer[- ]?2|\bl2\b|zk|rollup|token|stablecoin|dex|amm|dao|mev|"
+    r"mainnet|testnet|wallet|protocol|rwa|on-?chain|scrypt|howl|mining|"
+    r"validator|consensus|smart contract|airdrop|perp|liquidity)\b",
+    re.I,
+)
+
+_TRUSTED_CRYPTO_SOURCES = {
+    "Cointelegraph",
+    "Decrypt",
+    "CryptoNews",
+    "Bitcoin Magazine",
+    "Ethereum Blog",
+    "Solana News",
+    "Crypto Tech (Reddit)",
+    "Howl Scout",
+}
+
+_DISCOVER_SCOUT_QUERIES = [
+    "new blockchain protocol launch",
+    "new crypto L2 mainnet",
+    "zero knowledge zk rollup crypto",
+    "crypto AI agent protocol",
+    "RWA tokenization blockchain",
+    "new DeFi protocol 2026",
+]
+
+_CATEGORY_RULES: List[Tuple[str, re.Pattern]] = [
+    ("ai", re.compile(r"\b(ai agent|llm|machine learning|artificial intelligence|grok|agentic)\b", re.I)),
+    ("l2", re.compile(r"\b(layer[- ]?2|l2|rollup|optimistic|zk[- ]?evm|zk[- ]?sync|arbitrum|optimism|base chain)\b", re.I)),
+    ("zk", re.compile(r"\b(zero[- ]knowledge|zk[- ]?proof|zkp|validity proof)\b", re.I)),
+    ("defi", re.compile(r"\b(defi|amm|dex|lending|liquidity|yield|perp|swap)\b", re.I)),
+    ("rwa", re.compile(r"\b(rwa|real[- ]world asset|tokeniz)\b", re.I)),
+    ("security", re.compile(r"\b(hack|exploit|vulnerability|audit|bridge attack|rug)\b", re.I)),
+    ("protocol", re.compile(r"\b(mainnet|testnet|protocol|consensus|scrypt|pow|pos|validator)\b", re.I)),
+    ("nft", re.compile(r"\b(nft|ordinals|collectible)\b", re.I)),
+    ("policy", re.compile(r"\b(sec |regulation|etf|law|ban|lawsuit)\b", re.I)),
+]
+
+
+def _parse_rss(xml_bytes: bytes, source: str, max_items: int = 12) -> List[Dict[str, Any]]:
+    items: List[Dict[str, Any]] = []
+    try:
+        root = ET.fromstring(xml_bytes)
+    except ET.ParseError:
+        return []
+
+    # RSS 2.0 + Atom
+    channel_items = root.findall(".//item")
+    if not channel_items:
+        # Atom
+        ns = {"a": "http://www.w3.org/2005/Atom"}
+        for entry in root.findall(".//a:entry", ns)[:max_items]:
+            title = (entry.findtext("a:title", default="", namespaces=ns) or "").strip()
+            link_el = entry.find("a:link", ns)
+            link = ""
+            if link_el is not None:
+                link = link_el.get("href") or (link_el.text or "")
+            summary = entry.findtext("a:summary", default="", namespaces=ns) or entry.findtext(
+                "a:content", default="", namespaces=ns
+            )
+            published = entry.findtext("a:updated", default="", namespaces=ns) or entry.findtext(
+                "a:published", default="", namespaces=ns
+            )
+            if title and link:
+                items.append(
+                    {
+                        "title": _clean_html(title)[:200],
+                        "url": link.strip(),
+                        "snippet": _clean_html(summary or "")[:280],
+                        "source": source,
+                        "published": published or "",
+                        "kind": "rss",
+                    }
+                )
+        return items[:max_items]
+
+    for it in channel_items[:max_items]:
+        title = (it.findtext("title") or "").strip()
+        link = (it.findtext("link") or "").strip()
+        if not link:
+            guid = it.findtext("guid")
+            if guid and str(guid).startswith("http"):
+                link = str(guid).strip()
+        desc = it.findtext("description") or it.findtext(
+            "{http://purl.org/rss/1.0/modules/content/}encoded"
+        ) or ""
+        pub = it.findtext("pubDate") or it.findtext("published") or ""
+        if not title or not link:
+            continue
+        items.append(
+            {
+                "title": _clean_html(title)[:200],
+                "url": link,
+                "snippet": _clean_html(desc)[:280],
+                "source": source,
+                "published": pub,
+                "kind": "rss",
+            }
+        )
+    return items
+
+
+def _pub_ts(published: str) -> float:
+    if not published:
+        return 0.0
+    try:
+        return parsedate_to_datetime(published).timestamp()
+    except Exception:
+        pass
+    try:
+        # ISO-ish
+        return time.mktime(time.strptime(published[:19], "%Y-%m-%dT%H:%M:%S"))
+    except Exception:
+        return 0.0
+
+
+def _categorize(title: str, snippet: str) -> Tuple[str, List[str]]:
+    blob = f"{title} {snippet}"
+    tags: List[str] = []
+    cat = "crypto"
+    for name, rx in _CATEGORY_RULES:
+        if rx.search(blob):
+            tags.append(name)
+            if cat == "crypto":
+                cat = name
+    # keyword tags
+    for kw in ("solana", "ethereum", "bitcoin", "howl", "scrypt", "mev", "stablecoin"):
+        if re.search(rf"\b{kw}\b", blob, re.I) and kw not in tags:
+            tags.append(kw)
+    return cat, tags[:6]
+
+
+def _score_item(item: Dict[str, Any], now: float) -> float:
+    title = item.get("title") or ""
+    snip = item.get("snippet") or ""
+    blob = f"{title} {snip}".lower()
+    score = 1.0
+    # recency
+    ts = _pub_ts(item.get("published") or "")
+    if ts > 0:
+        age_h = max(0.0, (now - ts) / 3600.0)
+        score += max(0.0, 8.0 - age_h / 6.0)  # fresher = higher
+    # novelty signals
+    for w, pts in (
+        ("launch", 2.0),
+        ("mainnet", 2.2),
+        ("testnet", 1.2),
+        ("raises", 1.0),
+        ("funding", 1.0),
+        ("open source", 1.5),
+        ("ai agent", 2.5),
+        ("protocol", 1.0),
+        ("zk", 1.3),
+        ("l2", 1.3),
+        ("breakthrough", 1.5),
+        ("first", 0.8),
+        ("new ", 0.6),
+    ):
+        if w in blob:
+            score += pts
+    # downrank pure price spam a bit
+    if re.search(r"\b(price prediction|to the moon|buy now)\b", blob):
+        score -= 2.0
+    if item.get("kind") == "scout":
+        score += 0.8
+    return score
+
+
+def _fetch_feed(source: str, url: str) -> List[Dict[str, Any]]:
+    try:
+        raw = _http_get(
+            url,
+            headers={
+                "User-Agent": _BROWSER_UA,
+                "Accept": "application/rss+xml, application/xml, text/xml, */*",
+            },
+            timeout=10,
+        )
+        return _parse_rss(raw, source, max_items=10)
+    except Exception:
+        return []
+
+
+def _scout_web() -> List[Dict[str, Any]]:
+    """Lightweight web scouts for emerging crypto tech mentions."""
+    out: List[Dict[str, Any]] = []
+    # rotate a couple queries each refresh for freshness
+    idx = int(time.time() // _DISCOVER_TTL_SEC) % max(1, len(_DISCOVER_SCOUT_QUERIES))
+    queries = [
+        _DISCOVER_SCOUT_QUERIES[idx],
+        _DISCOVER_SCOUT_QUERIES[(idx + 1) % len(_DISCOVER_SCOUT_QUERIES)],
+        _DISCOVER_SCOUT_QUERIES[(idx + 2) % len(_DISCOVER_SCOUT_QUERIES)],
+    ]
+    for q in queries:
+        try:
+            for r in _search_open_web(q, limit=4):
+                out.append(
+                    {
+                        "title": r["title"],
+                        "url": r["url"],
+                        "snippet": r.get("snippet") or "",
+                        "source": "Howl Scout",
+                        "published": "",
+                        "kind": "scout",
+                        "query": q,
+                    }
+                )
+        except Exception:
+            continue
+    return out
+
+
+def _xai_enrich(items: List[Dict[str, Any]]) -> Optional[List[Dict[str, Any]]]:
+    """Optional Grok agent: tag + 'why it matters' for top stories."""
+    key = (os.environ.get("XAI_API_KEY") or "").strip()
+    if not key or not items:
+        return None
+    slim = [
+        {
+            "i": i,
+            "title": it.get("title"),
+            "snippet": (it.get("snippet") or "")[:160],
+            "source": it.get("source"),
+        }
+        for i, it in enumerate(items[:14])
+    ]
+    prompt = (
+        "You are Howl Scout, a crypto-tech radar agent for the Howlcoin wallet.\n"
+        "For each story, return JSON array only (no markdown) with objects:\n"
+        '{"i": number, "category": short tag, "tags": [..], "why": one sentence why it matters for builders/traders}\n'
+        "Focus on new protocols, L2s, ZK, DeFi, AI agents, RWA, security — skip pure price spam.\n"
+        f"Stories:\n{json.dumps(slim, ensure_ascii=False)}"
+    )
+    body = json.dumps(
+        {
+            "model": "grok-4-1-fast-non-reasoning",
+            "messages": [
+                {"role": "system", "content": "Reply with pure JSON array only."},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.3,
+        }
+    ).encode("utf-8")
+    try:
+        raw = _http_post(
+            "https://api.x.ai/v1/chat/completions",
+            body,
+            headers={
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+                "User-Agent": "HowlDiscover/0.5",
+            },
+            timeout=28,
+        )
+        data = json.loads(raw.decode("utf-8", errors="ignore"))
+        text = (
+            ((data.get("choices") or [{}])[0].get("message") or {}).get("content")
+            or ""
+        )
+        text = text.strip()
+        if text.startswith("```"):
+            text = re.sub(r"^```(?:json)?\s*", "", text)
+            text = re.sub(r"\s*```$", "", text)
+        arr = json.loads(text)
+        if not isinstance(arr, list):
+            return None
+        by_i = {int(x["i"]): x for x in arr if isinstance(x, dict) and "i" in x}
+        enriched = []
+        for i, it in enumerate(items):
+            e = dict(it)
+            meta = by_i.get(i)
+            if meta:
+                if meta.get("category"):
+                    e["category"] = str(meta["category"])[:40]
+                if meta.get("tags"):
+                    e["tags"] = [str(t)[:24] for t in meta["tags"][:6]]
+                if meta.get("why"):
+                    e["why"] = str(meta["why"])[:240]
+            enriched.append(e)
+        return enriched
+    except Exception:
+        return None
+
+
+def discover_feed(force: bool = False) -> Dict[str, Any]:
+    """
+    Aggregate live crypto-tech signals: RSS + web scouts + ranking agent.
+    Cached for a few minutes to stay polite to publishers.
+    """
+    now = time.time()
+    if (
+        not force
+        and _DISCOVER_CACHE.get("payload")
+        and (now - float(_DISCOVER_CACHE.get("ts") or 0)) < _DISCOVER_TTL_SEC
+    ):
+        return _DISCOVER_CACHE["payload"]  # type: ignore[return-value]
+
+    collected: List[Dict[str, Any]] = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        futs = [pool.submit(_fetch_feed, name, url) for name, url in _DISCOVER_FEEDS]
+        futs.append(pool.submit(_scout_web))
+        for fut in concurrent.futures.as_completed(futs, timeout=22):
+            try:
+                collected.extend(fut.result() or [])
+            except Exception:
+                continue
+
+    # de-dupe + keep crypto-relevant only
+    seen = set()
+    uniq: List[Dict[str, Any]] = []
+    for it in collected:
+        url = (it.get("url") or "").split("#", 1)[0].rstrip("/")
+        if not url.startswith("http"):
+            continue
+        key = url.lower()
+        if key in seen:
+            continue
+        src = it.get("source") or ""
+        blob = f"{it.get('title') or ''} {it.get('snippet') or ''}"
+        trusted = src in _TRUSTED_CRYPTO_SOURCES or it.get("kind") == "scout"
+        if not trusted and not _CRYPTO_RELEVANCE.search(blob):
+            continue
+        # still require some crypto signal for generic-looking titles from mixed feeds
+        if src not in _TRUSTED_CRYPTO_SOURCES and it.get("kind") != "scout":
+            if not _CRYPTO_RELEVANCE.search(blob):
+                continue
+        seen.add(key)
+        cat, tags = _categorize(it.get("title") or "", it.get("snippet") or "")
+        it = dict(it)
+        it["category"] = cat
+        it["tags"] = tags
+        it["score"] = _score_item(it, now)
+        it["why"] = ""
+        uniq.append(it)
+
+    uniq.sort(key=lambda x: float(x.get("score") or 0), reverse=True)
+    top = uniq[:28]
+
+    agent = "howl-scout"
+    ai_on = bool((os.environ.get("XAI_API_KEY") or "").strip())
+    enriched = _xai_enrich(top) if ai_on else None
+    if enriched:
+        top = enriched
+        agent = "howl-scout+grok"
+
+    # stable ids for UI
+    for i, it in enumerate(top):
+        it["id"] = f"d{i}-" + str(abs(hash(it.get("url") or it.get("title") or i)) % 10**10)
+
+    payload = {
+        "engine": "Howl Discover",
+        "agent": agent,
+        "ai_enabled": ai_on and agent.endswith("grok"),
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now)),
+        "count": len(top),
+        "items": [
+            {
+                "id": it.get("id"),
+                "title": it.get("title"),
+                "url": it.get("url"),
+                "snippet": it.get("snippet") or "",
+                "source": it.get("source") or "",
+                "category": it.get("category") or "crypto",
+                "tags": it.get("tags") or [],
+                "why": it.get("why") or "",
+                "published": it.get("published") or "",
+                "kind": it.get("kind") or "rss",
+                "score": round(float(it.get("score") or 0), 2),
+            }
+            for it in top
+        ],
+        "note": (
+            "Live radar of new crypto tech from open web + publisher feeds. "
+            + (
+                "Grok agent enriches cards when XAI_API_KEY is set."
+                if ai_on
+                else "Add XAI_API_KEY on the server for Grok agent blurbs."
+            )
+        ),
+    }
+    _DISCOVER_CACHE["ts"] = now
+    _DISCOVER_CACHE["payload"] = payload
+    return payload
 
 ASSETS_DIR = Path(__file__).resolve().parents[1] / "assets"
 
@@ -1212,6 +1829,7 @@ class ExplorerServer:
                         return self._json(
                             200,
                             {
+                                "engine": "Howl Search",
                                 "query": q,
                                 "count": len(results),
                                 "results": results,
@@ -1220,6 +1838,17 @@ class ExplorerServer:
                         )
                     except Exception as e:
                         return self._json(502, {"error": f"search failed: {e}", "query": q})
+
+                if path in ("/api/public/discover", "/api/discover"):
+                    force = (qs.get("refresh") or qs.get("force") or ["0"])[0] in (
+                        "1",
+                        "true",
+                        "yes",
+                    )
+                    try:
+                        return self._json(200, discover_feed(force=force))
+                    except Exception as e:
+                        return self._json(502, {"error": f"discover failed: {e}"})
 
                 # /api/<net>/...
                 parts = path.strip("/").split("/")

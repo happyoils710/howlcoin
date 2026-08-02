@@ -210,7 +210,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
   font-size:.84rem;color:var(--amber);margin:8px 0 12px}
 .hud-line{height:1px;background:linear-gradient(90deg,transparent,rgba(0,255,198,.5),rgba(192,132,252,.5),transparent);
   margin:4px 0 12px;opacity:.7}
-/* Safari / Chrome-like browser */
+/* Howl Search browser */
 .browser-page{min-height:calc(100vh - var(--nav-h) - var(--safe-b));display:flex;flex-direction:column;background:var(--bg)}
 .browser-page.browsing .browser-home{display:none}
 .browser-page.browsing .browser-topbar{display:flex}
@@ -229,18 +229,20 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .sres .st{font-weight:700;font-size:1rem;color:var(--cyan);margin:0 0 4px;line-height:1.3}
 .sres .su{font-size:.72rem;color:var(--green);word-break:break-all;margin:0 0 6px;opacity:.9}
 .sres .ss{font-size:.84rem;color:var(--muted);line-height:1.4;margin:0}
+.sres .src{display:inline-block;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--muted);border:1px solid var(--border);border-radius:999px;padding:2px 8px;margin:0 0 6px}
 .search-empty{text-align:center;padding:40px 16px;color:var(--muted)}
 .browser-topbar{display:none;align-items:center;gap:8px;padding:calc(8px + var(--safe-t)) 10px 8px;
   background:var(--top-bg);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);z-index:16}
 .browser-topbar .navbtn{width:36px;height:36px;border-radius:10px;border:0;background:transparent;
   color:var(--text);font-size:1.15rem;cursor:pointer;flex-shrink:0}
 .browser-topbar .navbtn:disabled{opacity:.3}
-.safari-search{flex:1;display:flex;align-items:center;gap:8px;min-width:0;
+.howl-search{flex:1;display:flex;align-items:center;gap:8px;min-width:0;
   background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:8px 12px}
-.safari-search .lock{opacity:.5;font-size:.85rem;flex-shrink:0}
-.safari-search input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--text);
+.howl-search .lock{opacity:.5;font-size:.85rem;flex-shrink:0}
+.howl-search input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--text);
   font:inherit;font-size:.95rem;font-weight:500;text-align:center}
-.safari-search input:focus{text-align:left}
+.howl-search input:focus{text-align:left}
 .browser-home{flex:1;text-align:center;padding:max(48px,8vh) 16px 24px;display:flex;flex-direction:column;
   align-items:center;justify-content:flex-start}
 .browser-logo{font-family:var(--font-display);font-size:2rem;font-weight:800;letter-spacing:.04em;margin:0 0 8px;
@@ -258,16 +260,38 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
   font:inherit;font-size:1.05rem;padding:14px 4px;min-width:0}
 .browser-search-hero .search-shell .go{border:0;border-radius:24px;padding:12px 18px;font:inherit;font-weight:700;
   cursor:pointer;background:var(--green);color:var(--btn-fg);flex-shrink:0}
-.engine-row{display:flex;gap:6px;justify-content:center;margin:14px 0 6px;flex-wrap:wrap}
-.engine-row button{border:1px solid var(--border);background:var(--card2);color:var(--muted);border-radius:999px;
-  padding:6px 12px;font:inherit;font-size:.75rem;font-weight:600;cursor:pointer}
-.engine-row button.on{border-color:var(--green);color:var(--green)}
 .bookmarks{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:28px 0 8px;max-width:360px;width:100%}
 .bookmarks button{border:0;background:transparent;color:var(--text);font:inherit;font-size:.72rem;font-weight:600;
   cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;padding:4px}
 .bookmarks .fav{width:56px;height:56px;border-radius:16px;display:flex;align-items:center;justify-content:center;
   font-size:1.35rem;background:var(--card);border:1px solid var(--border);box-shadow:0 4px 12px rgba(0,0,0,.08)}
 .browser-hint{font-size:.78rem;color:var(--muted);max-width:340px;margin:16px auto 0;line-height:1.45}
+/* Discover */
+.discover-page{padding-bottom:12px}
+.discover-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin:0 0 12px}
+.discover-head h1{margin:0;font-family:var(--font-display);font-size:1.35rem;letter-spacing:.03em}
+.discover-head p{margin:4px 0 0;font-size:.8rem;color:var(--muted);line-height:1.35;max-width:260px}
+.discover-meta{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
+.discover-meta .pill{font-size:.68rem;font-weight:700;border:1px solid var(--border);border-radius:999px;
+  padding:4px 10px;color:var(--muted);background:var(--card2)}
+.discover-meta .pill.on{border-color:var(--green);color:var(--green)}
+.discover-filters{display:flex;gap:6px;overflow:auto;padding:0 0 12px;margin:0 0 4px;-webkit-overflow-scrolling:touch}
+.discover-filters button{flex-shrink:0;border:1px solid var(--border);background:var(--card2);color:var(--muted);
+  border-radius:999px;padding:7px 12px;font:inherit;font-size:.72rem;font-weight:700;cursor:pointer}
+.discover-filters button.on{border-color:var(--green);color:var(--green);background:color-mix(in srgb,var(--green) 12%,transparent)}
+.dcard{display:block;width:100%;text-align:left;border:1px solid var(--border);background:var(--card);
+  border-radius:16px;padding:14px;margin:0 0 10px;cursor:pointer;color:var(--text);font:inherit}
+.dcard:active{border-color:var(--green)}
+.dcard .dtop{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px}
+.dcard .dcat{font-size:.65rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--cyan);
+  border:1px solid color-mix(in srgb,var(--cyan) 35%,transparent);border-radius:999px;padding:2px 8px}
+.dcard .dsrc{font-size:.68rem;color:var(--muted);font-weight:600}
+.dcard .dtitle{font-weight:700;font-size:1.02rem;line-height:1.3;margin:0 0 6px;color:var(--text)}
+.dcard .dwhy{font-size:.84rem;color:var(--green);line-height:1.4;margin:0 0 6px}
+.dcard .dsn{font-size:.82rem;color:var(--muted);line-height:1.4;margin:0}
+.dcard .dtags{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0 0}
+.dcard .dtags span{font-size:.62rem;font-weight:700;color:var(--muted);background:var(--card2);
+  border-radius:6px;padding:2px 6px}
 .dapp-frame-wrap{display:none;position:relative;flex:1;background:var(--void);
   min-height:calc(100vh - 160px - var(--nav-h));height:calc(100vh - 160px - var(--nav-h))}
 .dapp-frame-wrap iframe{width:100%;height:100%;border:0;background:var(--bg)}
@@ -365,7 +389,8 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <h2>Apps</h2>
         <div class="menu-list">
           <button type="button" class="menu-row" onclick="showPage('swap')"><span class="mi">⇄</span><div><div class="mt">Swap</div><div class="ms">Solana · Jupiter</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="showPage('browser')"><span class="mi">◈</span><div><div class="mt">Browser</div><div class="ms">Search the web · open any site or dapp</div></div><span class="chev">›</span></button>
+          <button type="button" class="menu-row" onclick="showPage('browser')"><span class="mi">◈</span><div><div class="mt">Howl Search</div><div class="ms">Search the open web · open any site or dapp</div></div><span class="chev">›</span></button>
+          <button type="button" class="menu-row" onclick="showPage('discover')"><span class="mi">✦</span><div><div class="mt">Discover</div><div class="ms">New crypto tech · scout agents</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('nft')"><span class="mi">◆</span><div><div class="mt">NFTs</div><div class="ms">Mint &amp; transfer on Howlcoin</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('oracle')"><span class="mi">◎</span><div><div class="mt">Oracle</div><div class="ms">Multi-chain observations</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('recv')"><span class="mi">↓</span><div><div class="mt">Deposits</div><div class="ms">HOWL · SOL · XTZ · ETH · tokens</div></div><span class="chev">›</span></button>
@@ -376,7 +401,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <h2>Settings</h2>
         <div class="menu-list">
           <button type="button" class="menu-row" onclick="showPage('sec')"><span class="mi">🛡</span><div><div class="mt">Security</div><div class="ms" id="moreSecHint">Face ID · 2FA · recovery</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="showPage('toolbar')"><span class="mi">☰</span><div><div class="mt">Customize toolbar</div><div class="ms">Pick bottom icons · order &amp; Browser</div></div><span class="chev">›</span></button>
+          <button type="button" class="menu-row" onclick="showPage('toolbar')"><span class="mi">☰</span><div><div class="mt">Customize toolbar</div><div class="ms">Pick bottom icons · Search · Discover</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('appearance')"><span class="mi">◐</span><div><div class="mt">Appearance</div><div class="ms" id="themeHint">Light · Dark · Neo</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="refresh();toast('Synced')"><span class="mi">↻</span><div><div class="mt">Refresh data</div><div class="ms">Reload balances &amp; chain</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="window.open('https://howlscan.org/','_blank')"><span class="mi">⎋</span><div><div class="mt">Howlscan</div><div class="ms">Block explorer</div></div><span class="chev">›</span></button>
@@ -458,15 +483,15 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       </div>
     </div>
 
-    <!-- WEB BROWSER (Safari / Chrome style) -->
+    <!-- HOWL SEARCH BROWSER -->
     <div class="page" id="p-browser">
       <div class="browser-page" id="browserPage">
         <!-- Top address bar while browsing -->
         <div class="browser-topbar" id="browserTopbar">
           <button type="button" class="navbtn" onclick="browserBack()" title="Back">‹</button>
-          <div class="safari-search">
+          <div class="howl-search">
             <span class="lock" id="browserLock">⌕</span>
-            <input id="dappUrl" placeholder="Search or enter website" spellcheck="false" autocomplete="off"
+            <input id="dappUrl" placeholder="Howl Search or website" spellcheck="false" autocomplete="off"
               enterkeyhint="go" onfocus="this.select()" onkeydown="if(event.key==='Enter'){this.blur();browseTo()}"/>
           </div>
           <button type="button" class="navbtn" onclick="browseTo()" title="Go">↻</button>
@@ -477,22 +502,17 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <div class="browser-home" id="browserHome">
           <button type="button" class="back" style="align-self:flex-start;margin:0 0 12px 4px" onclick="showPage('more')">‹ Wallet</button>
           <div class="browser-logo">Howl<span>search</span></div>
-          <p class="browser-tag">Search or type a URL — like Safari &amp; Chrome</p>
+          <p class="browser-tag">Our search engine for the open web</p>
           <div class="browser-search-hero">
             <div class="search-shell">
               <span class="mag">⌕</span>
-              <input id="dappSearch" placeholder="Search Google or type a URL" spellcheck="false" autocomplete="off"
+              <input id="dappSearch" placeholder="Search the web or type a URL" spellcheck="false" autocomplete="off"
                 enterkeyhint="search" onkeydown="if(event.key==='Enter'){syncSearchToOmni();browseTo()}"/>
               <button type="button" class="go" onclick="syncSearchToOmni();browseTo()">Go</button>
             </div>
           </div>
-          <div class="engine-row" id="engineRow">
-            <button type="button" data-eng="google" class="on">Google</button>
-            <button type="button" data-eng="ddg">DuckDuckGo</button>
-            <button type="button" data-eng="bing">Bing</button>
-          </div>
           <div class="bookmarks" id="bookmarks"></div>
-          <p class="browser-hint">Search shows results inside the app — tap any site to open it here. If a page blocks in-app viewing, use Open outside.</p>
+          <p class="browser-hint">Howl Search pulls the open web into the wallet. Tap a result to open it in-app. Sites that block frames can open outside.</p>
           <div class="addr-chips">
             <button type="button" onclick="copyText(keypair&&keypair.address)">Copy HOWL</button>
             <button type="button" onclick="copyText(solInfo&&solInfo.address)">Copy SOL</button>
@@ -539,9 +559,24 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         </div>
       </div>
       <div class="panel">
-        <h2>Search engine</h2>
-        <p class="hint">Used when you type words instead of a website in the browser.</p>
-        <div class="engine-row" id="engineRowSettings" style="justify-content:flex-start"></div>
+        <h2>Howl Search</h2>
+        <p class="hint">The wallet uses <b>Howl Search</b> — our multi-source open-web engine (web + wiki + crypto markets). Results stay in-app.</p>
+      </div>
+    </div>
+
+    <!-- DISCOVER — crypto tech radar -->
+    <div class="page" id="p-discover">
+      <div class="discover-page">
+        <div class="discover-head">
+          <div>
+            <h1>Discover</h1>
+            <p>New crypto tech as it ships — scout agents rank the open web.</p>
+          </div>
+          <button type="button" class="btn sec" style="width:auto;padding:10px 14px;margin:0" onclick="loadDiscover(true)">Refresh</button>
+        </div>
+        <div class="discover-meta" id="discoverMeta"></div>
+        <div class="discover-filters" id="discoverFilters"></div>
+        <div id="discoverFeed"><p class="hint">Loading radar…</p></div>
       </div>
     </div>
 
@@ -708,33 +743,16 @@ const DAPP_BOOKMARKS = [
   { name: "GitHub", url: "https://github.com/", fav: "⌘" },
 ];
 
-const SEARCH_ENGINES = {
-  google: {
-    label: "Google",
-    // open full Google externally; embed uses DDG html (Google blocks iframes)
-    search: (q) => "https://www.google.com/search?q=" + encodeURIComponent(q),
-    embed: (q) => "https://html.duckduckgo.com/html/?q=" + encodeURIComponent(q),
-  },
-  ddg: {
-    label: "DuckDuckGo",
-    search: (q) => "https://duckduckgo.com/?q=" + encodeURIComponent(q),
-    embed: (q) => "https://html.duckduckgo.com/html/?q=" + encodeURIComponent(q),
-  },
-  bing: {
-    label: "Bing",
-    search: (q) => "https://www.bing.com/search?q=" + encodeURIComponent(q),
-    embed: (q) => "https://html.duckduckgo.com/html/?q=" + encodeURIComponent(q),
-  },
-};
 const LS_THEME = "howl_theme_v1";
-const LS_ENGINE = "howl_search_engine_v1";
 
 let lastSwapQuote = null;
 let browserHistory = [];
 let browserMode = "home"; // home | results | browsing
-let searchEngineId = localStorage.getItem(LS_ENGINE) || "google";
 let lastSearchQuery = "";
 let lastSearchResults = [];
+let discoverItems = [];
+let discoverFilter = "all";
+let discoverMeta = null;
 const LS_ENC = "howl_public_wallet_v2";
 const LS_META = "howl_public_wallet_meta_v2";
 const LS_BIO = "howl_public_webauthn_v1";
@@ -748,13 +766,14 @@ const TOOLBAR_CATALOG = [
   { id: "home", label: "Home", icon: "⌂", page: "home", fixed: true },
   { id: "send", label: "Send", icon: "↑", page: "send" },
   { id: "recv", label: "Deposit", icon: "↓", page: "recv" },
-  { id: "browser", label: "Browser", icon: "◈", page: "browser" },
+  { id: "browser", label: "Search", icon: "◈", page: "browser" },
+  { id: "discover", label: "Discover", icon: "✦", page: "discover" },
   { id: "swap", label: "Swap", icon: "⇄", page: "swap" },
   { id: "nft", label: "NFT", icon: "◆", page: "nft" },
   { id: "oracle", label: "Oracle", icon: "◎", page: "oracle" },
   { id: "more", label: "More", icon: "☰", page: "more", fixed: true },
 ];
-const DEFAULT_TOOLBAR = ["home", "send", "browser", "recv", "more"];
+const DEFAULT_TOOLBAR = ["home", "discover", "browser", "recv", "more"];
 
 let keypair = null;
 let ethInfo = null;
@@ -1140,12 +1159,12 @@ function showPage(name){
   if(name==="sec" || name==="more") updateSecUI();
   if(name==="swap") initSwapUI();
   if(name==="browser") initBrowserUI();
+  if(name==="discover") loadDiscover(false);
   if(name==="nft") refreshNfts();
   if(name==="oracle") refreshOracle();
   if(name==="toolbar") renderToolbarEditor();
   if(name==="appearance"){
     setTheme(localStorage.getItem(LS_THEME)||"neo");
-    wireEngineRows();
   }
   try{ window.scrollTo({ top:0, behavior:"instant" in window? "instant":"auto" }); }catch(_){ window.scrollTo(0,0); }
 }
@@ -1239,36 +1258,6 @@ async function doSwap(){
   }
 }
 
-function getEngine(){
-  return SEARCH_ENGINES[searchEngineId] || SEARCH_ENGINES.google;
-}
-function setSearchEngine(id){
-  if(!SEARCH_ENGINES[id]) return;
-  searchEngineId = id;
-  localStorage.setItem(LS_ENGINE, id);
-  document.querySelectorAll("#engineRow button, #engineRowSettings button").forEach(b=>{
-    b.classList.toggle("on", b.dataset.eng === id);
-  });
-  const hint = $("themeHint");
-  // keep appearance hint separate
-  toast(getEngine().label + " search");
-}
-function wireEngineRows(){
-  ["engineRow", "engineRowSettings"].forEach(rid=>{
-    const row = $(rid);
-    if(!row) return;
-    if(rid === "engineRowSettings" && !row.dataset.ready){
-      row.innerHTML = Object.entries(SEARCH_ENGINES).map(([id,e])=>
-        `<button type="button" data-eng="${id}" class="${id===searchEngineId?"on":""}">${e.label}</button>`
-      ).join("");
-      row.dataset.ready = "1";
-    }
-    row.querySelectorAll("button").forEach(b=>{
-      b.classList.toggle("on", b.dataset.eng === searchEngineId);
-      b.onclick = ()=> setSearchEngine(b.dataset.eng);
-    });
-  });
-}
 function setTheme(name){
   const t = ["light","dark","neo"].includes(name) ? name : "neo";
   document.documentElement.setAttribute("data-theme", t);
@@ -1300,7 +1289,6 @@ function initBrowserUI(){
     });
     bm.dataset.ready = "1";
   }
-  wireEngineRows();
   setBrowserMode(browserMode === "browsing" ? "browsing" : "home");
   setTimeout(()=>{ const s=$("dappSearch"); if(s && browserMode==="home") s.focus(); }, 120);
 }
@@ -1375,9 +1363,11 @@ async function runInAppSearch(query){
       if(list) list.innerHTML = `<div class="search-empty">No results. Try different words, or type a website like <b>jup.ag</b>.</div>`;
       return;
     }
+    if(title) title.textContent = `Howl Search · “${query}”`;
     if(list){
       list.innerHTML = lastSearchResults.map((r,i)=>`
         <button type="button" class="sres" data-i="${i}">
+          ${r.source ? `<span class="src">${esc(r.source)}</span>` : ""}
           <div class="st">${esc(r.title||r.url)}</div>
           <div class="su">${esc(r.url)}</div>
           <div class="ss">${esc(r.snippet||"")}</div>
@@ -1390,13 +1380,87 @@ async function runInAppSearch(query){
       });
     }
   }catch(e){
-    if(list) list.innerHTML = `<div class="search-empty">Search unavailable (${esc(e.message)}). Opening web search…</div>`;
-    // fallback: still try to show something useful
-    const eng = getEngine();
-    openUrlInApp(eng.embed(query), query, eng.search(query));
+    if(list) list.innerHTML = `<div class="search-empty">Howl Search unavailable (${esc(e.message)}). Try a direct website like <b>jup.ag</b>.</div>`;
   }finally{
     setProgress(false);
   }
+}
+
+/** Discover — crypto tech radar */
+async function loadDiscover(force){
+  const feed = $("discoverFeed");
+  const metaEl = $("discoverMeta");
+  if(feed && (!discoverItems.length || force)){
+    feed.innerHTML = `<p class="hint">${force ? "Refreshing scout agents…" : "Loading radar…"}</p>`;
+  }
+  try{
+    const q = force ? "?refresh=1" : "";
+    const data = await api("/api/public/discover" + q);
+    discoverItems = data.items || [];
+    discoverMeta = data;
+    renderDiscoverMeta();
+    renderDiscoverFilters();
+    renderDiscoverFeed();
+  }catch(e){
+    if(feed) feed.innerHTML = `<p class="hint">Discover unavailable: ${esc(e.message||e)}</p>`;
+  }
+}
+function renderDiscoverMeta(){
+  const el = $("discoverMeta");
+  if(!el || !discoverMeta) return;
+  const ai = discoverMeta.ai_enabled;
+  el.innerHTML = `
+    <span class="pill on">${esc(discoverMeta.agent || "howl-scout")}</span>
+    <span class="pill">${discoverMeta.count||0} signals</span>
+    <span class="pill">${ai ? "Grok agent on" : "Heuristic agents"}</span>
+    <span class="pill">${esc((discoverMeta.generated_at||"").replace("T"," ").replace("Z"," UTC"))}</span>`;
+}
+function renderDiscoverFilters(){
+  const el = $("discoverFilters");
+  if(!el) return;
+  const cats = ["all"];
+  discoverItems.forEach(it=>{
+    const c = (it.category||"crypto").toLowerCase();
+    if(!cats.includes(c)) cats.push(c);
+  });
+  el.innerHTML = cats.map(c=>
+    `<button type="button" data-c="${esc(c)}" class="${discoverFilter===c?"on":""}">${c==="all"?"All":c}</button>`
+  ).join("");
+  el.querySelectorAll("button").forEach(b=>{
+    b.onclick = ()=>{ discoverFilter = b.dataset.c; renderDiscoverFilters(); renderDiscoverFeed(); };
+  });
+}
+function renderDiscoverFeed(){
+  const feed = $("discoverFeed");
+  if(!feed) return;
+  let items = discoverItems;
+  if(discoverFilter && discoverFilter !== "all"){
+    items = items.filter(it => (it.category||"").toLowerCase() === discoverFilter);
+  }
+  if(!items.length){
+    feed.innerHTML = `<p class="hint">No signals in this filter. Try Refresh or another category.</p>`;
+    return;
+  }
+  feed.innerHTML = items.map((it,i)=>`
+    <button type="button" class="dcard" data-i="${i}">
+      <div class="dtop">
+        <span class="dcat">${esc(it.category||"crypto")}</span>
+        <span class="dsrc">${esc(it.source||"")}${it.kind==="scout"?" · scout":""}</span>
+      </div>
+      <div class="dtitle">${esc(it.title||"")}</div>
+      ${it.why ? `<div class="dwhy">${esc(it.why)}</div>` : ""}
+      <div class="dsn">${esc(it.snippet||"")}</div>
+      ${(it.tags&&it.tags.length)?`<div class="dtags">${it.tags.map(t=>`<span>${esc(t)}</span>`).join("")}</div>`:""}
+    </button>`).join("");
+  // re-map to filtered list indices carefully
+  const filtered = items;
+  feed.querySelectorAll(".dcard").forEach((btn, idx)=>{
+    btn.onclick = ()=>{
+      const item = filtered[idx];
+      if(!item || !item.url) return;
+      openDapp(item.url);
+    };
+  });
 }
 
 function showLastSearchResults(){
@@ -1503,8 +1567,10 @@ function openCurrentExternal(){
   const nav = resolveNavigation(raw);
   if(!nav) return;
   if(nav.kind === "search"){
-    const eng = getEngine();
-    window.open(eng.search(nav.query), "_blank", "noopener,noreferrer");
+    // Re-run Howl Search in-app rather than opening a third-party engine
+    if($("dappSearch")) $("dappSearch").value = nav.query;
+    if($("dappUrl")) $("dappUrl").value = nav.query;
+    runInAppSearch(nav.query);
   } else {
     window.open(nav.externalUrl || nav.url, "_blank", "noopener,noreferrer");
   }
@@ -2118,7 +2184,23 @@ function uiInstall(){
 function boot(skipInstallPrompt){
   loadMeta();
   applyStoredTheme();
-  wireEngineRows();
+  // Migrate old toolbars that only had Browser — surface Discover
+  try{
+    const raw = localStorage.getItem(LS_TOOLBAR);
+    if(raw){
+      const arr = JSON.parse(raw);
+      if(Array.isArray(arr) && !arr.includes("discover") && arr.includes("browser")){
+        const i = arr.indexOf("browser");
+        arr.splice(i, 0, "discover");
+        while(arr.length > 5){
+          const drop = arr.findIndex(id => id!=="home" && id!=="more" && id!=="discover" && id!=="browser");
+          if(drop < 0) break;
+          arr.splice(drop, 1);
+        }
+        localStorage.setItem(LS_TOOLBAR, JSON.stringify(arr.slice(0,5)));
+      }
+    }
+  }catch(_){}
   if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
   if(!skipInstallPrompt && !isStandalone() && !sessionStorage.getItem("howl_skip_install") && !sessionStorage.getItem("howl_saw_install")){
     sessionStorage.setItem("howl_saw_install","1");
@@ -2160,7 +2242,7 @@ window.showLastSearchResults = showLastSearchResults;
 window.resetToolbar = resetToolbar;
 window.saveToolbarFromEditor = saveToolbarFromEditor;
 window.setTheme = setTheme;
-window.setSearchEngine = setSearchEngine;
+window.loadDiscover = loadDiscover;
 window.mintNft = mintNft;
 window.transferNft = transferNft;
 window.observeChains = observeChains;
