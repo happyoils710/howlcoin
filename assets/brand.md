@@ -16,7 +16,8 @@ Scrypt till the moon howls.
 - Amber accent `#FFB020`
 
 ## Logo
-Canonical mark: `assets/howlcoin-logo.jpg`  
+Canonical mark: `assets/howlcoin-logo.jpg` (chubby cartoon dog mascot)
+Prior wolf mark backup: `assets/howlcoin-logo-wolf-backup.jpg`  
 Wolf howling at a circuit-traced crescent moon, mint glow, circular badge.
 
 ## Do / Don't
