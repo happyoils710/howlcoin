@@ -1589,10 +1589,9 @@ async function loadHome(){
     app().innerHTML=`<div class="main"><div class="card detail err">Chain <b>${esc(net)}</b> offline.<br><span class="mono">${esc(s.path||'')}</span><br>${esc(s.note||'')}</div></div>`;
     return;
   }
-  const [blocks, txs, tokenInfo]=await Promise.all([
+  const [blocks, txs]=await Promise.all([
     api(`/api/${net}/blocks?limit=15`),
     api(`/api/${net}/txs?limit=15`),
-    api('/api/public/token-info').catch(()=>null),
   ]);
   const bl = blocks.blocks||[];
   const tl = txs.transactions||[];
@@ -1604,24 +1603,6 @@ async function loadHome(){
   const liveNote = slowMining
     ? `Seed online · last block ${tipAge} · diff ${s.difficulty} — CPU mining is slow (hours per block is normal). Chain is live.`
     : `Seed online · last block ${tipAge} · network live`;
-  let tokenCard = '';
-  if(tokenInfo){
-    const gh = tokenInfo.genesis_hash || '';
-    const contracts = (tokenInfo.contracts||[]).map(c=>
-      `<div class="item"><div>${esc(c.chain)} · ${esc(c.standard)}</div>
-       <div class="r mono" style="font-size:.72rem;word-break:break-all">${esc(c.address)} ${copyBtn(c.address)}</div></div>`
-    ).join('') || `<p class="muted" style="margin:8px 0 0;font-size:.85rem">No wrapped token contracts published. Native HOWL has <b>no</b> ERC-20 address.</p>`;
-    tokenCard = `<div class="main" style="padding-top:0"><div class="card">
-      <h3>HOWL token identity <a class="more" href="/token">full page →</a></h3>
-      <p class="muted" style="margin:0 0 10px;font-size:.85rem;line-height:1.4">${esc(tokenInfo.contract_note||'')}</p>
-      <div class="item"><div>Native contract</div><div class="r mono">N/A (native L1 coin)</div></div>
-      <div class="item"><div>Ticker</div><div class="r"><b>HOWL</b></div></div>
-      <div class="item"><div>Genesis hash</div><div class="r mono" style="font-size:.72rem;word-break:break-all">${esc(gh)} ${gh?copyBtn(gh):''}</div></div>
-      <div class="item"><div>Explorer</div><div class="r"><a href="${esc(tokenInfo.explorer||'/')}">${esc(tokenInfo.explorer||'howlscan.org')}</a></div></div>
-      <div class="item"><div>JSON for listings</div><div class="r"><a href="/token.json">/token.json</a></div></div>
-      ${contracts}
-    </div></div>`;
-  }
   // Only replace #app — hero/banner stay mounted so animation never restarts
   app().innerHTML = `
   <div class="main" style="padding-top:4px;padding-bottom:4px">
@@ -1657,11 +1638,9 @@ async function loadHome(){
       <button class="chipbtn" onclick="location.hash='#/${net}/block/${s.height}'">Latest #${s.height}</button>
       <button class="chipbtn" onclick="location.hash='#/${net}/richlist'">Top addresses</button>
       <button class="chipbtn" onclick="location.hash='#/${net}/mempool'">Mempool (${s.mempool})</button>
-      <a class="chipbtn" href="/token" style="text-decoration:none">Token / contract info</a>
       <button class="chipbtn" style="border-color:rgba(61,255,154,.45);color:var(--green)" onclick="location.hash='#/run'">Run a node / sync</button>
     </div>
   </div>
-  ${tokenCard}
   <div class="main cols">
     <div class="card">
       <h3>Latest blocks <a class="more" href="#/${net}/block/${s.height}">tip →</a></h3>
