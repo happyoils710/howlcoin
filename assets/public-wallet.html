@@ -592,7 +592,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
             </div>
           </div>
           <div class="bookmarks" id="bookmarks"></div>
-          <p class="browser-hint" id="browserHint">Howl Search + open tabs. News uses <b>Howl Reader</b> on the web; the native Howl Browser app opens full sites without iframe blocks.</p>
+          <p class="browser-hint" id="browserHint">Type a search or site (e.g. <b>jup.ag</b>). Results open here; if a site blocks the frame, use <b>Open outside</b> or <b>Read in Howl</b>.</p>
           <div class="addr-chips">
             <button type="button" onclick="copyText(keypair&&keypair.address)">Copy HOWL</button>
             <button type="button" onclick="copyText(solInfo&&solInfo.address)">Copy SOL</button>
@@ -609,12 +609,12 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <div class="dapp-frame-wrap" id="dappFrameWrap">
           <iframe id="dappFrame" title="Browser" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"></iframe>
           <div class="dapp-fallback hidden" id="dappFallback">
-            <p style="font-weight:700;font-size:1.1rem;margin:0 0 8px">This site blocks in-app frames</p>
-            <p class="hint" style="margin-bottom:14px;max-width:300px">News and many big sites refuse iframes. Read the article inside Howl, or open full site outside.</p>
-            <button class="btn" type="button" id="dappReadHowl">Read in Howl</button>
-            <button class="btn sec" type="button" id="dappOpenExt">Open outside</button>
+            <p style="font-weight:700;font-size:1.1rem;margin:0 0 8px">Can’t show this site in the wallet frame</p>
+            <p class="hint" style="margin-bottom:14px;max-width:300px">Many sites (Google, banks, DEX UIs, news) block in-app iframes. Open the full site outside, or try Howl Reader for articles.</p>
+            <button class="btn" type="button" id="dappOpenExt">Open outside</button>
+            <button class="btn sec" type="button" id="dappReadHowl">Read in Howl</button>
             <button class="btn sec" type="button" onclick="showLastSearchResults()">Back to results</button>
-            <button class="btn sec" type="button" onclick="newBrowserTab()">New tab</button>
+            <button class="btn sec" type="button" onclick="newBrowserTab()">New search</button>
           </div>
         </div>
 
@@ -1608,25 +1608,29 @@ function prefersReaderUrl(url){
   const h = hostOf(url);
   return !!(h && READER_HOSTS.test(h));
 }
-/** True inside Capacitor Howl Browser shell */
+/** True only when Capacitor can open a real system browser (not mere ?native=1). */
 function isHowlNative(){
   try{
-    if(typeof howlIsNative === "function" && howlIsNative()) return true;
-    if(window.Capacitor && (window.Capacitor.isNativePlatform ? window.Capacitor.isNativePlatform() : window.Capacitor.Plugins)) return true;
-    if(/[?&]native=1(?:&|$)/.test(location.search||"")) return true;
+    const plugs = window.Capacitor && window.Capacitor.Plugins;
+    if(plugs && (plugs.Browser || plugs.InAppBrowser)) return true;
+    if(typeof howlIsNative === "function" && howlIsNative()){
+      // howlIsNative now requires real plugins
+      return true;
+    }
   }catch(_){}
   return false;
 }
 /**
- * Open URL in native WebView / Custom Tabs when available (real browser — no iframe blocks).
- * Returns true if native handled it.
+ * Open URL in native WebView / Custom Tabs when available.
+ * Returns true only on hard success (not soft postMessage).
  */
 async function openNativeSite(url, title){
   if(!url || !/^https?:\/\//i.test(url)) return false;
   if(typeof howlNativeOpen !== "function") return false;
   try{
     const r = await howlNativeOpen(url, { title: title || hostOf(url) || "Howl" });
-    return !!(r && r.ok);
+    // soft: postMessage may be a no-op — do not treat as success on web
+    return !!(r && r.ok && !r.soft);
   }catch(e){
     console.warn("native open failed", e);
     return false;
@@ -1913,15 +1917,10 @@ function paintSearchResults(){
   list.querySelectorAll(".sres").forEach(btn=>{
     btn.onclick = ()=>{
       const item = lastSearchResults[Number(btn.dataset.i)];
-      if(!item) return;
-      // news-ish → reader first
-      if(prefersReaderUrl(item.url) || (item.source && item.source !== "web" && item.source !== "wiki" && item.source !== "crypto")){
-        // only force reader for known blockers; crypto market pages also block frames
-        if(prefersReaderUrl(item.url)) openInReader(item.url, item.title);
-        else openUrlInApp(item.url, item.title || item.url);
-      } else {
-        openUrlInApp(item.url, item.title || item.url);
-      }
+      if(!item || !item.url) return;
+      // Known blockers → reader; everything else try iframe then auto-fallback
+      if(prefersReaderUrl(item.url)) openInReader(item.url, item.title);
+      else openUrlInApp(item.url, item.title || item.url);
     };
   });
 }
@@ -2117,10 +2116,37 @@ function tryIframeAnyway(url){
   openUrlInApp(url, url, url, { forceIframe: true });
 }
 
-/** Load a website — native browser when in Capacitor, else iframe / reader */
+/** Detect blank / frame-blocked iframe after navigate */
+function frameLooksBlocked(frame){
+  if(!frame) return true;
+  try{
+    const w = frame.contentWindow;
+    const loc = w && w.location;
+    const href = loc && String(loc.href || "");
+    if(!href || href === "about:blank" || href === "about:srcdoc") return true;
+  }catch(_){
+    // cross-origin: cannot read — page may have loaded fine
+    return false;
+  }
+  try{
+    const doc = frame.contentDocument;
+    if(!doc) return true;
+    const body = doc.body;
+    if(!body) return true;
+    const text = (body.innerText || body.textContent || "").trim();
+    const html = (body.innerHTML || "").trim();
+    if(html.length < 30 && text.length < 10) return true;
+  }catch(_){
+    return false;
+  }
+  return false;
+}
+
+/** Load a website — native browser when in Capacitor, else iframe / reader / open outside */
 async function openUrlInApp(url, display, externalUrl, opts){
   ensureActiveTab();
   const forceIframe = opts && opts.forceIframe;
+  const preferOutside = opts && opts.preferOutside;
   // Prefer real native browser engine (no X-Frame blocks)
   if(!forceIframe && isHowlNative()){
     const ok = await openNativeSite(url, display);
@@ -2136,13 +2162,20 @@ async function openUrlInApp(url, display, externalUrl, opts){
       browserHistory.push({ kind:"url", url, display: display || url, externalUrl: externalUrl || url });
       if($("dappUrl")) $("dappUrl").value = display || url.replace(/^https?:\/\//,"");
       renderTabsUI();
-      setBrowserMode("home"); // keep wallet UI; site is in overlay WebView
+      setBrowserMode("home");
       toast("Opened in Howl Browser");
       return;
     }
   }
+  // Known frame-blockers → Howl Reader first (articles stay in-app)
   if(!forceIframe && prefersReaderUrl(url)){
     openInReader(url, display);
+    return;
+  }
+  // Optional: open system browser tab immediately
+  if(preferOutside){
+    window.open(url, "_blank", "noopener,noreferrer");
+    toast("Opened outside");
     return;
   }
   const nav = {
@@ -2168,32 +2201,44 @@ async function openUrlInApp(url, display, externalUrl, opts){
   renderTabsUI();
   const frame = $("dappFrame");
   if(frameCheckTimer) clearTimeout(frameCheckTimer);
+  wireFallbackButtons(nav);
+  if(!frame){
+    setProgress(false);
+    showDappFallback(nav);
+    return;
+  }
   try{
+    // reset then navigate
     frame.onload = ()=>{
       setProgress(false);
+      // about:blank / empty → blocked; cross-origin success → leave alone
       frameCheckTimer = setTimeout(()=>{
-        try{
-          const doc = frame.contentDocument;
-          if(doc && (!doc.body || doc.body.innerHTML.trim().length < 20)){
-            showDappFallback(nav);
-          }
-        }catch(_){}
-      }, 900);
+        if(frameLooksBlocked(frame)) showDappFallback(nav);
+      }, 400);
     };
     frame.onerror = ()=> { setProgress(false); showDappFallback(nav); };
-    frame.src = nav.embedUrl;
+    frame.src = "about:blank";
+    setTimeout(()=>{
+      try{ frame.src = nav.embedUrl; }catch(e){ showDappFallback(nav); }
+    }, 30);
   }catch(e){
     setProgress(false);
     showDappFallback(nav);
   }
-  wireFallbackButtons(nav);
-  frameCheckTimer = setTimeout(()=> setProgress(false), 3200);
+  // Always offer outside open if still blank after a short wait
+  frameCheckTimer = setTimeout(()=>{
+    setProgress(false);
+    if(frameLooksBlocked(frame)) showDappFallback(nav);
+  }, 2200);
 }
 
 function wireFallbackButtons(nav){
   const n = typeof nav === "string" ? { externalUrl: nav, url: nav, embedUrl: nav } : nav;
   const url = n.externalUrl || n.embedUrl || n.url;
-  if($("dappOpenExt")) $("dappOpenExt").onclick = ()=> window.open(url, "_blank", "noopener,noreferrer");
+  if($("dappOpenExt")) $("dappOpenExt").onclick = ()=> {
+    window.open(url, "_blank", "noopener,noreferrer");
+    toast("Opened outside");
+  };
   if($("dappReadHowl")) $("dappReadHowl").onclick = async ()=>{
     if(isHowlNative() && await openNativeSite(url, n.display)) return;
     openInReader(url, n.display);
@@ -2204,7 +2249,10 @@ function browseTo(){
   ensureActiveTab();
   const raw = ($("dappUrl") && $("dappUrl").value.trim()) || ($("dappSearch") && $("dappSearch").value.trim()) || "";
   const nav = resolveNavigation(raw);
-  if(!nav) return;
+  if(!nav){
+    toast("Type a search or website");
+    return;
+  }
   if($("dappUrl")) $("dappUrl").value = nav.display;
   if($("dappSearch")) $("dappSearch").value = nav.display;
 
@@ -2213,12 +2261,15 @@ function browseTo(){
     runInAppSearch(nav.query);
     return;
   }
+  // Direct URL / domain — open inside app (iframe / reader / outside fallback)
   openUrlInApp(nav.url || nav.embedUrl, nav.display, nav.externalUrl);
 }
 function showDappFallback(nav){
   const n = typeof nav === "string" ? { externalUrl: nav, embedUrl: nav, url: nav } : nav;
+  setBrowserMode("browsing");
   $("dappFallback")?.classList.remove("hidden");
   wireFallbackButtons(n);
+  setProgress(false);
 }
 function browserBack(){
   if(browserMode === "reader" || browserMode === "browsing"){

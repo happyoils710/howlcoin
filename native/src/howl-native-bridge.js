@@ -27,8 +27,14 @@
     return null;
   }
 
+  function hasNativeBrowserPlugin() {
+    return !!(plugin("InAppBrowser") || plugin("Browser"));
+  }
+
   function detect() {
-    BRIDGE.isNative = hasCapacitor();
+    // Only "native" when we can actually open a system browser plugin.
+    // (Do NOT treat ?native=1 alone as success — that broke web open/search.)
+    BRIDGE.isNative = hasCapacitor() && hasNativeBrowserPlugin();
     try {
       BRIDGE.platform = (global.Capacitor && global.Capacitor.getPlatform)
         ? global.Capacitor.getPlatform()
@@ -36,20 +42,19 @@
     } catch (_) {
       BRIDGE.platform = BRIDGE.isNative ? "native" : "web";
     }
-    // Shell iframe parent
+    // Shell parent with real plugins
     if (!BRIDGE.isNative && global.parent && global.parent !== global) {
       try {
-        if (global.parent.HOWL_NATIVE || global.parent.Capacitor) {
+        if (global.parent.Capacitor && global.parent.Capacitor.Plugins &&
+            (global.parent.Capacitor.Plugins.Browser || global.parent.Capacitor.Plugins.InAppBrowser)) {
           BRIDGE.isNative = true;
           BRIDGE.platform = "capacitor-shell";
         }
       } catch (_) {}
     }
-    // Query flag from shell boot
+    BRIDGE.wantsNative = false;
     try {
-      if (/[?&]native=1(?:&|$)/.test(global.location.search || "")) {
-        BRIDGE.isNative = true;
-      }
+      BRIDGE.wantsNative = /[?&]native=1(?:&|$)/.test(global.location.search || "");
     } catch (_) {}
     global.HOWL_NATIVE_BRIDGE = BRIDGE;
     return BRIDGE;
@@ -110,11 +115,14 @@
       }
     }
 
-    // Ask parent shell (wallet in iframe of index.html)
+    // Ask parent shell only if it looks like our Capacitor shell (not a random iframe host)
     if (global.parent && global.parent !== global) {
       try {
-        global.parent.postMessage({ type: "howl-open-url", url: url, title: opts.title || "" }, "*");
-        return { ok: true, via: "postMessage" };
+        if (global.parent.HOWL_NATIVE || (global.parent.Capacitor && global.parent.Capacitor.Plugins)) {
+          global.parent.postMessage({ type: "howl-open-url", url: url, title: opts.title || "" }, "*");
+          // Parent may not handle it — caller must still fall back if nothing opens
+          return { ok: true, via: "postMessage", soft: true };
+        }
       } catch (_) {}
     }
 
