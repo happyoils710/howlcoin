@@ -18,6 +18,8 @@ build/
 .venv/
 venv/
 .env
+telegram.env
+**/telegram.env
 .Python
 
 # OS / editor

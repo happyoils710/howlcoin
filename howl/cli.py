@@ -190,9 +190,26 @@ def cmd_mine(args: argparse.Namespace) -> None:
     chain = Blockchain(dd)
     wallet = Wallet(dd / WALLET_FILE)
     address = args.address or wallet.address
+    continuous = getattr(args, "continuous", False)
     count = max(1, args.blocks)
     print(BANNER)
     print(f"Miner address: {address}")
+    if continuous:
+        print("Mining continuously with Scrypt (Ctrl+C to stop)…\n")
+        mined = 0
+        try:
+            while True:
+                chain.mine_one(address)
+                mined += 1
+                print(
+                    f"  bag: {format_howl(chain.balance(address))} | "
+                    f"height: {chain.height()} | blocks this run: {mined}\n"
+                )
+        except KeyboardInterrupt:
+            print(f"\nStopped after {mined} block(s).")
+            print(f"Balance: {format_howl(chain.balance(address))}")
+            print(f"Height : {chain.height()}")
+        return
     print(f"Mining {count} block(s) with Scrypt…\n")
     for i in range(count):
         chain.mine_one(address)
@@ -343,6 +360,23 @@ def cmd_peers(args: argparse.Namespace) -> None:
     print(peer_file.read_text())
 
 
+def cmd_telegram(args: argparse.Namespace) -> None:
+    """Run the Howlcoin Telegram bot (needs HOWL_TELEGRAM_TOKEN)."""
+    import os
+
+    if args.token:
+        os.environ["HOWL_TELEGRAM_TOKEN"] = args.token
+    if args.data_dir:
+        os.environ["HOWL_DATA_DIR"] = args.data_dir
+    if args.seed:
+        os.environ["HOWL_SEED"] = args.seed
+    if args.cooldown:
+        os.environ["HOWL_MINE_COOLDOWN"] = str(args.cooldown)
+    from .telegram_bot import main as tg_main
+
+    tg_main()
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="howl",
@@ -386,6 +420,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("mine", help="mine blocks with Scrypt (earn HOWL)")
     s.add_argument("-n", "--blocks", type=int, default=1, help="blocks to mine")
+    s.add_argument(
+        "-c",
+        "--continuous",
+        action="store_true",
+        help="mine forever until Ctrl+C",
+    )
     s.add_argument("--address", help="miner payout address (default: wallet)")
     s.set_defaults(func=cmd_mine)
 
@@ -432,6 +472,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("peers", help="show saved peer list")
     s.set_defaults(func=cmd_peers)
+
+    s = sub.add_parser("telegram", help="run Telegram bot (wallet + mine + status)")
+    s.add_argument("--token", help="BotFather token (or set HOWL_TELEGRAM_TOKEN)")
+    s.add_argument(
+        "--seed",
+        default="147.182.223.204:42069",
+        help="public seed string shown to users",
+    )
+    s.add_argument(
+        "--cooldown",
+        type=int,
+        default=120,
+        help="seconds between /mine per user (default 120)",
+    )
+    s.set_defaults(func=cmd_telegram)
 
     return p
 
