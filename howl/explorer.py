@@ -39,6 +39,98 @@ from .wallet import format_howl
 # Live seed node RPC (for broadcasting browser-signed txs into the public mempool)
 NODE_RPC = os.environ.get("HOWL_NODE_RPC", "http://127.0.0.1:42070").rstrip("/")
 
+# Optional wrapped-token contracts (for CMC/CoinCodex when you deploy them)
+# HOWL is a *native* Scrypt coin — it has no default EVM/SPL contract.
+HOWL_ERC20_CONTRACT = os.environ.get("HOWL_ERC20_CONTRACT", "").strip()
+HOWL_BEP20_CONTRACT = os.environ.get("HOWL_BEP20_CONTRACT", "").strip()
+HOWL_SPL_MINT = os.environ.get("HOWL_SPL_MINT", "").strip()
+HOWL_SITE = os.environ.get("HOWL_SITE", "https://howlscan.org").rstrip("/")
+HOWL_GITHUB = os.environ.get("HOWL_GITHUB", "https://github.com/happyoils710/howlcoin")
+HOWL_SEED = os.environ.get("HOWL_SEED", "147.182.223.204:42069")
+
+
+def howl_token_info(chain: Optional[Blockchain] = None) -> Dict[str, Any]:
+    """
+    Official project identifiers for explorers and market aggregators.
+    Native HOWL is not an ERC-20; genesis hash is the chain fingerprint.
+    """
+    genesis = ""
+    height = None
+    tip = ""
+    circulating = None
+    if chain is not None:
+        try:
+            genesis = chain.genesis_hash()
+            height = chain.height()
+            tip = chain.tip()["hash"]
+            circulating = chain.summary().get("circulating")
+        except Exception:
+            pass
+    contracts = []
+    if HOWL_ERC20_CONTRACT:
+        contracts.append(
+            {
+                "chain": "ethereum",
+                "standard": "ERC-20",
+                "address": HOWL_ERC20_CONTRACT,
+                "explorer": f"https://etherscan.io/token/{HOWL_ERC20_CONTRACT}",
+            }
+        )
+    if HOWL_BEP20_CONTRACT:
+        contracts.append(
+            {
+                "chain": "bsc",
+                "standard": "BEP-20",
+                "address": HOWL_BEP20_CONTRACT,
+                "explorer": f"https://bscscan.com/token/{HOWL_BEP20_CONTRACT}",
+            }
+        )
+    if HOWL_SPL_MINT:
+        contracts.append(
+            {
+                "chain": "solana",
+                "standard": "SPL",
+                "address": HOWL_SPL_MINT,
+                "explorer": f"https://solscan.io/token/{HOWL_SPL_MINT}",
+            }
+        )
+    return {
+        "name": "Howlcoin",
+        "symbol": "HOWL",
+        "type": "native_coin",
+        "platform": "Howlcoin (own L1)",
+        "algorithm": "Scrypt",
+        "scrypt": {"N": 1024, "r": 1, "p": 1},
+        "decimals": 8,
+        "contract_address": None,  # native L1 — no single contract
+        "contract_note": (
+            "Howlcoin (HOWL) is a native Scrypt proof-of-work cryptocurrency "
+            "with its own blockchain (not an ERC-20/BEP-20/SPL token). "
+            "There is no smart-contract address for native HOWL. "
+            "Use genesis_hash + explorer for chain identity. "
+            "Optional wrapped contracts appear under contracts[] when deployed."
+        ),
+        "genesis_hash": genesis,
+        "genesis_block_url": f"{HOWL_SITE}/#/public/block/0",
+        "explorer": HOWL_SITE,
+        "explorer_api": f"{HOWL_SITE}/api/public/summary",
+        "website": HOWL_SITE,
+        "whitepaper": f"{HOWL_SITE}/whitepaper",
+        "github": HOWL_GITHUB,
+        "wallet": f"{HOWL_SITE}/app",
+        "seed_node": HOWL_SEED,
+        "source_code": HOWL_GITHUB,
+        "height": height,
+        "tip": tip,
+        "circulating": circulating,
+        "contracts": contracts,  # wrapped tokens only
+        "listing": {
+            "coinmarketcap_hint": "Submit as a native coin (own blockchain), not a token. Put explorer + genesis_hash; leave contract blank or N/A.",
+            "coingecko_hint": "Category: own blockchain / Scrypt. Explorer URL required. Contract only if listing a wrapped version.",
+            "coincodex_hint": "Native coin — use website + block explorer. Contract address only for wrapped HOWL on ETH/BSC/SOL.",
+        },
+    }
+
 
 # ---------------------------------------------------------------------------
 # Howl Search — multi-source open-web index (server-side, in-app results)
@@ -1302,6 +1394,7 @@ tbody tr:hover{background:var(--rowh)}
   <h4 style="margin-top:16px">Get started</h4>
   <button class="ditem primary" type="button" onclick="navTo('#/run')">🐺 Run a node</button>
   <a class="ditem" href="/wallet">👛 Wallet</a>
+  <a class="ditem" href="/token">🏷 Token / contract info</a>
   <a class="ditem" href="/whitepaper">📄 White paper</a>
   <a class="ditem" href="https://github.com/happyoils710/howlcoin" target="_blank" rel="noopener">⌥ GitHub</a>
   <h4 style="margin-top:16px">Network</h4>
@@ -1326,6 +1419,7 @@ tbody tr:hover{background:var(--rowh)}
 <div class="footer">
   <div>Howlscan · Scrypt PoW · not financial advice ·
     <a href="#/public">Home</a> ·
+    <a href="/token">Token info</a> ·
     <a href="/whitepaper">White paper</a> ·
     <a href="/wallet">Wallet</a> ·
     <a href="#/run">Run a node</a> ·
@@ -1494,9 +1588,10 @@ async function loadHome(){
     app().innerHTML=`<div class="main"><div class="card detail err">Chain <b>${esc(net)}</b> offline.<br><span class="mono">${esc(s.path||'')}</span><br>${esc(s.note||'')}</div></div>`;
     return;
   }
-  const [blocks, txs]=await Promise.all([
+  const [blocks, txs, tokenInfo]=await Promise.all([
     api(`/api/${net}/blocks?limit=15`),
     api(`/api/${net}/txs?limit=15`),
+    api('/api/public/token-info').catch(()=>null),
   ]);
   const bl = blocks.blocks||[];
   const tl = txs.transactions||[];
@@ -1508,6 +1603,24 @@ async function loadHome(){
   const liveNote = slowMining
     ? `Seed online · last block ${tipAge} · diff ${s.difficulty} — CPU mining is slow (hours per block is normal). Chain is live.`
     : `Seed online · last block ${tipAge} · network live`;
+  let tokenCard = '';
+  if(tokenInfo){
+    const gh = tokenInfo.genesis_hash || '';
+    const contracts = (tokenInfo.contracts||[]).map(c=>
+      `<div class="item"><div>${esc(c.chain)} · ${esc(c.standard)}</div>
+       <div class="r mono" style="font-size:.72rem;word-break:break-all">${esc(c.address)} ${copyBtn(c.address)}</div></div>`
+    ).join('') || `<p class="muted" style="margin:8px 0 0;font-size:.85rem">No wrapped token contracts published. Native HOWL has <b>no</b> ERC-20 address.</p>`;
+    tokenCard = `<div class="main" style="padding-top:0"><div class="card">
+      <h3>HOWL token identity <a class="more" href="/token">full page →</a></h3>
+      <p class="muted" style="margin:0 0 10px;font-size:.85rem;line-height:1.4">${esc(tokenInfo.contract_note||'')}</p>
+      <div class="item"><div>Native contract</div><div class="r mono">N/A (native L1 coin)</div></div>
+      <div class="item"><div>Ticker</div><div class="r"><b>HOWL</b></div></div>
+      <div class="item"><div>Genesis hash</div><div class="r mono" style="font-size:.72rem;word-break:break-all">${esc(gh)} ${gh?copyBtn(gh):''}</div></div>
+      <div class="item"><div>Explorer</div><div class="r"><a href="${esc(tokenInfo.explorer||'/')}">${esc(tokenInfo.explorer||'howlscan.org')}</a></div></div>
+      <div class="item"><div>JSON for listings</div><div class="r"><a href="/token.json">/token.json</a></div></div>
+      ${contracts}
+    </div></div>`;
+  }
   // Only replace #app — hero/banner stay mounted so animation never restarts
   app().innerHTML = `
   <div class="main" style="padding-top:4px;padding-bottom:4px">
@@ -1543,9 +1656,11 @@ async function loadHome(){
       <button class="chipbtn" onclick="location.hash='#/${net}/block/${s.height}'">Latest #${s.height}</button>
       <button class="chipbtn" onclick="location.hash='#/${net}/richlist'">Top addresses</button>
       <button class="chipbtn" onclick="location.hash='#/${net}/mempool'">Mempool (${s.mempool})</button>
+      <a class="chipbtn" href="/token" style="text-decoration:none">Token / contract info</a>
       <button class="chipbtn" style="border-color:rgba(61,255,154,.45);color:var(--green)" onclick="location.hash='#/run'">Run a node / sync</button>
     </div>
   </div>
+  ${tokenCard}
   <div class="main cols">
     <div class="card">
       <h3>Latest blocks <a class="more" href="#/${net}/block/${s.height}">tip →</a></h3>
@@ -2009,6 +2124,90 @@ class ExplorerServer:
                         return self._json(404, {"error": "public wallet not found"})
                     return self._bytes(200, app.read_bytes(), "text/html; charset=utf-8")
 
+                # Token / listing identity page (for humans + aggregators)
+                if path in ("/token", "/token/", "/contract", "/contracts"):
+                    chain = hub.get("public")
+                    info = howl_token_info(chain)
+                    rows = []
+                    for k, label in (
+                        ("name", "Name"),
+                        ("symbol", "Symbol / Ticker"),
+                        ("type", "Type"),
+                        ("platform", "Platform"),
+                        ("algorithm", "Algorithm"),
+                        ("decimals", "Decimals"),
+                        ("genesis_hash", "Genesis hash (chain ID)"),
+                        ("explorer", "Block explorer"),
+                        ("website", "Website"),
+                        ("whitepaper", "White paper"),
+                        ("github", "Source code"),
+                        ("wallet", "Web wallet"),
+                        ("seed_node", "P2P seed"),
+                    ):
+                        val = info.get(k)
+                        if val is None or val == "":
+                            continue
+                        rows.append(
+                            f"<tr><th>{html_lib.escape(str(label))}</th>"
+                            f"<td class='mono'>{html_lib.escape(str(val))}</td></tr>"
+                        )
+                    contract_block = (
+                        "<p><b>Native contract address:</b> "
+                        "<span class='mono'>N/A — native L1 coin (not ERC-20)</span></p>"
+                    )
+                    if info.get("contracts"):
+                        clines = []
+                        for c in info["contracts"]:
+                            clines.append(
+                                f"<li><b>{html_lib.escape(c.get('chain',''))}</b> "
+                                f"({html_lib.escape(c.get('standard',''))}): "
+                                f"<span class='mono'>{html_lib.escape(c.get('address',''))}</span> "
+                                f"— <a href='{html_lib.escape(c.get('explorer',''))}'>explorer</a></li>"
+                            )
+                        contract_block += (
+                            "<p><b>Wrapped token contracts</b> (optional):</p><ul>"
+                            + "".join(clines)
+                            + "</ul>"
+                        )
+                    else:
+                        contract_block += (
+                            "<p class='muted'>No wrapped ERC-20 / BEP-20 / SPL HOWL is published yet. "
+                            "When you deploy one, set HOWL_ERC20_CONTRACT / HOWL_BEP20_CONTRACT / "
+                            "HOWL_SPL_MINT on the server.</p>"
+                        )
+                    page = f"""<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>HOWL Token Info — Howlcoin</title>
+<link rel="icon" href="/assets/howlcoin-logo-meme-pup-coin.jpg"/>
+<style>
+body{{font-family:system-ui,sans-serif;background:#0c0f14;color:#e8edf7;margin:0;padding:24px;line-height:1.5}}
+a{{color:#3dff9a}} .mono{{font-family:ui-monospace,Menlo,monospace;font-size:.85rem;word-break:break-all}}
+.card{{max-width:720px;margin:0 auto;background:#161b26;border:1px solid #252d3d;border-radius:16px;padding:20px}}
+h1{{margin:0 0 8px;font-size:1.4rem}} h1 span{{color:#3dff9a}}
+.muted{{color:#8b95a8;font-size:.9rem}}
+table{{width:100%;border-collapse:collapse;margin:16px 0}}
+th,td{{text-align:left;padding:10px 8px;border-bottom:1px solid #252d3d;vertical-align:top}}
+th{{color:#8b95a8;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;width:34%}}
+.badge{{display:inline-block;padding:4px 10px;border-radius:999px;background:rgba(61,255,154,.12);color:#3dff9a;font-size:.75rem;font-weight:700}}
+.note{{margin-top:16px;padding:12px;border-radius:12px;background:rgba(255,176,32,.08);border:1px solid rgba(255,176,32,.25);font-size:.88rem;color:#ffd78a}}
+</style></head><body>
+<div class="card">
+  <div class="badge">OFFICIAL · LISTING INFO</div>
+  <h1>Howl<span>coin</span> (HOWL)</h1>
+  <p class="muted">Identifiers for CoinMarketCap, CoinCodex, CoinGecko, and wallets.</p>
+  {contract_block}
+  <table>{''.join(rows)}</table>
+  <div class="note">{html_lib.escape(info.get("contract_note") or "")}</div>
+  <p class="muted" style="margin-top:16px">
+    Machine-readable: <a href="/token.json">/token.json</a> ·
+    <a href="/api/public/token-info">/api/public/token-info</a> ·
+    <a href="/">Howlscan</a> · <a href="/whitepaper">White paper</a>
+  </p>
+</div>
+</body></html>"""
+                    return self._bytes(200, page.encode("utf-8"), "text/html; charset=utf-8")
+
                 if path in ("/manifest.webmanifest", "/manifest.json"):
                     man = ASSETS_DIR / "wallet-manifest.webmanifest"
                     if man.is_file():
@@ -2061,6 +2260,15 @@ class ExplorerServer:
                             "note": "Fees are paid to the miner who confirms the transaction",
                         },
                     )
+
+                if path in (
+                    "/api/public/token",
+                    "/api/public/token-info",
+                    "/api/token",
+                    "/token.json",
+                ):
+                    chain = hub.get("public")
+                    return self._json(200, howl_token_info(chain))
 
                 if path in ("/api/public/search", "/api/search"):
                     q = (qs.get("q") or qs.get("query") or [""])[0]
