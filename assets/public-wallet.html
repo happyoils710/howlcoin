@@ -467,7 +467,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       <div class="panel">
         <h2>Apps</h2>
         <div class="menu-list">
-          <button type="button" class="menu-row" onclick="showPage('swap')"><span class="mi">⇄</span><div><div class="mt">Swap</div><div class="ms">Solana · Jupiter</div></div><span class="chev">›</span></button>
+          <button type="button" class="menu-row" onclick="showPage('swap')"><span class="mi">⇄</span><div><div class="mt">Swap</div><div class="ms">Jupiter · Howl Swap (→ HOWL)</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('browser')"><span class="mi">◈</span><div><div class="mt">Howl Search</div><div class="ms">Search the open web · open any site or dapp</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('discover')"><span class="mi">✦</span><div><div class="mt">Discover</div><div class="ms">New crypto tech · scout agents</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('nft')"><span class="mi">◆</span><div><div class="mt">NFTs</div><div class="ms">Mint &amp; transfer on Howlcoin</div></div><span class="chev">›</span></button>
@@ -517,9 +517,15 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       </div>
     </div>
 
-    <!-- SWAP (Solana / Jupiter) -->
+    <!-- SWAP (Solana / Jupiter) + Howl Swap bridge -->
     <div class="page" id="p-swap">
       <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>Swap</h1></div>
+      <div class="seg" id="swapModeSeg" style="margin-bottom:12px">
+        <button type="button" class="on" data-mode="jup" onclick="setSwapMode('jup',this)">Solana · Jupiter</button>
+        <button type="button" data-mode="howl" onclick="setSwapMode('howl',this)">Howl Swap</button>
+      </div>
+
+      <div id="swapJupPanel">
       <div class="panel">
         <h2>Swap · Solana</h2>
         <p class="hint">Powered by Jupiter aggregator. Signs with your Solana key from this wallet.</p>
@@ -559,6 +565,48 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <button class="btn sec" type="button" onclick="openDapp('https://jup.ag/')">Jupiter ↗</button>
         <button class="btn sec" type="button" onclick="openDapp('https://raydium.io/swap/')">Raydium ↗</button>
         <button class="btn sec" type="button" onclick="openDapp('https://app.uniswap.org/')">Uniswap (ETH) ↗</button>
+      </div>
+      </div>
+
+      <div id="swapHowlPanel" class="hidden">
+      <div class="panel">
+        <h2>Howl Swap · get native HOWL</h2>
+        <p class="hint">Phase A bridge: send <b>SOL</b> or <b>USDC</b> on Solana to the treasury, then a relayer credits <b>HOWL</b> to this wallet. Semi-custodial — not a trustless bridge.</p>
+        <div id="bridgeOffline" class="warnbox hidden">Bridge offline on the server. Operator must set deposit treasury + enable Howl Swap.</div>
+        <label>You pay (Solana)</label>
+        <div class="row" style="display:flex;gap:8px;align-items:center">
+          <select id="bridgeAsset" style="min-width:100px;padding:12px;border-radius:12px;border:1px solid var(--border);background:var(--field-bg);color:var(--text);font:inherit;font-weight:700">
+            <option value="sol">SOL</option>
+            <option value="usdc">USDC</option>
+          </select>
+          <input class="field" id="bridgeAmt" inputmode="decimal" placeholder="0.1" style="margin:0;flex:1"/>
+        </div>
+        <p class="hint" id="bridgeBalHint">Your SOL address is used to send the deposit.</p>
+        <button class="btn sec" type="button" onclick="getBridgeQuote()">Get HOWL quote</button>
+        <div class="quote-card hidden" id="bridgeQuote"></div>
+        <button class="btn" type="button" id="bridgeOrderBtn" onclick="createBridgeOrder()" disabled>Create order</button>
+        <p class="err" id="bridgeErr"></p>
+      </div>
+      <div class="panel hidden" id="bridgeOrderPanel">
+        <h2>Your order</h2>
+        <div id="bridgeOrderBody"></div>
+        <button class="btn sec" type="button" onclick="copyBridgeDeposit()">Copy deposit address</button>
+        <button class="btn sec" type="button" onclick="refreshBridgeOrder()">Refresh status</button>
+        <p class="hint" id="bridgeOrderStatus"></p>
+      </div>
+      <div class="panel">
+        <h2>How it works</h2>
+        <ol class="steps" style="margin:0;padding-left:1.2rem;color:var(--muted);font-size:.88rem;line-height:1.45">
+          <li>Quote shows HOWL you’ll receive (minus bridge fee).</li>
+          <li>Create order → send the <b>exact</b> SOL/USDC amount to the deposit address from your Solana wallet (Phantom, etc.).</li>
+          <li>Relayer detects the deposit and sends HOWL to <span class="mono" id="bridgeHowlAddr">your address</span>.</li>
+          <li>A miner must confirm the HOWL tx on the Howl network.</li>
+        </ol>
+      </div>
+      <div class="panel">
+        <h2>Recent Howl Swap orders</h2>
+        <div id="bridgeOrdersList"><p class="hint">None yet</p></div>
+      </div>
       </div>
     </div>
 
@@ -1285,7 +1333,7 @@ function showPage(name){
   if(name!=="browser" && app) app.classList.remove("browser-focus");
   if(name==="recv") selectAsset(selectedAsset);
   if(name==="sec" || name==="more") updateSecUI();
-  if(name==="swap") initSwapUI();
+  if(name==="swap"){ initSwapUI(); if(swapMode==="howl") initBridgeUI(); }
   if(name==="browser") initBrowserUI();
   if(name==="discover") loadDiscover(false);
   if(name==="nft") refreshNfts();
@@ -1493,9 +1541,25 @@ function initPullToRefresh(){
   });
 }
 
+let swapMode = "jup";
+let bridgeCfg = null;
+let lastBridgeQuote = null;
+let activeBridgeOrder = null;
+let bridgePollTimer = null;
+
+function setSwapMode(mode, btn){
+  swapMode = mode === "howl" ? "howl" : "jup";
+  document.querySelectorAll("#swapModeSeg button").forEach(b=>{
+    b.classList.toggle("on", b.dataset.mode === swapMode);
+  });
+  if($("swapJupPanel")) $("swapJupPanel").classList.toggle("hidden", swapMode !== "jup");
+  if($("swapHowlPanel")) $("swapHowlPanel").classList.toggle("hidden", swapMode !== "howl");
+  if(swapMode === "howl") initBridgeUI();
+}
+
 function initSwapUI(){
   const from = $("swapFrom"), to = $("swapTo");
-  if(!from.options.length){
+  if(from && !from.options.length){
     SWAP_TOKENS.forEach(t=>{
       from.add(new Option(t.symbol, t.id));
       to.add(new Option(t.symbol, t.id));
@@ -1503,9 +1567,10 @@ function initSwapUI(){
     from.value = "sol";
     to.value = "usdc";
   }
-  $("swap2faBox").classList.toggle("hidden", !(meta.totpEnabled && meta.hasTotp));
+  if($("swap2faBox")) $("swap2faBox").classList.toggle("hidden", !(meta.totpEnabled && meta.hasTotp));
   updateSwapBalances();
-  $("swapAmt").oninput = ()=>{ lastSwapQuote=null; $("swapBtn").disabled=true; $("swapOut").value=""; $("swapQuote").classList.add("hidden"); };
+  if($("swapAmt")) $("swapAmt").oninput = ()=>{ lastSwapQuote=null; $("swapBtn").disabled=true; $("swapOut").value=""; $("swapQuote").classList.add("hidden"); };
+  if(swapMode === "howl") initBridgeUI();
 }
 function updateSwapBalances(){
   const fid = $("swapFrom").value;
@@ -1579,6 +1644,174 @@ async function doSwap(){
     $("swapErr").textContent = e.message || String(e);
   }finally{
     $("swapBtn").disabled = !lastSwapQuote;
+  }
+}
+
+/* —— Howl Swap bridge (SOL/USDC → native HOWL) —— */
+async function initBridgeUI(){
+  if($("bridgeHowlAddr") && keypair) $("bridgeHowlAddr").textContent = keypair.address;
+  if(solInfo && $("bridgeBalHint")){
+    $("bridgeBalHint").textContent = `Send from your Solana wallet · ${solInfo.address.slice(0,8)}…${solInfo.address.slice(-6)} · SOL bal ${ethBalances.sol ?? "…"}`;
+  }
+  try{
+    bridgeCfg = await api("/api/public/bridge");
+    const off = $("bridgeOffline");
+    if(off) off.classList.toggle("hidden", !!bridgeCfg.enabled);
+    if(bridgeCfg.enabled && $("bridgeAsset")){
+      // keep options
+    }
+  }catch(e){
+    bridgeCfg = { enabled: false };
+    if($("bridgeOffline")) $("bridgeOffline").classList.remove("hidden");
+  }
+  loadBridgeOrders();
+  if(activeBridgeOrder) renderBridgeOrder(activeBridgeOrder);
+}
+
+async function getBridgeQuote(){
+  $("bridgeErr").textContent = "";
+  try{
+    if(!bridgeCfg?.enabled) throw new Error("Bridge offline on server");
+    const asset = $("bridgeAsset").value || "sol";
+    const amount = $("bridgeAmt").value.trim();
+    if(!amount || Number(amount) <= 0) throw new Error("Enter an amount");
+    const q = await api(`/api/public/bridge/quote?asset=${encodeURIComponent(asset)}&amount=${encodeURIComponent(amount)}`);
+    lastBridgeQuote = q;
+    $("bridgeQuote").classList.remove("hidden");
+    $("bridgeQuote").innerHTML = `
+      <b>Howl Swap quote</b><br>
+      Pay <b>${q.amount_in} ${q.symbol}</b> on Solana<br>
+      Gross ${q.gross_howl} HOWL · fee ${q.fee_howl} HOWL (${q.fee_bps} bps)<br>
+      You receive ≈ <b style="color:var(--green)">${q.net_howl} HOWL</b><br>
+      Rate ${q.howl_per_unit} HOWL per ${q.symbol}`;
+    $("bridgeOrderBtn").disabled = false;
+  }catch(e){
+    lastBridgeQuote = null;
+    $("bridgeOrderBtn").disabled = true;
+    $("bridgeQuote").classList.add("hidden");
+    $("bridgeErr").textContent = e.message || String(e);
+  }
+}
+
+async function createBridgeOrder(){
+  $("bridgeErr").textContent = "";
+  try{
+    if(!keypair) throw new Error("Unlock wallet first");
+    if(!lastBridgeQuote) throw new Error("Get a quote first");
+    if(!confirm(`Create Howl Swap order?\n\nSend ${lastBridgeQuote.amount_in} ${lastBridgeQuote.symbol} → receive ~${lastBridgeQuote.net_howl} HOWL\n\nThis is semi-custodial.`)) return;
+    const order = await api("/api/public/bridge/order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        howl_address: keypair.address,
+        asset: $("bridgeAsset").value || "sol",
+        amount: lastBridgeQuote.amount_in,
+        sol_from: solInfo?.address || "",
+      }),
+    });
+    activeBridgeOrder = order;
+    renderBridgeOrder(order);
+    startBridgePoll(order.id);
+    toast("Order created — send deposit");
+    loadBridgeOrders();
+  }catch(e){
+    $("bridgeErr").textContent = e.message || String(e);
+  }
+}
+
+function renderBridgeOrder(o){
+  if(!o) return;
+  const panel = $("bridgeOrderPanel");
+  const body = $("bridgeOrderBody");
+  if(panel) panel.classList.remove("hidden");
+  if(!body) return;
+  const exp = o.expires_at ? new Date(o.expires_at * 1000).toLocaleString() : "—";
+  body.innerHTML = `
+    <div class="item"><div>Order</div><div class="r mono">${esc(o.id)}</div></div>
+    <div class="item"><div>Status</div><div class="r" style="color:var(--green)">${esc(o.status)}</div></div>
+    <div class="item"><div>Send</div><div class="r">${esc(String(o.amount_in))} ${esc(o.symbol||"")}</div></div>
+    <div class="item"><div>Deposit to</div><div class="r mono" style="font-size:.72rem;word-break:break-all">${esc(o.deposit_address||"")}</div></div>
+    <div class="item"><div>Receive</div><div class="r" style="color:var(--green)">${esc(String(o.net_howl))} HOWL</div></div>
+    <div class="item"><div>HOWL address</div><div class="r mono" style="font-size:.72rem;word-break:break-all">${esc(o.howl_address||"")}</div></div>
+    <div class="item"><div>Memo (optional)</div><div class="r mono">${esc(o.memo||o.id||"")}</div></div>
+    <div class="item"><div>Expires</div><div class="r">${esc(exp)}</div></div>
+    ${o.deposit_tx ? `<div class="item"><div>Deposit tx</div><div class="r mono">${esc(String(o.deposit_tx).slice(0,16))}…</div></div>` : ""}
+    ${o.howl_txid ? `<div class="item"><div>HOWL tx</div><div class="r mono">${esc(String(o.howl_txid).slice(0,16))}…</div></div>` : ""}
+    <p class="hint" style="margin-top:10px">Send <b>exactly</b> ${esc(String(o.amount_in))} ${esc(o.symbol||"")} to the deposit address using Phantom or any Solana wallet, then wait for the relayer.</p>`;
+  if($("bridgeOrderStatus")){
+    const map = {
+      awaiting_deposit: "Waiting for your Solana deposit…",
+      confirming: "Deposit seen — confirming…",
+      paid: "Deposit paid — relayer sending HOWL…",
+      completed: "Done — HOWL sent (wait for a miner to confirm).",
+      expired: "Order expired — create a new one.",
+      failed: "Failed — contact operator or retry.",
+    };
+    $("bridgeOrderStatus").textContent = map[o.status] || o.status;
+  }
+}
+
+function copyBridgeDeposit(){
+  const o = activeBridgeOrder;
+  if(!o?.deposit_address){ toast("No order"); return; }
+  copyText(o.deposit_address);
+}
+
+async function refreshBridgeOrder(){
+  if(!activeBridgeOrder?.id) return;
+  try{
+    const o = await api("/api/public/bridge/order/" + encodeURIComponent(activeBridgeOrder.id));
+    activeBridgeOrder = o;
+    renderBridgeOrder(o);
+    if(o.status === "completed" || o.status === "expired" || o.status === "failed"){
+      stopBridgePoll();
+      refresh();
+    }
+  }catch(e){
+    if($("bridgeOrderStatus")) $("bridgeOrderStatus").textContent = e.message;
+  }
+}
+
+function startBridgePoll(id){
+  stopBridgePoll();
+  bridgePollTimer = setInterval(()=>{
+    if(activeBridgeOrder?.id === id) refreshBridgeOrder();
+  }, 10000);
+}
+function stopBridgePoll(){
+  if(bridgePollTimer){ clearInterval(bridgePollTimer); bridgePollTimer = null; }
+}
+
+async function loadBridgeOrders(){
+  const el = $("bridgeOrdersList");
+  if(!el || !keypair) return;
+  try{
+    const j = await api("/api/public/bridge/orders?howl=" + encodeURIComponent(keypair.address));
+    const orders = j.orders || [];
+    if(!orders.length){
+      el.innerHTML = `<p class="hint">No orders yet</p>`;
+      return;
+    }
+    el.innerHTML = orders.slice(0, 8).map(o=>`
+      <button type="button" class="menu-row" style="width:100%;margin:0 0 8px" data-oid="${esc(o.id)}">
+        <span class="mi">⇄</span>
+        <div style="text-align:left;min-width:0">
+          <div class="mt">${esc(String(o.amount_in))} ${esc(o.symbol||"")} → ${esc(String(o.net_howl))} HOWL</div>
+          <div class="ms">${esc(o.status)} · ${esc(o.id)}</div>
+        </div>
+        <span class="chev">›</span>
+      </button>`).join("");
+    el.querySelectorAll("[data-oid]").forEach(btn=>{
+      btn.onclick = async ()=>{
+        try{
+          activeBridgeOrder = await api("/api/public/bridge/order/" + encodeURIComponent(btn.dataset.oid));
+          renderBridgeOrder(activeBridgeOrder);
+          if(["awaiting_deposit","confirming","paid"].includes(activeBridgeOrder.status)) startBridgePoll(activeBridgeOrder.id);
+        }catch(e){ toast(e.message); }
+      };
+    });
+  }catch(e){
+    el.innerHTML = `<p class="hint">${esc(e.message)}</p>`;
   }
 }
 
@@ -3108,6 +3341,11 @@ window.toast = toast;
 window.getSwapQuote = getSwapQuote;
 window.doSwap = doSwap;
 window.flipSwap = flipSwap;
+window.setSwapMode = setSwapMode;
+window.getBridgeQuote = getBridgeQuote;
+window.createBridgeOrder = createBridgeOrder;
+window.copyBridgeDeposit = copyBridgeDeposit;
+window.refreshBridgeOrder = refreshBridgeOrder;
 window.browseTo = browseTo;
 window.browserBack = browserBack;
 window.browserHome = browserHome;

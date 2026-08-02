@@ -2123,6 +2123,55 @@ class ExplorerServer:
                         },
                     )
 
+                # Howl Swap bridge (Phase A: SOL/USDC → native HOWL)
+                if path in ("/api/public/bridge", "/api/public/bridge/config", "/api/bridge"):
+                    try:
+                        from .bridge import bridge_config
+
+                        return self._json(200, bridge_config())
+                    except Exception as e:
+                        return self._json(500, {"error": str(e)})
+
+                if path in ("/api/public/bridge/quote", "/api/bridge/quote"):
+                    try:
+                        from .bridge import quote_howl
+
+                        asset = (qs.get("asset") or ["sol"])[0]
+                        amount = float((qs.get("amount") or ["0"])[0])
+                        return self._json(200, quote_howl(asset, amount))
+                    except Exception as e:
+                        return self._json(400, {"error": str(e)})
+
+                if path in ("/api/public/bridge/orders", "/api/bridge/orders"):
+                    try:
+                        from .bridge import list_orders
+
+                        howl = (qs.get("howl") or qs.get("address") or [""])[0]
+                        pub = hub.paths.get("public")
+                        orders = list_orders(pub, howl_address=howl)[:30]
+                        return self._json(200, {"count": len(orders), "orders": orders})
+                    except Exception as e:
+                        return self._json(500, {"error": str(e)})
+
+                if path.startswith("/api/public/bridge/order/") or path.startswith(
+                    "/api/bridge/order/"
+                ):
+                    # GET single order — handled below for GET only
+                    parts = path.strip("/").split("/")
+                    # api/public/bridge/order/<id>
+                    oid = parts[-1] if parts else ""
+                    if oid and oid not in ("order", "orders"):
+                        try:
+                            from .bridge import get_order
+
+                            pub = hub.paths.get("public")
+                            o = get_order(oid, pub)
+                            if not o:
+                                return self._json(404, {"error": "order not found"})
+                            return self._json(200, o)
+                        except Exception as e:
+                            return self._json(500, {"error": str(e)})
+
                 # /api/<net>/...
                 parts = path.strip("/").split("/")
                 if len(parts) >= 2 and parts[0] == "api":
@@ -2246,6 +2295,79 @@ class ExplorerServer:
                     body = json.loads(raw.decode() or "{}")
                 except json.JSONDecodeError:
                     return self._json(400, {"error": "invalid json"})
+
+                # Howl Swap bridge POST
+                if path in ("/api/public/bridge/order", "/api/bridge/order"):
+                    try:
+                        from .bridge import create_order
+
+                        pub = hub.paths.get("public")
+                        order = create_order(
+                            howl_address=str(body.get("howl_address") or body.get("howl") or ""),
+                            asset=str(body.get("asset") or "sol"),
+                            amount_in=float(body.get("amount") or body.get("amount_in") or 0),
+                            sol_from=str(body.get("sol_from") or body.get("from") or ""),
+                            dd=pub,
+                        )
+                        return self._json(200, order)
+                    except Exception as e:
+                        return self._json(400, {"error": str(e)})
+
+                if path.startswith("/api/public/bridge/order/") or path.startswith(
+                    "/api/bridge/order/"
+                ):
+                    parts = path.strip("/").split("/")
+                    # .../order/<id>/tx  or .../order/<id>
+                    if len(parts) >= 5 and parts[-1] == "tx":
+                        oid = parts[-2]
+                        try:
+                            from .bridge import attach_deposit_tx
+
+                            pub = hub.paths.get("public")
+                            o = attach_deposit_tx(
+                                oid, str(body.get("deposit_tx") or body.get("tx") or ""), pub
+                            )
+                            if not o:
+                                return self._json(404, {"error": "order not found"})
+                            return self._json(200, o)
+                        except Exception as e:
+                            return self._json(400, {"error": str(e)})
+                    if len(parts) >= 4:
+                        oid = parts[-1]
+                        # admin mark paid / complete
+                        action = str(body.get("action") or "")
+                        if action in ("mark_paid", "complete", "fail"):
+                            try:
+                                from .bridge import admin_secret_ok, update_order
+
+                                if not admin_secret_ok(str(body.get("secret") or "")):
+                                    return self._json(403, {"error": "forbidden"})
+                                patch: Dict[str, Any] = {}
+                                if action == "mark_paid":
+                                    patch = {
+                                        "status": "paid",
+                                        "deposit_tx": body.get("deposit_tx")
+                                        or body.get("tx")
+                                        or "",
+                                    }
+                                elif action == "complete":
+                                    patch = {
+                                        "status": "completed",
+                                        "howl_txid": body.get("howl_txid") or "",
+                                        "deposit_tx": body.get("deposit_tx") or "",
+                                    }
+                                elif action == "fail":
+                                    patch = {
+                                        "status": "failed",
+                                        "error": body.get("error") or "failed",
+                                    }
+                                pub = hub.paths.get("public")
+                                o = update_order(oid, patch, pub)
+                                if not o:
+                                    return self._json(404, {"error": "order not found"})
+                                return self._json(200, o)
+                            except Exception as e:
+                                return self._json(400, {"error": str(e)})
 
                 # Browser wallets broadcast signed txs → live seed node mempool + P2P
                 if path in ("/api/public/broadcast", "/api/broadcast"):

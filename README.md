@@ -30,6 +30,7 @@
 | **Explorer** | [https://howlscan.org](https://howlscan.org) |
 | **Wallet app** | [https://howlscan.org/app](https://howlscan.org/app) |
 | **Native browser** | Capacitor shell — [docs/NATIVE_BROWSER.md](docs/NATIVE_BROWSER.md) |
+| **Howl Swap** | SOL/USDC → HOWL bridge — [docs/HOWL_SWAP.md](docs/HOWL_SWAP.md) |
 | **Public seed** | `147.182.223.204:42069` |
 
 This is a **real local Scrypt chain** you can mine, send, and explore — not an ERC-20 wrapper and not a Dogecoin mainnet fork binary. Think *early-Doge energy*: silly brand, serious-enough PoW, CPU-mineable while the network is young.
