@@ -3104,18 +3104,41 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                     if rest[0] == "nfts":
                         owner = (qs.get("owner") or [None])[0]
                         limit = int(qs.get("limit", ["100"])[0])
+                        include_hist = (qs.get("history") or ["0"])[0] in (
+                            "1",
+                            "true",
+                            "yes",
+                        )
+                        # all=1 or no owner → full gallery (dashboard)
+                        nfts = chain.list_nfts(
+                            owner=owner,
+                            limit=limit,
+                            include_history=include_hist,
+                        )
                         return self._json(
                             200,
                             {
                                 "network": net,
-                                "nfts": chain.list_nfts(owner=owner, limit=limit),
+                                "nfts": nfts,
+                                "count": len(chain.nfts),
+                                "returned": len(nfts),
+                            },
+                        )
+
+                    if rest[0] == "nft-events" or rest[0] == "nft_events":
+                        limit = int(qs.get("limit", ["100"])[0])
+                        return self._json(
+                            200,
+                            {
+                                "network": net,
+                                "events": chain.nft_events(limit=limit),
                                 "count": len(chain.nfts),
                             },
                         )
 
                     if rest[0] == "nft" and len(rest) >= 2:
                         nid = urllib.parse.unquote(rest[1])
-                        n = chain.get_nft(nid)
+                        n = chain.get_nft(nid, include_history=True)
                         if not n:
                             return self._json(404, {"error": "nft not found"})
                         return self._json(200, {"network": net, "nft": n})

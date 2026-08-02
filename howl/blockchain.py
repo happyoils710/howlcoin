@@ -147,6 +147,11 @@ class Blockchain:
             self.nonces[frm] = int(tx["nonce"]) + 1
 
             t = tx.get("type") or "transfer"
+            try:
+                block_ts = int((block.get("header") or {}).get("timestamp") or 0)
+            except (TypeError, ValueError):
+                block_ts = 0
+            block_hash = block.get("hash") or ""
             if t == "nft_mint":
                 nid = tx.get("nft_id") or ""
                 if nid:
@@ -156,8 +161,28 @@ class Blockchain:
                         "creator": frm,
                         "name": tx.get("name") or "Untitled",
                         "uri": tx.get("uri") or "",
+                        "memo": tx.get("memo") or "",
                         "mint_txid": tx.get("txid"),
                         "mint_height": height,
+                        "mint_timestamp": block_ts,
+                        "mint_block_hash": block_hash,
+                        "last_txid": tx.get("txid"),
+                        "last_height": height,
+                        "last_timestamp": block_ts,
+                        "last_block_hash": block_hash,
+                        "history": [
+                            {
+                                "event": "mint",
+                                "txid": tx.get("txid"),
+                                "from": frm,
+                                "to": to,
+                                "height": height,
+                                "timestamp": block_ts,
+                                "block_hash": block_hash,
+                                "name": tx.get("name") or "Untitled",
+                                "uri": tx.get("uri") or "",
+                            }
+                        ],
                     }
             elif t == "nft_transfer":
                 nid = tx.get("nft_id") or ""
@@ -165,6 +190,21 @@ class Blockchain:
                     self.nfts[nid]["owner"] = to
                     self.nfts[nid]["last_txid"] = tx.get("txid")
                     self.nfts[nid]["last_height"] = height
+                    self.nfts[nid]["last_timestamp"] = block_ts
+                    self.nfts[nid]["last_block_hash"] = block_hash
+                    hist = list(self.nfts[nid].get("history") or [])
+                    hist.append(
+                        {
+                            "event": "transfer",
+                            "txid": tx.get("txid"),
+                            "from": frm,
+                            "to": to,
+                            "height": height,
+                            "timestamp": block_ts,
+                            "block_hash": block_hash,
+                        }
+                    )
+                    self.nfts[nid]["history"] = hist
             elif t == "oracle":
                 key = str(tx.get("oracle_key") or "")
                 if key:
@@ -909,15 +949,193 @@ class Blockchain:
                 return {"tx": tx, "confirmed": False, "block_height": None, "block_hash": None}
         return None
 
-    def list_nfts(self, owner: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
+    def _block_meta(self, height: Optional[int]) -> Dict[str, Any]:
+        """Timestamp + hash for a block height (for NFT enrichment)."""
+        if height is None:
+            return {"timestamp": None, "block_hash": None, "iso": None}
+        try:
+            h = int(height)
+        except (TypeError, ValueError):
+            return {"timestamp": None, "block_hash": None, "iso": None}
+        if h < 0 or h >= len(self.blocks):
+            return {"timestamp": None, "block_hash": None, "iso": None}
+        b = self.blocks[h]
+        try:
+            ts = int((b.get("header") or {}).get("timestamp") or 0) or None
+        except (TypeError, ValueError):
+            ts = None
+        iso = None
+        if ts:
+            try:
+                from datetime import datetime, timezone
+
+                iso = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            except (OSError, OverflowError, ValueError):
+                iso = None
+        return {"timestamp": ts, "block_hash": b.get("hash"), "iso": iso}
+
+    def _enrich_nft(self, n: Dict[str, Any], *, include_history: bool = True) -> Dict[str, Any]:
+        """Copy NFT with full on-chain timestamps (mint + last + event history)."""
+        out = dict(n)
+        mint_h = out.get("mint_height")
+        last_h = out.get("last_height") if out.get("last_height") is not None else mint_h
+        mint_m = self._block_meta(mint_h)
+        last_m = self._block_meta(last_h)
+        # Prefer stored values; fall back to block header lookup (legacy NFTs)
+        if not out.get("mint_timestamp"):
+            out["mint_timestamp"] = mint_m["timestamp"]
+        if not out.get("mint_block_hash"):
+            out["mint_block_hash"] = mint_m["block_hash"]
+        if not out.get("last_timestamp"):
+            out["last_timestamp"] = last_m["timestamp"] or out.get("mint_timestamp")
+        if not out.get("last_block_hash"):
+            out["last_block_hash"] = last_m["block_hash"] or out.get("mint_block_hash")
+        out["mint_time_iso"] = mint_m["iso"]
+        if out.get("mint_timestamp") and not out.get("mint_time_iso"):
+            try:
+                from datetime import datetime, timezone
+
+                out["mint_time_iso"] = datetime.fromtimestamp(
+                    int(out["mint_timestamp"]), tz=timezone.utc
+                ).strftime("%Y-%m-%dT%H:%M:%SZ")
+            except (OSError, OverflowError, ValueError, TypeError):
+                pass
+        out["last_time_iso"] = last_m["iso"]
+        if out.get("last_timestamp") and not out.get("last_time_iso"):
+            try:
+                from datetime import datetime, timezone
+
+                out["last_time_iso"] = datetime.fromtimestamp(
+                    int(out["last_timestamp"]), tz=timezone.utc
+                ).strftime("%Y-%m-%dT%H:%M:%SZ")
+            except (OSError, OverflowError, ValueError, TypeError):
+                pass
+
+        hist = list(out.get("history") or [])
+        if not hist and out.get("mint_txid"):
+            # Rebuild minimal history for pre-upgrade NFTs
+            hist = [
+                {
+                    "event": "mint",
+                    "txid": out.get("mint_txid"),
+                    "from": out.get("creator"),
+                    "to": out.get("creator"),
+                    "height": out.get("mint_height"),
+                    "timestamp": out.get("mint_timestamp"),
+                    "block_hash": out.get("mint_block_hash"),
+                    "name": out.get("name"),
+                    "uri": out.get("uri"),
+                }
+            ]
+            if out.get("last_txid") and out.get("last_txid") != out.get("mint_txid"):
+                hist.append(
+                    {
+                        "event": "transfer",
+                        "txid": out.get("last_txid"),
+                        "from": None,
+                        "to": out.get("owner"),
+                        "height": out.get("last_height"),
+                        "timestamp": out.get("last_timestamp"),
+                        "block_hash": out.get("last_block_hash"),
+                    }
+                )
+        # Fill missing timestamps on each history event from block headers
+        filled = []
+        for ev in hist:
+            e = dict(ev)
+            if e.get("height") is not None and not e.get("timestamp"):
+                m = self._block_meta(e.get("height"))
+                e["timestamp"] = m["timestamp"]
+                if not e.get("block_hash"):
+                    e["block_hash"] = m["block_hash"]
+            if e.get("timestamp"):
+                try:
+                    from datetime import datetime, timezone
+
+                    e["time_iso"] = datetime.fromtimestamp(
+                        int(e["timestamp"]), tz=timezone.utc
+                    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+                except (OSError, OverflowError, ValueError, TypeError):
+                    e["time_iso"] = None
+            else:
+                e["time_iso"] = None
+            filled.append(e)
+        if include_history:
+            out["history"] = filled
+            out["history_count"] = len(filled)
+        else:
+            out.pop("history", None)
+            out["history_count"] = len(filled)
+        return out
+
+    def list_nfts(
+        self,
+        owner: Optional[str] = None,
+        limit: int = 100,
+        *,
+        include_history: bool = False,
+    ) -> List[Dict[str, Any]]:
         items = list(self.nfts.values())
         if owner:
             items = [n for n in items if n.get("owner") == owner]
-        items.sort(key=lambda n: (-(n.get("mint_height") or 0), n.get("nft_id") or ""))
-        return items[:limit]
+        items.sort(
+            key=lambda n: (
+                -(n.get("last_height") or n.get("mint_height") or 0),
+                -(n.get("mint_height") or 0),
+                n.get("nft_id") or "",
+            )
+        )
+        return [
+            self._enrich_nft(n, include_history=include_history) for n in items[:limit]
+        ]
 
-    def get_nft(self, nft_id: str) -> Optional[Dict[str, Any]]:
-        return self.nfts.get(nft_id)
+    def get_nft(self, nft_id: str, *, include_history: bool = True) -> Optional[Dict[str, Any]]:
+        n = self.nfts.get(nft_id)
+        if not n:
+            return None
+        return self._enrich_nft(n, include_history=include_history)
+
+    def nft_events(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """All NFT mint/transfer events on-chain with timestamps (newest first)."""
+        events: List[Dict[str, Any]] = []
+        for b in self.blocks:
+            height = b.get("height", 0)
+            try:
+                ts = int((b.get("header") or {}).get("timestamp") or 0) or None
+            except (TypeError, ValueError):
+                ts = None
+            iso = None
+            if ts:
+                try:
+                    from datetime import datetime, timezone
+
+                    iso = datetime.fromtimestamp(ts, tz=timezone.utc).strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    )
+                except (OSError, OverflowError, ValueError):
+                    iso = None
+            for tx in b.get("transactions") or []:
+                t = tx.get("type") or "transfer"
+                if t not in ("nft_mint", "nft_transfer"):
+                    continue
+                events.append(
+                    {
+                        "event": "mint" if t == "nft_mint" else "transfer",
+                        "nft_id": tx.get("nft_id"),
+                        "name": tx.get("name") or "",
+                        "uri": tx.get("uri") or "",
+                        "from": tx.get("from"),
+                        "to": tx.get("to"),
+                        "txid": tx.get("txid"),
+                        "height": height,
+                        "timestamp": ts,
+                        "time_iso": iso,
+                        "block_hash": b.get("hash"),
+                        "memo": tx.get("memo") or "",
+                    }
+                )
+        events.reverse()  # newest first
+        return events[:limit]
 
     def oracle_feed(self, limit: int = 100) -> List[Dict[str, Any]]:
         items = list(self.oracle.values())

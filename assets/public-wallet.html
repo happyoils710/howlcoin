@@ -771,7 +771,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
           <button type="button" class="menu-row" onclick="showPage('swap')"><span class="mi">⇄</span><div><div class="mt">Swap</div><div class="ms">Jupiter · Howl Swap (→ HOWL)</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('browser')"><span class="mi">◈</span><div><div class="mt">Howl Search</div><div class="ms">Search the open web · open any site or dapp</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('discover')"><span class="mi">✦</span><div><div class="mt">Discover</div><div class="ms">New crypto tech · scout agents</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="showPage('nft')"><span class="mi">◆</span><div><div class="mt">NFTs</div><div class="ms">Photo mint · multi-chain receive &amp; send</div></div><span class="chev">›</span></button>
+          <button type="button" class="menu-row" onclick="showPage('nft')"><span class="mi">◆</span><div><div class="mt">NFT Dashboard</div><div class="ms">Collection · all on-chain · timestamps · mint</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('wc')"><span class="mi">🔗</span><div><div class="mt">WalletConnect</div><div class="ms" id="moreWcHint">Connect external dApps</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('oracle')"><span class="mi">◎</span><div><div class="mt">Oracle</div><div class="ms">Observe chains · post tips on HOWL</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('recv')"><span class="mi">↓</span><div><div class="mt">Deposits</div><div class="ms">HOWL · SOL · XTZ · ETH · tokens</div></div><span class="chev">›</span></button>
@@ -1075,67 +1075,106 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       </div>
     </div>
 
-    <!-- NFT MINT / GALLERY (multi-chain) -->
+    <!-- NFT DASHBOARD (HOWL on-chain timestamps + multi-chain tools) -->
     <div class="page" id="p-nft">
-      <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>NFTs</h1></div>
+      <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>NFT Dashboard</h1></div>
       <div class="panel">
-        <h2>Chain</h2>
-        <p class="hint">Pick a network to mint, receive, or send NFTs. Photo mint is live on Howlcoin; other chains support receive + collection tools.</p>
-        <select class="chain-select" id="nftChainSelect"></select>
-      </div>
-      <div class="panel" id="nftReceivePanel">
-        <h2>Receive NFTs</h2>
-        <p class="hint" id="nftRecvHint">Send NFTs to this address on the selected network only.</p>
-        <div class="mono" id="nftRecvAddr" style="font-size:.8rem;margin:8px 0;word-break:break-all" onclick="copyNftRecvAddr()" title="Copy">—</div>
-        <div class="qr" id="nftRecvQr" style="text-align:center"></div>
-        <button class="btn sec" type="button" onclick="copyNftRecvAddr()">Copy receive address</button>
-      </div>
-      <div class="panel" id="nftMintPanel">
-        <h2 id="nftMintTitle">Create NFT</h2>
-        <p class="hint" id="nftMintHint">Pick a photo or image from your device, then mint on Howlcoin.</p>
-        <label>Name</label>
-        <input class="field" id="nftName" placeholder="Moon Howl #1" maxlength="80"/>
-        <label>Image</label>
-        <!-- No capture attr on library picker — capture forces camera-only on iOS/Android -->
-        <input type="file" id="nftFile" accept="image/*,image/heic,image/heif,.heic,.heif,.jpg,.jpeg,.png,.webp,.gif"
-          style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" tabindex="-1"/>
-        <input type="file" id="nftFileCamera" accept="image/*" capture="environment"
-          style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" tabindex="-1"/>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 10px">
-          <button class="btn sec" type="button" id="nftPickLibrary" style="margin:0;min-height:48px;font-size:.72rem">Photos / Files</button>
-          <button class="btn sec" type="button" id="nftPickCamera" style="margin:0;min-height:48px;font-size:.72rem">Take photo</button>
+        <h2>Howlcoin NFT dashboard</h2>
+        <p class="hint" style="margin:0">View mints, transfers, and <b>every on-chain timestamp</b> (block time). Photo mint is free-form on HOWL; other chains use receive / watch tools.</p>
+        <div class="unit-toggle" id="nftDashTabs" role="tablist" style="margin-top:12px;width:100%">
+          <button type="button" class="on" data-nft-tab="mine" onclick="setNftDashTab('mine')">Mine</button>
+          <button type="button" data-nft-tab="all" onclick="setNftDashTab('all')">All on chain</button>
+          <button type="button" data-nft-tab="activity" onclick="setNftDashTab('activity')">Activity</button>
+          <button type="button" data-nft-tab="tools" onclick="setNftDashTab('tools')">Mint / tools</button>
         </div>
-        <p class="hint" style="margin-top:0">Photos / Files opens your library, Downloads, iCloud, Drive, etc. Take photo uses the camera.</p>
-        <div id="nftPreview" style="text-align:center;margin:8px 0"></div>
-        <label>Or media URI (https / ipfs / leave blank if using photo)</label>
-        <input class="field" id="nftUri" placeholder="https://… or auto from photo"/>
-        <label>Memo (optional)</label>
-        <input class="field" id="nftMemo" placeholder=""/>
-        <button class="btn" type="button" id="nftMintBtn" onclick="mintNft()">Mint NFT</button>
-        <p class="err" id="nftErr"></p>
-        <p class="hint" id="nftTx"></p>
+        <p class="hint" id="nftDashMeta" style="margin:10px 0 0">—</p>
       </div>
-      <div class="panel hidden" id="nftWatchPanel">
-        <h2>Watch / import NFT</h2>
-        <p class="hint" id="nftWatchHint">Track an NFT you already own on this chain (does not move it).</p>
-        <div id="nftWatchFields"></div>
-        <button class="btn sec" type="button" onclick="watchNftFromForm()">Add to collection</button>
-        <p class="err" id="nftWatchErr"></p>
-      </div>
-      <div class="panel">
-        <h2>Your collection <button type="button" class="chip" style="cursor:pointer;margin-left:8px" onclick="refreshNfts()">↻</button></h2>
+
+      <!-- Mine / All gallery -->
+      <div class="panel" id="nftGalleryPanel">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <h2 style="margin:0" id="nftGalleryTitle">Your collection</h2>
+          <button type="button" class="chip" style="cursor:pointer" onclick="refreshNfts()">↻ Refresh</button>
+        </div>
+        <p class="hint" id="nftGalleryHint" style="margin:6px 0 10px">Tap a card for full timeline &amp; timestamps.</p>
         <div id="nftGallery"><p class="hint">Loading…</p></div>
       </div>
-      <div class="panel" id="nftTransferPanel">
-        <h2>Send / transfer NFT</h2>
-        <label>NFT id / mint / token</label>
-        <input class="field" id="nftXferId" placeholder="nft id or mint"/>
-        <label id="nftXferToLab">To address</label>
-        <input class="field" id="nftXferTo" placeholder="Recipient"/>
-        <label id="nftXferExtraLab" class="hidden">Contract (EVM)</label>
-        <input class="field hidden" id="nftXferContract" placeholder="0x… contract"/>
-        <button class="btn sec" type="button" onclick="transferNft()">Send NFT</button>
-        <p class="err" id="nftXferErr"></p>
+
+      <!-- Global activity feed -->
+      <div class="panel hidden" id="nftActivityPanel">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <h2 style="margin:0">On-chain activity</h2>
+          <button type="button" class="chip" style="cursor:pointer" onclick="refreshNftActivity()">↻</button>
+        </div>
+        <p class="hint">Every HOWL <code>nft_mint</code> / <code>nft_transfer</code> with block height + timestamp.</p>
+        <div id="nftActivityList"><p class="hint">Loading…</p></div>
+      </div>
+
+      <!-- Detail -->
+      <div class="panel hidden" id="nftDetailPanel">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <button type="button" class="back" style="margin:0" onclick="closeNftDetail()">‹ Back</button>
+          <h2 style="margin:0;flex:1" id="nftDetailTitle">NFT</h2>
+        </div>
+        <div id="nftDetailBody"></div>
+      </div>
+
+      <!-- Tools: chain / mint / receive / transfer -->
+      <div id="nftToolsWrap" class="hidden">
+        <div class="panel">
+          <h2>Chain</h2>
+          <p class="hint">Pick a network to mint, receive, or send NFTs.</p>
+          <select class="chain-select" id="nftChainSelect"></select>
+        </div>
+        <div class="panel" id="nftReceivePanel">
+          <h2>Receive NFTs</h2>
+          <p class="hint" id="nftRecvHint">Send NFTs to this address on the selected network only.</p>
+          <div class="mono" id="nftRecvAddr" style="font-size:.8rem;margin:8px 0;word-break:break-all" onclick="copyNftRecvAddr()" title="Copy">—</div>
+          <div class="qr" id="nftRecvQr" style="text-align:center"></div>
+          <button class="btn sec" type="button" onclick="copyNftRecvAddr()">Copy receive address</button>
+        </div>
+        <div class="panel" id="nftMintPanel">
+          <h2 id="nftMintTitle">Create NFT</h2>
+          <p class="hint" id="nftMintHint">Pick a photo or image from your device, then mint on Howlcoin.</p>
+          <label>Name</label>
+          <input class="field" id="nftName" placeholder="Moon Howl #1" maxlength="80"/>
+          <label>Image</label>
+          <input type="file" id="nftFile" accept="image/*,image/heic,image/heif,.heic,.heif,.jpg,.jpeg,.png,.webp,.gif"
+            style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" tabindex="-1"/>
+          <input type="file" id="nftFileCamera" accept="image/*" capture="environment"
+            style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" tabindex="-1"/>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 10px">
+            <button class="btn sec" type="button" id="nftPickLibrary" style="margin:0;min-height:48px;font-size:.72rem">Photos / Files</button>
+            <button class="btn sec" type="button" id="nftPickCamera" style="margin:0;min-height:48px;font-size:.72rem">Take photo</button>
+          </div>
+          <p class="hint" style="margin-top:0">Photos / Files opens your library. Take photo uses the camera.</p>
+          <div id="nftPreview" style="text-align:center;margin:8px 0"></div>
+          <label>Or media URI (https / ipfs / leave blank if using photo)</label>
+          <input class="field" id="nftUri" placeholder="https://… or auto from photo"/>
+          <label>Memo (optional)</label>
+          <input class="field" id="nftMemo" placeholder=""/>
+          <button class="btn" type="button" id="nftMintBtn" onclick="mintNft()">Mint NFT</button>
+          <p class="err" id="nftErr"></p>
+          <p class="hint" id="nftTx"></p>
+        </div>
+        <div class="panel hidden" id="nftWatchPanel">
+          <h2>Watch / import NFT</h2>
+          <p class="hint" id="nftWatchHint">Track an NFT you already own on this chain (does not move it).</p>
+          <div id="nftWatchFields"></div>
+          <button class="btn sec" type="button" onclick="watchNftFromForm()">Add to collection</button>
+          <p class="err" id="nftWatchErr"></p>
+        </div>
+        <div class="panel" id="nftTransferPanel">
+          <h2>Send / transfer NFT</h2>
+          <label>NFT id / mint / token</label>
+          <input class="field" id="nftXferId" placeholder="nft id or mint"/>
+          <label id="nftXferToLab">To address</label>
+          <input class="field" id="nftXferTo" placeholder="Recipient"/>
+          <label id="nftXferExtraLab" class="hidden">Contract (EVM)</label>
+          <input class="field hidden" id="nftXferContract" placeholder="0x… contract"/>
+          <button class="btn sec" type="button" onclick="transferNft()">Send NFT</button>
+          <p class="err" id="nftXferErr"></p>
+        </div>
       </div>
     </div>
 
@@ -2887,7 +2926,7 @@ function showPage(name){
   if(name==="swap"){ initSwapUI(); if(swapMode==="howl") initBridgeUI(); }
   if(name==="browser") initBrowserUI();
   if(name==="discover") loadDiscover(false);
-  if(name==="nft"){ wireNftPage(); refreshNfts(); }
+  if(name==="nft"){ wireNftPage(); setNftDashTab(nftDashTab || "mine"); }
   if(name==="wc"){ renderWcPage(); ensureWalletConnect(); }
   if(name==="oracle") refreshOracle();
   if(name==="toolbar") renderToolbarEditor();
@@ -4759,9 +4798,167 @@ async function uploadNftMedia(dataUrl){
   return j.url || (location.origin + j.path);
 }
 
+let nftDashTab = "mine"; // mine | all | activity | tools
+let nftCacheList = [];
+let nftDetailId = null;
+
+function fmtTs(ts, iso){
+  if(iso) return iso.replace("T", " ").replace("Z", " UTC");
+  if(ts == null || ts === "" || Number(ts) <= 0) return "—";
+  try{
+    const d = new Date(Number(ts) * 1000);
+    if(isNaN(d.getTime())) return "—";
+    return d.toISOString().replace("T", " ").replace(/\.\d+Z$/, " UTC");
+  }catch(_){ return "—"; }
+}
+function fmtTsRel(ts){
+  if(ts == null || Number(ts) <= 0) return "";
+  const sec = Math.max(0, Math.floor(Date.now() / 1000 - Number(ts)));
+  if(sec < 60) return sec + "s ago";
+  if(sec < 3600) return Math.floor(sec / 60) + "m ago";
+  if(sec < 86400) return Math.floor(sec / 3600) + "h ago";
+  if(sec < 86400 * 30) return Math.floor(sec / 86400) + "d ago";
+  return Math.floor(sec / (86400 * 30)) + "mo ago";
+}
+
+function setNftDashTab(tab){
+  nftDashTab = tab || "mine";
+  nftDetailId = null;
+  document.querySelectorAll("#nftDashTabs [data-nft-tab]").forEach(btn=>{
+    btn.classList.toggle("on", btn.getAttribute("data-nft-tab") === nftDashTab);
+  });
+  const tools = $("nftToolsWrap");
+  const gal = $("nftGalleryPanel");
+  const act = $("nftActivityPanel");
+  const det = $("nftDetailPanel");
+  if(det) det.classList.add("hidden");
+  if(tools) tools.classList.toggle("hidden", nftDashTab !== "tools");
+  if(gal) gal.classList.toggle("hidden", nftDashTab === "tools" || nftDashTab === "activity");
+  if(act) act.classList.toggle("hidden", nftDashTab !== "activity");
+  if(nftDashTab === "mine"){
+    if($("nftGalleryTitle")) $("nftGalleryTitle").textContent = "Your collection";
+    if($("nftGalleryHint")) $("nftGalleryHint").textContent = "NFTs you own on Howlcoin — tap for full on-chain timeline.";
+  } else if(nftDashTab === "all"){
+    if($("nftGalleryTitle")) $("nftGalleryTitle").textContent = "All Howlcoin NFTs";
+    if($("nftGalleryHint")) $("nftGalleryHint").textContent = "Every NFT on the public chain with mint / last activity timestamps.";
+  }
+  if(nftDashTab === "tools"){
+    wireNftPage();
+    renderNftChainUI();
+  } else if(nftDashTab === "activity"){
+    refreshNftActivity();
+  } else {
+    refreshNfts();
+  }
+}
+
+function closeNftDetail(){
+  nftDetailId = null;
+  if($("nftDetailPanel")) $("nftDetailPanel").classList.add("hidden");
+  if($("nftGalleryPanel") && nftDashTab !== "tools" && nftDashTab !== "activity"){
+    $("nftGalleryPanel").classList.remove("hidden");
+  }
+  if(nftDashTab === "activity" && $("nftActivityPanel")) $("nftActivityPanel").classList.remove("hidden");
+}
+
+async function openNftDetail(nftId){
+  if(!nftId) return;
+  nftDetailId = nftId;
+  const det = $("nftDetailPanel");
+  const body = $("nftDetailBody");
+  const gal = $("nftGalleryPanel");
+  const act = $("nftActivityPanel");
+  if(gal) gal.classList.add("hidden");
+  if(act) act.classList.add("hidden");
+  if(det) det.classList.remove("hidden");
+  if(body) body.innerHTML = `<p class="hint">Loading timeline…</p>`;
+  try{
+    const j = await api("/api/public/nft/" + encodeURIComponent(nftId));
+    const n = j.nft || {};
+    if($("nftDetailTitle")) $("nftDetailTitle").textContent = n.name || "NFT";
+    const img = (n.uri && (n.uri.startsWith("http") || n.uri.startsWith("data:"))) ? n.uri : "";
+    const hist = (n.history || []).slice().reverse(); // newest first in UI
+    const histHtml = hist.length
+      ? hist.map(ev=>{
+          const kind = ev.event === "mint" ? "Mint" : "Transfer";
+          const tAbs = fmtTs(ev.timestamp, ev.time_iso);
+          const tRel = fmtTsRel(ev.timestamp);
+          return `<div class="item" style="flex-direction:column;align-items:stretch;gap:4px">
+            <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+              <b style="color:var(--green)">${escHtml(kind)}</b>
+              <span class="hint" style="margin:0">#${escHtml(String(ev.height ?? "—"))} · ${escHtml(tRel || tAbs)}</span>
+            </div>
+            <div class="mono" style="font-size:.72rem;word-break:break-all">txid ${escHtml(ev.txid || "—")}</div>
+            <div class="hint" style="margin:0;font-size:.78rem">
+              ${ev.from ? `from <span class="mono">${escHtml(shortAddr(ev.from))}</span> ` : ""}
+              ${ev.to ? `→ <span class="mono">${escHtml(shortAddr(ev.to))}</span>` : ""}
+            </div>
+            <div class="hint" style="margin:0;font-size:.72rem">Block time: <b style="color:var(--text)">${escHtml(tAbs)}</b>
+              ${ev.timestamp != null ? ` · unix <span class="mono">${escHtml(String(ev.timestamp))}</span>` : ""}
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:2px">
+              ${ev.txid ? `<button type="button" class="chip" style="cursor:pointer" onclick="openExternalUrl('https://howlscan.org/#/public/tx/${encodeURIComponent(ev.txid)}')">Tx</button>` : ""}
+              ${ev.height != null ? `<button type="button" class="chip" style="cursor:pointer" onclick="openExternalUrl('https://howlscan.org/#/public/block/${encodeURIComponent(ev.height)}')">Block #${escHtml(String(ev.height))}</button>` : ""}
+            </div>
+          </div>`;
+        }).join("")
+      : `<p class="hint">No history events</p>`;
+    if(body){
+      body.innerHTML = `
+        <div style="text-align:center;margin-bottom:12px">
+          ${img ? `<img src="${escAttr(img)}" alt="" style="max-width:100%;max-height:220px;object-fit:contain;border:1px solid var(--border)" onerror="this.style.display='none'"/>` : `<div style="padding:40px;border:1px dashed var(--border);color:var(--muted)">No image</div>`}
+        </div>
+        <div class="item"><div>Name</div><div class="r" style="color:var(--text)">${escHtml(n.name || "—")}</div></div>
+        <div class="item"><div>NFT id</div><div class="r mono" style="font-size:.72rem;word-break:break-all;color:var(--text)">${escHtml(n.nft_id || "—")}</div></div>
+        <div class="item"><div>Owner</div><div class="r mono" style="font-size:.72rem;color:var(--text)">${escHtml(n.owner || "—")}</div></div>
+        <div class="item"><div>Creator</div><div class="r mono" style="font-size:.72rem;color:var(--text)">${escHtml(n.creator || "—")}</div></div>
+        <div class="item"><div>Minted</div><div class="r" style="color:var(--text);text-align:right;font-size:.8rem">
+          height <b>#${escHtml(String(n.mint_height ?? "—"))}</b><br/>
+          ${escHtml(fmtTs(n.mint_timestamp, n.mint_time_iso))}<br/>
+          <span class="hint">${escHtml(fmtTsRel(n.mint_timestamp))}</span>
+          ${n.mint_timestamp != null ? `<br/><span class="mono hint">unix ${escHtml(String(n.mint_timestamp))}</span>` : ""}
+        </div></div>
+        <div class="item"><div>Last activity</div><div class="r" style="color:var(--text);text-align:right;font-size:.8rem">
+          height <b>#${escHtml(String(n.last_height ?? n.mint_height ?? "—"))}</b><br/>
+          ${escHtml(fmtTs(n.last_timestamp || n.mint_timestamp, n.last_time_iso || n.mint_time_iso))}<br/>
+          <span class="hint">${escHtml(fmtTsRel(n.last_timestamp || n.mint_timestamp))}</span>
+        </div></div>
+        ${n.uri ? `<div class="item"><div>URI</div><div class="r" style="max-width:60%"><a href="${escAttr(n.uri)}" target="_blank" rel="noopener" style="font-size:.72rem;word-break:break-all">${escHtml(n.uri.slice(0,48))}${n.uri.length>48?"…":""}</a></div></div>` : ""}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0">
+          <button type="button" class="btn sec" style="width:auto;margin:0;padding:8px 12px;min-height:0" onclick="copyText(${JSON.stringify(n.nft_id || "")})">Copy id</button>
+          ${n.owner === (keypair && keypair.address) ? `<button type="button" class="btn sec" style="width:auto;margin:0;padding:8px 12px;min-height:0" onclick="prepareNftSend(${JSON.stringify(n.nft_id || "")})">Send</button>` : ""}
+          <button type="button" class="btn sec" style="width:auto;margin:0;padding:8px 12px;min-height:0" onclick="openExternalUrl('https://howlscan.org/#/public/tx/${encodeURIComponent(n.mint_txid || "")}')">Mint tx</button>
+        </div>
+        <h3 style="margin:16px 0 8px;font-size:.85rem;letter-spacing:.04em;text-transform:uppercase;color:var(--cyan,#7ee)">On-chain timeline</h3>
+        <p class="hint" style="margin-top:0">All events with block height, absolute UTC time, and unix timestamp.</p>
+        ${histHtml}
+      `;
+    }
+  }catch(e){
+    if(body) body.innerHTML = `<p class="err">${escHtml(e.message || "Failed to load NFT")}</p>`;
+  }
+}
+
+function shortAddr(a){
+  const s = String(a || "");
+  if(s.length < 14) return s;
+  return s.slice(0, 6) + "…" + s.slice(-4);
+}
+
+function prepareNftSend(nftId){
+  setNftDashTab("tools");
+  nftChain = "howl";
+  renderNftChainUI();
+  if($("nftChainSelect")) $("nftChainSelect").value = "howl";
+  if($("nftXferId")) $("nftXferId").value = nftId || "";
+  $("nftXferTo")?.focus();
+  toast("Enter recipient HOWL address");
+}
+
 function renderNftCards(list, opts = {}){
   const el = $("nftGallery");
   if(!el) return;
+  nftCacheList = list || [];
   if(!list.length){
     el.innerHTML = `<p class="hint">${opts.empty || "No NFTs found on this chain"}</p>`;
     return;
@@ -4769,38 +4966,135 @@ function renderNftCards(list, opts = {}){
   el.innerHTML = list.map((n, i)=>{
     const id = n.nft_id || n.mint || n.id || n.tokenId || "";
     const title = n.name || n.symbol || "NFT";
-    const img = n.image || (n.uri && /\.(png|jpe?g|gif|webp)(\?|$)/i.test(n.uri) ? n.uri : "");
-    const sub = n.uri || n.contract || n.mint || id;
-    return `<div class="item" style="align-items:center">
-      ${img ? `<img src="${escAttr(img)}" alt="" style="width:48px;height:48px;object-fit:cover;border:1px solid var(--border);flex-shrink:0" onerror="this.style.display='none'"/>` : `<div style="width:48px;height:48px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);flex-shrink:0">◆</div>`}
+    const img = n.image || (n.uri && (n.uri.startsWith("http") || n.uri.startsWith("data:") || /\.(png|jpe?g|gif|webp)(\?|$)/i.test(n.uri)) ? n.uri : "");
+    const mintTs = n.mint_timestamp;
+    const lastTs = n.last_timestamp || mintTs;
+    const mintIso = n.mint_time_iso;
+    const lastIso = n.last_time_iso || mintIso;
+    const howl = opts.howl !== false && (n.mint_height != null || n.mint_txid);
+    return `<button type="button" class="item" data-nft-i="${i}" style="align-items:center;width:100%;text-align:left;cursor:pointer;background:transparent;border:0;border-bottom:1px solid rgba(255,255,255,.06);color:inherit;font:inherit;padding:12px 0">
+      ${img ? `<img src="${escAttr(img)}" alt="" style="width:56px;height:56px;object-fit:cover;border:1px solid var(--border);flex-shrink:0" onerror="this.style.display='none'"/>` : `<div style="width:56px;height:56px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);flex-shrink:0">◆</div>`}
       <div style="min-width:0;flex:1">
         <div><b>${escHtml(title)}</b></div>
-        <div class="m mono" style="font-size:.72rem">${escHtml(String(id).slice(0,28))}${String(id).length>28?"…":""}</div>
-        ${sub && sub !== id ? `<div class="m" style="font-size:.7rem;overflow:hidden;text-overflow:ellipsis">${escHtml(String(sub).slice(0,48))}</div>` : ""}
+        <div class="m mono" style="font-size:.72rem">${escHtml(String(id).slice(0,22))}${String(id).length>22?"…":""}</div>
+        ${howl ? `<div class="m" style="font-size:.7rem;margin-top:3px;line-height:1.35">
+          Minted <b style="color:var(--text)">#${escHtml(String(n.mint_height ?? "—"))}</b>
+          · ${escHtml(fmtTsRel(mintTs) || fmtTs(mintTs, mintIso))}<br/>
+          <span style="opacity:.85">${escHtml(fmtTs(mintTs, mintIso))}</span>
+          ${lastTs && lastTs !== mintTs ? `<br/>Last #${escHtml(String(n.last_height ?? "—"))} · ${escHtml(fmtTsRel(lastTs))}` : ""}
+        </div>` : (n.uri ? `<div class="m" style="font-size:.7rem;overflow:hidden;text-overflow:ellipsis">${escHtml(String(n.uri).slice(0,40))}</div>` : "")}
+        ${n.owner && opts.showOwner ? `<div class="m mono" style="font-size:.68rem;margin-top:2px">owner ${escHtml(shortAddr(n.owner))}</div>` : ""}
       </div>
-      <div style="display:flex;flex-direction:column;gap:4px">
-        ${opts.canSend !== false ? `<button class="btn sec" style="width:auto;margin:0;padding:6px 10px;min-height:0;font-size:.6rem" type="button" data-send="${i}">Send</button>` : ""}
-        ${n.uri ? `<a class="btn sec" style="width:auto;margin:0;padding:6px 10px;min-height:0;font-size:.6rem;text-decoration:none;display:inline-flex;align-items:center" href="${escAttr(n.uri)}" target="_blank" rel="noopener">Open</a>` : ""}
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end" onclick="event.stopPropagation()">
+        ${howl ? `<span class="chip" style="font-size:.65rem">timeline</span>` : ""}
+        ${opts.canSend !== false && howl && n.owner === (keypair && keypair.address) ? `<button class="btn sec" style="width:auto;margin:0;padding:6px 10px;min-height:0;font-size:.6rem" type="button" data-send="${i}">Send</button>` : ""}
       </div>
-    </div>`;
+    </button>`;
   }).join("");
-  el.querySelectorAll("button[data-send]").forEach(btn=>{
+  el.querySelectorAll("button[data-nft-i]").forEach(btn=>{
     btn.onclick = ()=>{
+      const n = list[Number(btn.getAttribute("data-nft-i"))];
+      if(!n) return;
+      const id = n.nft_id || n.mint || n.id || n.tokenId;
+      if(n.mint_height != null || n.mint_txid) openNftDetail(id);
+      else if(n.uri) openExternalUrl(n.uri);
+      else toast(n.name || id || "NFT");
+    };
+  });
+  el.querySelectorAll("button[data-send]").forEach(btn=>{
+    btn.onclick = (e)=>{
+      e.stopPropagation();
       const n = list[Number(btn.dataset.send)];
       if(!n) return;
-      if($("nftXferId")) $("nftXferId").value = n.nft_id || n.mint || n.tokenId || n.id || "";
-      if($("nftXferContract") && n.contract) $("nftXferContract").value = n.contract;
-      toast("Ready to send — enter recipient below");
-      $("nftXferTo")?.focus();
+      prepareNftSend(n.nft_id || n.mint || n.tokenId || n.id || "");
     };
   });
 }
 
+async function refreshNftActivity(){
+  const el = $("nftActivityList");
+  if(el) el.innerHTML = `<p class="hint">Loading on-chain NFT events…</p>`;
+  try{
+    const j = await api("/api/public/nft-events?limit=100");
+    const events = j.events || [];
+    if($("nftDashMeta")){
+      $("nftDashMeta").textContent = `${j.count ?? events.length} NFT(s) on chain · showing ${events.length} events`;
+    }
+    if(!el) return;
+    if(!events.length){
+      el.innerHTML = `<p class="hint">No NFT mints or transfers on chain yet.</p>`;
+      return;
+    }
+    el.innerHTML = events.map(ev=>{
+      const kind = ev.event === "mint" ? "Mint" : "Transfer";
+      const tAbs = fmtTs(ev.timestamp, ev.time_iso);
+      const tRel = fmtTsRel(ev.timestamp);
+      return `<button type="button" class="item" style="width:100%;text-align:left;flex-direction:column;align-items:stretch;gap:4px;background:transparent;border:0;border-bottom:1px solid rgba(255,255,255,.06);color:inherit;font:inherit;cursor:pointer;padding:12px 0"
+        onclick="openNftDetail(${JSON.stringify(ev.nft_id || "")})">
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <span><b style="color:var(--green)">${escHtml(kind)}</b> · ${escHtml(ev.name || ev.nft_id || "NFT")}</span>
+          <span class="hint" style="margin:0">#${escHtml(String(ev.height ?? "—"))} · ${escHtml(tRel || tAbs)}</span>
+        </div>
+        <div class="hint" style="margin:0;font-size:.78rem">${escHtml(tAbs)}
+          ${ev.timestamp != null ? ` · unix <span class="mono">${escHtml(String(ev.timestamp))}</span>` : ""}
+        </div>
+        <div class="mono" style="font-size:.7rem;word-break:break-all">${escHtml(shortAddr(ev.from))} → ${escHtml(shortAddr(ev.to))}</div>
+      </button>`;
+    }).join("");
+  }catch(e){
+    if(el) el.innerHTML = `<p class="err">${escHtml(e.message)}</p>`;
+  }
+}
+
 async function refreshNfts(){
   wireNftPage();
+  // Dashboard tabs: mine / all load HOWL gallery; tools use chain selector
+  if(nftDashTab === "activity"){
+    await refreshNftActivity();
+    return;
+  }
+  if(nftDashTab === "tools"){
+    renderNftChainUI();
+    return;
+  }
+  const gal = $("nftGallery");
+  const howlMode = nftDashTab === "all" || nftDashTab === "mine";
+  if(howlMode){
+    if(gal) gal.innerHTML = `<p class="hint">Loading Howlcoin NFTs…</p>`;
+    try{
+      let url = "/api/public/nfts?limit=100";
+      if(nftDashTab === "mine"){
+        if(!keypair) throw new Error("Unlock wallet to see your collection");
+        url += "&owner=" + encodeURIComponent(keypair.address);
+      }
+      const j = await api(url);
+      const list = (j.nfts || []).map(n => ({
+        ...n,
+        image: (n.uri && (n.uri.startsWith("http") || n.uri.startsWith("data:"))) ? n.uri : "",
+      }));
+      if($("nftDashMeta")){
+        $("nftDashMeta").textContent = nftDashTab === "mine"
+          ? `${list.length} you own · ${j.count ?? "?"} total on chain`
+          : `${list.length} shown · ${j.count ?? list.length} total on chain`;
+      }
+      if($("nftCount")) $("nftCount").textContent = String(list.length);
+      renderNftCards(list, {
+        empty: nftDashTab === "mine"
+          ? "No Howlcoin NFTs yet — open Mint / tools to photo-mint"
+          : "No NFTs on chain yet — be the first to mint",
+        canSend: nftDashTab === "mine",
+        showOwner: nftDashTab === "all",
+        howl: true,
+      });
+    }catch(e){
+      if(gal) gal.innerHTML = `<p class="err">${escHtml(e.message)}</p>`;
+    }
+    return;
+  }
+
+  // Legacy multi-chain path when forced to a non-howl tools view collection
   if(!keypair && !solInfo && !ethInfo) return;
   const meta = nftChainMeta();
-  const gal = $("nftGallery");
   if(gal) gal.innerHTML = `<p class="hint">Loading ${meta.label} NFTs…</p>`;
   try{
     if(meta.id === "howl"){
@@ -4810,23 +5104,20 @@ async function refreshNfts(){
         ...n,
         image: (n.uri && (n.uri.startsWith("http") || n.uri.startsWith("data:"))) ? n.uri : "",
       }));
-      if($("nftCount")) $("nftCount").textContent = String(list.length);
-      renderNftCards(list, { empty: "No Howlcoin NFTs yet — mint with a photo above", canSend: true });
+      renderNftCards(list, { empty: "No Howlcoin NFTs yet", canSend: true, howl: true });
       return;
     }
     if(meta.id === "solana"){
       if(!solInfo?.address) throw new Error("Solana address not ready");
       const list = await listSolNfts(solInfo.address, { solRpc });
-      if($("nftCount")) $("nftCount").textContent = String(list.length);
       renderNftCards(list, {
-        empty: "No Solana NFTs found (0-decimal / amount 1). Receive to the address above.",
+        empty: "No Solana NFTs found. Receive to the address in Mint / tools.",
         canSend: true,
+        howl: false,
       });
       return;
     }
-    // watched NFTs for EVM / TRON / Tezos
     const watched = loadNftWatch().filter(n => n.chain === meta.id);
-    // enrich EVM with tokenURI when possible
     if(meta.evmId && ethInfo){
       const rpc = (EVM_CHAINS[meta.evmId] || {}).rpc || (meta.evmId === "eth" ? ETH_RPC : "");
       for(const n of watched){
@@ -4854,16 +5145,16 @@ async function refreshNfts(){
         }catch(_){}
       }
     }
-    if($("nftCount")) $("nftCount").textContent = String(watched.length);
     renderNftCards(watched.map(n => ({
       ...n,
       id: n.tokenId != null ? String(n.tokenId) : n.id,
       nft_id: n.tokenId != null ? String(n.tokenId) : n.id,
     })), {
       empty: meta.watch
-        ? "No watched NFTs — import contract + token id, or receive to the address above"
-        : "Receive-only on this chain — use the address above in your external NFT wallet",
+        ? "No watched NFTs — use Mint / tools to import"
+        : "Receive-only on this chain",
       canSend: !!meta.send,
+      howl: false,
     });
   }catch(e){
     if(gal) gal.innerHTML = `<p class="err">${escHtml(e.message)}</p>`;
@@ -6409,6 +6700,11 @@ window.loadDiscover = loadDiscover;
 window.mintNft = mintNft;
 window.transferNft = transferNft;
 window.refreshNfts = refreshNfts;
+window.refreshNftActivity = refreshNftActivity;
+window.setNftDashTab = setNftDashTab;
+window.openNftDetail = openNftDetail;
+window.closeNftDetail = closeNftDetail;
+window.prepareNftSend = prepareNftSend;
 window.copyNftRecvAddr = copyNftRecvAddr;
 window.watchNftFromForm = watchNftFromForm;
 window.wireNftPage = wireNftPage;
