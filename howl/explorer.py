@@ -147,13 +147,29 @@ a:hover{text-decoration:underline}
 .grow{flex:1}
 .hero{padding:28px 20px 10px;max-width:1200px;margin:0 auto}
 .hero h2{margin:0 0 6px;font-size:1.55rem;font-weight:750}
-.ascii-banner{margin:14px 0 8px;padding:14px 16px;border-radius:12px;border:1px solid var(--border);
-  background:linear-gradient(135deg,rgba(61,255,154,.06),rgba(12,15,20,.9) 45%,rgba(77,163,255,.05));
-  overflow-x:auto}
-.ascii-banner pre{margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-  font-size:clamp(.55rem,.95vw,.78rem);line-height:1.15;color:var(--green);white-space:pre;
-  text-shadow:0 0 18px rgba(61,255,154,.15)}
-@media(max-width:700px){.ascii-banner pre{font-size:.52rem}}
+.ascii-banner{margin:14px 0 10px;padding:0;border-radius:12px;border:1px solid var(--border);
+  background:linear-gradient(135deg,rgba(61,255,154,.07),rgba(12,15,20,.95) 40%,rgba(77,163,255,.06));
+  overflow:hidden;position:relative}
+.ascii-banner::before,.ascii-banner::after{content:"";position:absolute;top:0;bottom:0;width:48px;z-index:2;pointer-events:none}
+.ascii-banner::before{left:0;background:linear-gradient(90deg,var(--bg),transparent)}
+.ascii-banner::after{right:0;background:linear-gradient(270deg,var(--bg),transparent)}
+.ascii-track{display:inline-block;padding:16px 40px;will-change:transform;
+  animation:howl-pan 18s ease-in-out infinite}
+.ascii-track pre{margin:0;font-family:"SF Mono","Menlo","Consolas","DejaVu Sans Mono",ui-monospace,monospace;
+  font-size:clamp(.58rem,1.05vw,.82rem);line-height:1.22;letter-spacing:.04em;color:var(--green);
+  white-space:pre;text-shadow:0 0 20px rgba(61,255,154,.18)}
+@keyframes howl-pan{
+  0%{transform:translateX(8%)}
+  50%{transform:translateX(-42%)}
+  100%{transform:translateX(8%)}
+}
+@media(max-width:700px){
+  .ascii-track pre{font-size:.5rem;letter-spacing:.02em}
+  .ascii-track{animation-duration:14s}
+}
+@media(prefers-reduced-motion:reduce){
+  .ascii-track{animation:none;transform:none;padding:16px}
+}
 .searchwrap{max-width:1200px;margin:0 auto;padding:8px 20px 18px}
 .searchbox{display:flex;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px}
 .searchbox input{flex:1;border:0;outline:0;background:transparent;color:var(--text);font:inherit;padding:10px 12px;min-width:0}
@@ -299,15 +315,19 @@ async function loadNetworks(){
 }
 
 function howlBanner(){
-  // same mark as CLI banner (dog + Howlcoin wordmark)
-  const art = `        __    __
-       /  \\__/  \\      _   _                 _           _
-      |  ◕    ◕  |    | | | | _____      __ | | ___ ___ (_)_ __
-       \\   ▽    /     | |_| |/ _ \\ \\ /\\ / / | |/ __/ _ \\| | '_ \\
-        \\______/      |  _  | (_) \\ V  V /  | | (_| (_) | | | | |
-       /|      |\\     |_| |_|\\___/ \\_/\\_/   |_|\\___/\\___/|_|_| |_|
-      (_|  ▬▬  |_)           Scrypt meme coin · ticker HOWL  ·  awoo`;
-  return `<div class="ascii-banner" aria-hidden="true"><pre>${art}</pre></div>`;
+  // Clean fixed-width mark: dog + evenly spaced Howlcoin (duplicated for smooth pan)
+  const art = [
+    '      __      __                                                    ',
+    '     /  \\____/  \\      _   _                 _           _         ',
+    '    |   ◕    ◕   |    | | | | _____      __ | | ___ ___ (_)_ __    ',
+    '     \\    ▽     /     | |_| |/ _ \\ \\ /\\ / / | |/ __/ _ \\| | \'_ \\   ',
+    '      \\________/      |  _  | (_) \\ V  V /  | | (_| (_) | | | | |  ',
+    '      /|      |\\      |_| |_|\\___/ \\_/\\_/   |_|\\___/\\___/|_|_| |_|  ',
+    '     (_|  ▬▬  |_)            Scrypt · HOWL · awoo                   ',
+  ].join('\n');
+  // two copies side-by-side so the screensaver loop feels continuous
+  const twin = art + '          ' + art;
+  return `<div class="ascii-banner" aria-hidden="true"><div class="ascii-track"><pre>${twin}</pre></div></div>`;
 }
 function shellSearch(extra=''){
   return `<div class="hero">
