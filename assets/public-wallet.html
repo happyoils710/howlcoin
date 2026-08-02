@@ -168,6 +168,27 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
   font-size:.84rem;color:var(--amber);margin:8px 0 12px}
 .hud-line{height:1px;background:linear-gradient(90deg,transparent,rgba(0,255,198,.5),rgba(192,132,252,.5),transparent);
   margin:4px 0 12px;opacity:.7}
+/* DApp browser */
+.browser-bar{display:flex;gap:6px;align-items:center;margin-bottom:10px}
+.browser-bar .field{margin:0;flex:1}
+.browser-bar .btn{width:auto;margin:0;min-height:44px;padding:10px 12px;font-size:.65rem}
+.bookmarks{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.bookmarks button{border:1px solid rgba(0,255,200,.15);background:rgba(0,0,0,.35);color:var(--cyan);
+  border-radius:999px;padding:7px 12px;font:inherit;font-size:.78rem;font-weight:700;cursor:pointer}
+.dapp-frame-wrap{position:relative;border-radius:16px;overflow:hidden;border:1px solid rgba(0,255,200,.2);
+  background:#000;min-height:52vh;box-shadow:0 0 30px rgba(0,255,198,.1)}
+.dapp-frame-wrap iframe{width:100%;height:52vh;border:0;background:#0a0a12}
+.dapp-fallback{padding:24px 16px;text-align:center}
+/* Swap */
+.swap-box{display:flex;flex-direction:column;gap:8px}
+.swap-leg{background:rgba(0,0,0,.35);border:1px solid rgba(0,255,200,.12);border-radius:14px;padding:12px}
+.swap-leg .row{display:flex;gap:8px;align-items:center}
+.swap-leg select{background:rgba(10,8,28,.9);color:var(--text);border:1px solid rgba(0,255,200,.2);
+  border-radius:10px;padding:10px;font:inherit;font-weight:700;min-width:90px}
+.swap-flip{align-self:center;width:42px;height:42px;border-radius:50%;border:1px solid rgba(0,255,198,.4);
+  background:rgba(0,255,198,.1);color:var(--green);font-size:1.1rem;cursor:pointer;font-weight:800}
+.quote-card{margin-top:10px;padding:12px;border-radius:12px;border:1px solid rgba(192,132,252,.25);
+  background:rgba(192,132,252,.06);font-size:.9rem}
 </style>
 </head>
 <body>
@@ -194,14 +215,14 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <div class="addr" id="addr">—</div>
       </div>
       <div class="actions">
-        <button class="action" type="button" onclick="showPage('send')"><span class="ico">↑</span><span class="n">Send</span></button>
+        <button class="action" type="button" onclick="showPage('swap')"><span class="ico">⇄</span><span class="n">Swap</span></button>
+        <button class="action" type="button" onclick="showPage('browser')"><span class="ico">◈</span><span class="n">DApps</span></button>
         <button class="action" type="button" onclick="showPage('recv')"><span class="ico">↓</span><span class="n">Deposit</span></button>
-        <button class="action" type="button" onclick="showPage('sec')"><span class="ico">🛡</span><span class="n">Security</span></button>
-        <button class="action" type="button" onclick="lockWallet()"><span class="ico">🔒</span><span class="n">Lock</span></button>
+        <button class="action" type="button" onclick="showPage('send')"><span class="ico">↑</span><span class="n">Send</span></button>
       </div>
       <div class="panel">
         <h2>Other assets (deposit addresses)</h2>
-        <div id="assetPreview"><p class="hint">Open Deposit for ETH, stables, and custom tokens</p></div>
+        <div id="assetPreview"><p class="hint">Open Deposit for SOL, ETH, stables, and custom tokens</p></div>
       </div>
       <div class="panel">
         <h2>Network</h2>
@@ -233,6 +254,79 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         </div>
         <button class="btn" type="button" id="sendBtn" onclick="doSend()">Send</button>
         <p class="err" id="sendErr"></p>
+      </div>
+    </div>
+
+    <!-- SWAP (Solana / Jupiter) -->
+    <div class="page" id="p-swap">
+      <div class="panel">
+        <h2>Swap · Solana</h2>
+        <p class="hint">Powered by Jupiter aggregator. Signs with your Solana key from this wallet.</p>
+        <div class="swap-box">
+          <div class="swap-leg">
+            <label>You pay</label>
+            <div class="row">
+              <select id="swapFrom"></select>
+              <input class="field" id="swapAmt" inputmode="decimal" placeholder="0.0" style="margin:0"/>
+            </div>
+            <p class="hint" id="swapBalFrom">Balance: —</p>
+          </div>
+          <button class="swap-flip" type="button" title="Flip" onclick="flipSwap()">⇅</button>
+          <div class="swap-leg">
+            <label>You receive</label>
+            <div class="row">
+              <select id="swapTo"></select>
+              <input class="field" id="swapOut" placeholder="—" readonly style="margin:0;opacity:.9"/>
+            </div>
+          </div>
+        </div>
+        <label style="margin-top:10px">Slippage (bps)</label>
+        <input class="field" id="swapSlip" value="50" inputmode="numeric" placeholder="50 = 0.5%"/>
+        <div id="swap2faBox" class="hidden">
+          <label>Authenticator code</label>
+          <input class="field" id="swapTotp" inputmode="numeric" maxlength="6" placeholder="6-digit code"/>
+        </div>
+        <div class="quote-card hidden" id="swapQuote"></div>
+        <button class="btn sec" type="button" onclick="getSwapQuote()">Get quote</button>
+        <button class="btn" type="button" id="swapBtn" onclick="doSwap()" disabled>Swap</button>
+        <p class="err" id="swapErr"></p>
+        <p class="hint" id="swapTx"></p>
+      </div>
+      <div class="panel">
+        <h2>More swap venues</h2>
+        <p class="hint">Open full DEX UIs in the DApp browser (connect your address there if prompted).</p>
+        <button class="btn sec" type="button" onclick="openDapp('https://jup.ag/')">Jupiter ↗</button>
+        <button class="btn sec" type="button" onclick="openDapp('https://raydium.io/swap/')">Raydium ↗</button>
+        <button class="btn sec" type="button" onclick="openDapp('https://app.uniswap.org/')">Uniswap (ETH) ↗</button>
+      </div>
+    </div>
+
+    <!-- DAPP BROWSER -->
+    <div class="page" id="p-browser">
+      <div class="panel">
+        <h2>DApp browser</h2>
+        <div class="browser-bar">
+          <button class="btn sec" type="button" onclick="browserBack()" title="Back">←</button>
+          <input class="field" id="dappUrl" placeholder="https://…" spellcheck="false"
+            onkeydown="if(event.key==='Enter')browseTo()"/>
+          <button class="btn" type="button" onclick="browseTo()">Go</button>
+        </div>
+        <div class="bookmarks" id="bookmarks"></div>
+        <div class="warnbox">Many sites block embedding. Use <b>Open tab</b> if the frame is blank. This browser does not inject a full WalletConnect stack into third-party sites — copy your deposit address when a dapp asks to connect, or use their WalletConnect flow.</div>
+        <div class="dapp-frame-wrap">
+          <iframe id="dappFrame" title="DApp" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"></iframe>
+          <div class="dapp-fallback hidden" id="dappFallback">
+            <p class="hint">This site can’t be embedded.</p>
+            <button class="btn" type="button" id="dappOpenExt">Open in new tab</button>
+          </div>
+        </div>
+        <button class="btn sec" type="button" onclick="openCurrentExternal()">Open current URL in new tab</button>
+        <div class="panel" style="margin:12px 0 0;padding:10px">
+          <p class="hint" style="margin:0">Your addresses · tap to copy</p>
+          <div class="item click" onclick="copyText(keypair&&keypair.address)"><div>HOWL</div><div class="m mono" id="dappHowl">—</div></div>
+          <div class="item click" onclick="copyText(solInfo&&solInfo.address)"><div>SOL</div><div class="m mono" id="dappSol">—</div></div>
+          <div class="item click" onclick="copyText(ethInfo&&ethInfo.address)"><div>ETH</div><div class="m mono" id="dappEth">—</div></div>
+        </div>
       </div>
     </div>
 
@@ -295,10 +389,10 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
   </div>
   <nav class="bottom">
     <button type="button" class="tab on" data-p="home" onclick="showPage('home')"><span>⌂</span>Home</button>
-    <button type="button" class="tab" data-p="send" onclick="showPage('send')"><span>↑</span>Send</button>
+    <button type="button" class="tab" data-p="swap" onclick="showPage('swap')"><span>⇄</span>Swap</button>
+    <button type="button" class="tab" data-p="browser" onclick="showPage('browser')"><span>◈</span>DApps</button>
     <button type="button" class="tab" data-p="recv" onclick="showPage('recv')"><span>↓</span>Deposit</button>
-    <button type="button" class="tab" data-p="sec" onclick="showPage('sec')"><span>🛡</span>Security</button>
-    <button type="button" class="tab" data-p="home" onclick="refresh();toast('Synced')"><span>↻</span>Sync</button>
+    <button type="button" class="tab" data-p="sec" onclick="showPage('sec')"><span>☰</span>More</button>
   </nav>
 </div>
 <div class="toast" id="toast"></div>
@@ -310,10 +404,28 @@ import {
   buildSignedTx, parseHowl, formatHowl, isValidAddress, COIN,
   PRESET_ASSETS, generateTotpSecret, totpOtpauthUrl, verifyTotp,
 } from "/assets/howl-crypto.mjs";
+import {
+  SWAP_TOKENS, amountToRaw, rawToUi,
+  getJupiterQuote, buildJupiterSwap, signAndSendSolTx, SOL_RPC as JUP_SOL_RPC,
+} from "/assets/wallet-swap.mjs";
 
 const API = "";
 const ETH_RPC = "https://cloudflare-eth.com";
 const SOL_RPC = "https://api.mainnet-beta.solana.com";
+
+const DAPP_BOOKMARKS = [
+  { name: "Jupiter", url: "https://jup.ag/" },
+  { name: "Raydium", url: "https://raydium.io/swap/" },
+  { name: "Orca", url: "https://www.orca.so/" },
+  { name: "Uniswap", url: "https://app.uniswap.org/" },
+  { name: "Aave", url: "https://app.aave.com/" },
+  { name: "Tensor", url: "https://www.tensor.trade/" },
+  { name: "Magic Eden", url: "https://magiceden.io/" },
+  { name: "Howlscan", url: "https://howlscan.org/" },
+];
+
+let lastSwapQuote = null;
+let browserHistory = [];
 const LS_ENC = "howl_public_wallet_v2";
 const LS_META = "howl_public_wallet_meta_v2";
 const LS_BIO = "howl_public_webauthn_v1";
@@ -537,6 +649,163 @@ function showPage(name){
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on", t.dataset.p===name));
   if(name==="recv") selectAsset(selectedAsset);
   if(name==="sec") updateSecUI();
+  if(name==="swap") initSwapUI();
+  if(name==="browser") initBrowserUI();
+}
+
+function initSwapUI(){
+  const from = $("swapFrom"), to = $("swapTo");
+  if(!from.options.length){
+    SWAP_TOKENS.forEach(t=>{
+      from.add(new Option(t.symbol, t.id));
+      to.add(new Option(t.symbol, t.id));
+    });
+    from.value = "sol";
+    to.value = "usdc";
+  }
+  $("swap2faBox").classList.toggle("hidden", !(meta.totpEnabled && meta.hasTotp));
+  updateSwapBalances();
+  $("swapAmt").oninput = ()=>{ lastSwapQuote=null; $("swapBtn").disabled=true; $("swapOut").value=""; $("swapQuote").classList.add("hidden"); };
+}
+function updateSwapBalances(){
+  const fid = $("swapFrom").value;
+  const t = SWAP_TOKENS.find(x=>x.id===fid);
+  let bal = "—";
+  if(fid==="sol") bal = ethBalances.sol ?? "…";
+  else if(fid==="usdc") bal = ethBalances.usdc_sol ?? "…";
+  else if(fid==="usdt") bal = ethBalances.usdt_sol ?? "…";
+  $("swapBalFrom").textContent = `Balance: ${bal} ${t?.symbol||""}`;
+}
+function flipSwap(){
+  const a=$("swapFrom").value, b=$("swapTo").value;
+  $("swapFrom").value=b; $("swapTo").value=a;
+  lastSwapQuote=null; $("swapBtn").disabled=true; $("swapOut").value="";
+  updateSwapBalances();
+}
+async function getSwapQuote(){
+  $("swapErr").textContent=""; $("swapTx").textContent="";
+  try{
+    if(!solInfo) throw new Error("Solana wallet not ready");
+    const from = SWAP_TOKENS.find(t=>t.id===$("swapFrom").value);
+    const to = SWAP_TOKENS.find(t=>t.id===$("swapTo").value);
+    if(!from||!to) throw new Error("Pick tokens");
+    if(from.id===to.id) throw new Error("Choose different tokens");
+    const raw = amountToRaw($("swapAmt").value, from.decimals);
+    const slip = parseInt($("swapSlip").value||"50",10) || 50;
+    $("swapQuote").classList.remove("hidden");
+    $("swapQuote").textContent = "Fetching Jupiter route…";
+    const quote = await getJupiterQuote({
+      inputMint: from.mint, outputMint: to.mint, amountRaw: raw, slippageBps: slip,
+    });
+    lastSwapQuote = { quote, from, to };
+    const outUi = rawToUi(quote.outAmount, to.decimals);
+    $("swapOut").value = outUi;
+    const impact = quote.priceImpactPct != null ? Number(quote.priceImpactPct).toFixed(4) : "—";
+    $("swapQuote").innerHTML = `<b>Quote</b> · ${from.symbol} → ${to.symbol}<br>
+      Out ≈ <b style="color:var(--green)">${outUi} ${to.symbol}</b><br>
+      Impact ${impact}% · slip ${slip} bps · Jupiter`;
+    $("swapBtn").disabled = false;
+  }catch(e){
+    lastSwapQuote=null; $("swapBtn").disabled=true;
+    $("swapErr").textContent = e.message;
+    $("swapQuote").classList.add("hidden");
+  }
+}
+async function doSwap(){
+  $("swapErr").textContent=""; $("swapTx").textContent="";
+  try{
+    if(!lastSwapQuote) throw new Error("Get a quote first");
+    if(!solInfo?.privateKeyHex) throw new Error("Missing Solana key");
+    await requireTotpIfNeeded($("swapTotp"));
+    const { quote, from, to } = lastSwapQuote;
+    if(!confirm(`Swap ${$("swapAmt").value} ${from.symbol} → ~${$("swapOut").value} ${to.symbol} on Solana?`)) return;
+    $("swapBtn").disabled = true;
+    $("swapTx").textContent = "Building transaction…";
+    const built = await buildJupiterSwap({
+      quoteResponse: quote,
+      userPublicKey: solInfo.address,
+    });
+    $("swapTx").textContent = "Signing & sending…";
+    const sig = await signAndSendSolTx({
+      swapTransactionBase64: built.swapTransaction,
+      privateKeyHex: solInfo.privateKeyHex,
+      rpc: SOL_RPC || JUP_SOL_RPC,
+    });
+    $("swapTx").innerHTML = `Sent · <a href="https://solscan.io/tx/${sig}" target="_blank" rel="noopener">${sig.slice(0,12)}…</a>`;
+    toast("Swap submitted");
+    lastSwapQuote=null;
+    setTimeout(()=>{ refreshEthBalances(); updateSwapBalances(); }, 2000);
+  }catch(e){
+    $("swapErr").textContent = e.message || String(e);
+  }finally{
+    $("swapBtn").disabled = !lastSwapQuote;
+  }
+}
+
+function initBrowserUI(){
+  const bm = $("bookmarks");
+  if(!bm.dataset.ready){
+    bm.innerHTML = DAPP_BOOKMARKS.map(b=>
+      `<button type="button" data-url="${b.url}">${b.name}</button>`
+    ).join("");
+    bm.querySelectorAll("button").forEach(btn=>{
+      btn.onclick = ()=> openDapp(btn.dataset.url);
+    });
+    bm.dataset.ready = "1";
+  }
+  if(keypair) $("dappHowl").textContent = keypair.address;
+  if(solInfo) $("dappSol").textContent = solInfo.address;
+  if(ethInfo) $("dappEth").textContent = ethInfo.address;
+  if(!$("dappUrl").value) $("dappUrl").value = "https://jup.ag/";
+}
+function normalizeUrl(u){
+  u = (u||"").trim();
+  if(!u) return "";
+  if(!/^https?:\/\//i.test(u)) u = "https://" + u;
+  return u;
+}
+function openDapp(url){
+  showPage("browser");
+  $("dappUrl").value = url;
+  browseTo();
+}
+function browseTo(){
+  const url = normalizeUrl($("dappUrl").value);
+  if(!url) return;
+  $("dappUrl").value = url;
+  browserHistory.push(url);
+  $("dappFallback").classList.add("hidden");
+  const frame = $("dappFrame");
+  frame.classList.remove("hidden");
+  try{
+    frame.src = url;
+  }catch(e){
+    showDappFallback(url);
+  }
+  // detect block after short delay (many sites set X-Frame-Options)
+  setTimeout(()=>{
+    try{
+      // cross-origin will throw on contentDocument access sometimes
+      void frame.contentWindow.location.href;
+    }catch(_){ /* expected */ }
+  }, 1200);
+  $("dappOpenExt").onclick = ()=> window.open(url, "_blank", "noopener,noreferrer");
+}
+function showDappFallback(url){
+  $("dappFallback").classList.remove("hidden");
+  $("dappOpenExt").onclick = ()=> window.open(url, "_blank", "noopener,noreferrer");
+}
+function browserBack(){
+  if(browserHistory.length > 1){
+    browserHistory.pop();
+    const prev = browserHistory.pop();
+    $("dappUrl").value = prev;
+    browseTo();
+  }
+}
+function openCurrentExternal(){
+  const url = normalizeUrl($("dappUrl").value);
+  if(url) window.open(url, "_blank", "noopener,noreferrer");
 }
 
 function renderAssetSeg(){
@@ -940,6 +1209,17 @@ window.removeCustom = removeCustom;
 window.selectAsset = selectAsset;
 window.refresh = refresh;
 window.toast = toast;
+window.getSwapQuote = getSwapQuote;
+window.doSwap = doSwap;
+window.flipSwap = flipSwap;
+window.browseTo = browseTo;
+window.browserBack = browserBack;
+window.openDapp = openDapp;
+window.openCurrentExternal = openCurrentExternal;
+// expose for dapp address copy handlers
+Object.defineProperty(window, "keypair", { get: () => keypair });
+Object.defineProperty(window, "solInfo", { get: () => solInfo });
+Object.defineProperty(window, "ethInfo", { get: () => ethInfo });
 
 boot();
 </script>
