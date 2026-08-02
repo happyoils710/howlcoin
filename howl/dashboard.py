@@ -798,7 +798,7 @@ async function mine(n){
   const btn = document.getElementById('mineBtn');
   const st = document.getElementById('mineStatus');
   if(btn) btn.disabled = true;
-  st.textContent = 'Mining… can take a while at higher difficulty. Leave the node running.';
+  st.textContent = 'Mining… v0.6 smooth difficulty adapts; stall relief after 2h. Leave the node running.';
   toast('Mining started');
   try{
     const j = await api('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({blocks:n})});

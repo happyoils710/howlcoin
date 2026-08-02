@@ -106,9 +106,10 @@ strong{font-weight:700}
 <h3 id="31-proof-of-work">3.1 Proof of work</h3>
 <p>Howlcoin uses <strong>Scrypt</strong> with parameters:</p>
 <table><thead><tr><th>Parameter</th><th>Value</th></tr></thead><tbody><tr><td><strong>N</strong></td><td>1024</td></tr><tr><td><strong>r</strong></td><td>1</td></tr><tr><td><strong>p</strong></td><td>1</td></tr><tr><td><strong>Output</strong></td><td>32 bytes</td></tr></tbody></table>
-<p>Block headers are serialized and hashed with Scrypt. A block is valid when the digest meets the current <strong>difficulty</strong> rule (leading zero hex nibbles).</p>
+<p>Block headers are serialized and hashed with Scrypt. A block is valid when the digest meets the current <strong>difficulty</strong> rule (legacy: leading zero hex nibbles; from height 120: continuous smooth target).</p>
 <h3 id="32-block-time-and-difficulty">3.2 Block time and difficulty</h3>
-<table><thead><tr><th>Parameter</th><th>Value</th></tr></thead><tbody><tr><td>Target block time</td><td><strong>60 seconds</strong></td></tr><tr><td>Difficulty retarget</td><td>Every <strong>20</strong> blocks</td></tr><tr><td>Max adjust per window</td><td><strong>4×</strong> up or down</td></tr><tr><td>Initial difficulty</td><td><strong>4</strong></td></tr></tbody></table>
+<table><thead><tr><th>Parameter</th><th>Value</th></tr></thead><tbody><tr><td>Target block time</td><td><strong>60 seconds</strong></td></tr><tr><td>Difficulty retarget</td><td>Every <strong>20</strong> blocks</td></tr><tr><td>Max adjust per window</td><td><strong>4×</strong> up or down</td></tr><tr><td>Initial difficulty</td><td><strong>4</strong> (legacy nibble era)</td></tr><tr><td>Smooth difficulty (v0.6)</td><td>From height <strong>120</strong></td></tr><tr><td>Stall relief</td><td>Gap ≥ <strong>2 hours</strong> → extra difficulty drop (up to 16×)</td></tr></tbody></table>
+<p><strong>Smooth (height ≥ 120):</strong> header stores milli-nibble work (<code>round(d × 1000)</code>). PoW uses continuous target <code>hash &lt; 2^(256 − 4d)</code> so difficulty moves in small steps instead of 16× jumps.</p>
 <p>Difficulty is adjusted so average block time tracks the target as hashrate changes.</p>
 <h3 id="33-genesis">3.3 Genesis</h3>
 <ul><li><strong>Height:</strong> 0  </li><li><strong>Spendable subsidy:</strong> 0  </li><li><strong>Inscription:</strong> project launch message (see genesis hash on Howlscan)  </li><li>All networks that share this genesis and software rules are the same <em>family</em>; only <strong>synced peers</strong> share one public tip.</li></ul>

@@ -5,7 +5,7 @@ from pathlib import Path
 # --- Identity ---
 COIN_NAME = "Howlcoin"
 TICKER = "HOWL"
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 GENESIS_MESSAGE = (
     "2026-08-01 Howlcoin: the moon heard a howl and howled back. "
     "Scrypt free. Much chain. Very wow."
@@ -31,9 +31,26 @@ DIFFICULTY_ADJUST_INTERVAL = 20
 # Clamp retarget so difficulty cannot swing more than 4x per window
 DIFFICULTY_MAX_ADJUST = 4.0
 
-# Starting difficulty: leading zero-nibbles in the scrypt hex digest
+# Starting difficulty: leading zero-nibbles in the scrypt hex digest (legacy era)
 # 4 = casual CPU-mineable on a laptop; raise later as hashrate grows
 INITIAL_DIFFICULTY = 4
+
+# --- v0.6 smooth difficulty hard fork ---
+# From this height, header.difficulty is milli-nibble work (d*1000), not raw
+# leading-zero nibble count. PoW check uses continuous target 2^(256-4d).
+# Heights below this keep the legacy nibble schedule for historical validation.
+SMOOTH_DIFF_ACTIVATION_HEIGHT = 120
+# Encode float difficulty d as int(round(d * DIFFICULTY_MILLI))
+DIFFICULTY_MILLI = 1000
+# Float bounds after activation (nibble-equivalent scale)
+MIN_DIFFICULTY_FLOAT = 1.0
+MAX_DIFFICULTY_FLOAT = 12.0
+# Stall relief: if (block_ts - tip_ts) exceeds this, difficulty may drop
+# beyond the normal 4× retarget clamp (deterministic from timestamps).
+STALL_SECONDS = 2 * 60 * 60  # 2 hours
+STALL_MAX_ADJUST = 16.0  # max extra reduction factor when heavily stalled
+# Block timestamp may not be more than this far ahead of local clock
+MAX_FUTURE_DRIFT_SECONDS = 2 * 60 * 60
 
 # Block subsidy schedule (in HOWL, not howlies)
 # Early Doge vibes: generous early rewards, then taper

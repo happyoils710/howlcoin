@@ -354,12 +354,13 @@ def cmd_bench(args: argparse.Namespace) -> None:
     dd = data_dir(args)
     if (dd / "chain.json").exists():
         chain = Blockchain(dd)
+        from .scrypt_pow import expected_hashes, format_difficulty, format_duration
+
         diff = chain.next_difficulty()
-        # expected hashes ~ 16^difficulty
-        expected = 16 ** diff
+        expected = expected_hashes(diff)
         eta = expected / rate if rate else float("inf")
-        print(f"Next difficulty: {diff} (≈{expected:.0f} hashes expected)")
-        print(f"Est. time/block: {eta:.1f}s at this hashrate")
+        print(f"Next difficulty: {format_difficulty(diff)} (≈{expected:,.0f} hashes expected)")
+        print(f"Est. time/block: {format_duration(eta)} at this hashrate")
 
 
 def cmd_richlist(args: argparse.Namespace) -> None:

@@ -59,7 +59,7 @@ Howlcoin uses **Scrypt** with parameters:
 | **p** | 1 |
 | **Output** | 32 bytes |
 
-Block headers are serialized and hashed with Scrypt. A block is valid when the digest meets the current **difficulty** rule (leading zero hex nibbles).
+Block headers are serialized and hashed with Scrypt. A block is valid when the digest meets the current **difficulty** rule (legacy: leading zero hex nibbles; from height 120: continuous smooth target — see §3.2).
 
 ### 3.2 Block time and difficulty
 
@@ -68,7 +68,13 @@ Block headers are serialized and hashed with Scrypt. A block is valid when the d
 | Target block time | **60 seconds** |
 | Difficulty retarget | Every **20** blocks |
 | Max adjust per window | **4×** up or down |
-| Initial difficulty | **4** |
+| Initial difficulty | **4** (legacy nibble era) |
+| Smooth difficulty (v0.6) | From height **120** |
+| Stall relief | If block gap ≥ **2 hours**, extra difficulty drop (up to 16×) |
+
+**Legacy (height &lt; 120):** difficulty is an integer count of leading zero **hex nibbles** in the Scrypt hash.
+
+**Smooth (height ≥ 120):** header field stores **milli-nibble** work (`round(d × 1000)`). Proof-of-work uses a continuous target `hash < 2^(256 − 4d)`, so difficulty can move in small steps instead of 16× jumps. Stall relief is deterministic from block timestamps (not wall-clock at validation of ancient history beyond the block’s own timestamp).
 
 Difficulty is adjusted so average block time tracks the target as hashrate changes.
 

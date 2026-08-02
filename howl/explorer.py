@@ -1345,6 +1345,9 @@ class ExplorerHub:
                 s = c.summary()
                 tip_age = s.get("tip_age_seconds")
                 # "live" = chain data present. Slow block times at high diff are normal.
+                d_label = s.get("difficulty_label") or str(s.get("difficulty"))
+                d_f = s.get("difficulty_float")
+                expect_n = s.get("expected_hashes_next")
                 out.append(
                     {
                         "id": name,
@@ -1357,6 +1360,14 @@ class ExplorerHub:
                         "tip_age_seconds": tip_age,
                         "circulating": s["circulating"],
                         "difficulty": s["difficulty"],
+                        "difficulty_float": d_f,
+                        "difficulty_label": d_label,
+                        "next_difficulty": s.get("next_difficulty"),
+                        "next_difficulty_label": s.get("next_difficulty_label"),
+                        "expected_hashes_next": expect_n,
+                        "protocol": s.get("protocol"),
+                        "version": s.get("version"),
+                        "smooth_diff_activation_height": s.get("smooth_diff_activation_height"),
                         "mempool": s["mempool"],
                         "status": "live",
                         "status_note": (
@@ -1368,7 +1379,12 @@ class ExplorerHub:
                                 if tip_age is not None
                                 else "—"
                             )
-                            + f" · diff {s['difficulty']} (CPU mining can take hours)"
+                            + f" · diff {d_label}"
+                            + (
+                                " · v0.6 smooth difficulty"
+                                if (s.get("height") or 0) + 1 >= (s.get("smooth_diff_activation_height") or 120)
+                                else ""
+                            )
                         ),
                     }
                 )
@@ -1961,10 +1977,16 @@ async function loadHome(){
   const tipTs = s.tip_timestamp || (bl[0] && bl[0].timestamp) || 0;
   const tipAge = tipTs ? ago(tipTs) : '—';
   const ageSec = s.tip_age_seconds != null ? s.tip_age_seconds : (tipTs ? Math.max(0, Math.floor(Date.now()/1000 - tipTs)) : 0);
-  // High difficulty → hours between blocks is normal; do not imply the network is down
-  const slowMining = (s.difficulty||0) >= 5 || ageSec > 600;
+  const dLabel = s.difficulty_label || String(s.difficulty ?? '—');
+  const dFloat = s.difficulty_float != null ? Number(s.difficulty_float) : null;
+  const dShow = dFloat != null && dFloat >= 1 ? dFloat.toFixed(3) : String(s.difficulty ?? '—');
+  const expectN = s.expected_hashes_next;
+  const expectTxt = expectN != null ? (expectN >= 1e6 ? (expectN/1e6).toFixed(2)+'M' : expectN >= 1e3 ? (expectN/1e3).toFixed(1)+'k' : String(Math.round(expectN))) : '—';
+  const smoothOn = (s.height||0) + 1 >= (s.smooth_diff_activation_height||120);
+  // High difficulty → slow blocks; do not imply the network is down
+  const slowMining = (dFloat != null ? dFloat >= 5 : (s.difficulty||0) >= 5) || ageSec > 600;
   const liveNote = slowMining
-    ? `Seed online · last block ${tipAge} · diff ${s.difficulty} — CPU mining is slow (hours per block is normal). Chain is live.`
+    ? `Seed online · last block ${tipAge} · diff ${dLabel} — CPU mining can take a while. Chain is live.`
     : `Seed online · last block ${tipAge} · network live`;
   // Only replace #app — hero/banner stay mounted so animation never restarts
   app().innerHTML = `
@@ -1973,11 +1995,15 @@ async function loadHome(){
       <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
         <span class="badge ok">LIVE</span>
         <span style="font-weight:700;color:var(--green)">Howlcoin public network</span>
+        <span class="badge" style="background:rgba(192,132,252,.15);color:#c084fc;border:1px solid rgba(192,132,252,.35)">v0.6 smooth diff</span>
         <span class="muted" style="font-size:.88rem">${esc(liveNote)}</span>
       </div>
       <p class="muted" style="margin:8px 0 0;font-size:.82rem;line-height:1.4">
-        Seed <span class="mono">147.182.223.204:42069</span> · height <b>${s.height}</b>.
-        If blocks look “stuck”, miners are still working — at high difficulty a laptop may need ~hours per block.
+        Seed <span class="mono">147.182.223.204:42069</span> · height <b>${s.height}</b>
+        ${smoothOn
+          ? ` · <b>smooth difficulty</b> active from height ${s.smooth_diff_activation_height||120} (continuous work target + 2h stall relief).`
+          : ` · smooth difficulty activates at height <b>${s.smooth_diff_activation_height||120}</b> (next blocks).`}
+        Nodes must run <b>v0.6+</b>.
         <a href="#/run">Run a node / mine</a>
       </p>
     </div>
@@ -1985,7 +2011,7 @@ async function loadHome(){
   <div class="stats">
     <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/block/${s.height}'">
       <div class="k">Height</div><div class="v">${s.height}</div><div class="s">last ${esc(tipAge)}</div></div>
-    <div class="stat"><div class="k">Difficulty</div><div class="v">${s.difficulty}</div><div class="s">Scrypt PoW</div></div>
+    <div class="stat" title="${esc(dLabel)}"><div class="k">Difficulty</div><div class="v">${esc(dShow)}</div><div class="s">${smoothOn?'smooth work':'Scrypt PoW'} · ~${esc(expectTxt)} H</div></div>
     <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/richlist'" title="${esc(String(s.circulating||''))}">
       <div class="k">Circulating</div><div class="v">${esc(circulatingShort(s))}</div><div class="s">HOWL · richlist</div></div>
     <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/mempool'">

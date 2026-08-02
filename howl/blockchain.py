@@ -15,14 +15,25 @@ from .config import (
     DIFFICULTY_MAX_ADJUST,
     GENESIS_MESSAGE,
     INITIAL_DIFFICULTY,
+    MAX_DIFFICULTY_FLOAT,
+    MAX_FUTURE_DRIFT_SECONDS,
+    MIN_DIFFICULTY_FLOAT,
     MIN_TX_FEE_HOWLIES,
+    SMOOTH_DIFF_ACTIVATION_HEIGHT,
+    STALL_MAX_ADJUST,
+    STALL_SECONDS,
+    VERSION,
     block_subsidy,
 )
 from .crypto import is_valid_address, sha256, tx_sighash, txid, verify_signature
 from .scrypt_pow import (
+    difficulty_float_from_raw,
+    encode_difficulty_milli,
     expected_hashes,
     format_count,
+    format_difficulty,
     format_duration,
+    is_smooth_difficulty_raw,
     meets_difficulty,
     merkle_root,
     mine_block,
@@ -182,31 +193,99 @@ class Blockchain:
     # ---------- difficulty ----------
 
     def current_difficulty(self) -> int:
+        """Raw header difficulty field of the tip (nibble or milli)."""
         if len(self.blocks) < 2:
             return INITIAL_DIFFICULTY
         return int(self.tip()["header"]["difficulty"])
 
-    def next_difficulty(self) -> int:
+    def current_difficulty_float(self) -> float:
+        """Nibble-equivalent float for the tip (works for legacy + smooth)."""
+        if len(self.blocks) < 2:
+            return float(INITIAL_DIFFICULTY)
+        return difficulty_float_from_raw(self.current_difficulty())
+
+    def _retarget_float(self, current_d: float) -> float:
+        """Adjust nibble-equivalent difficulty from the last retarget window."""
+        interval = DIFFICULTY_ADJUST_INTERVAL
+        if len(self.blocks) < interval:
+            return current_d
+        newer = self.blocks[-1]
+        older = self.blocks[-interval]
+        actual = max(1, int(newer["header"]["timestamp"]) - int(older["header"]["timestamp"]))
+        expected = interval * BLOCK_TIME_SECONDS
+        ratio = actual / expected
+        # slower blocks => ratio > 1 => lower difficulty
+        if ratio > DIFFICULTY_MAX_ADJUST:
+            ratio = DIFFICULTY_MAX_ADJUST
+        if ratio < 1 / DIFFICULTY_MAX_ADJUST:
+            ratio = 1 / DIFFICULTY_MAX_ADJUST
+        new_d = current_d / ratio if ratio != 0 else current_d
+        return new_d
+
+    def _apply_stall_float(self, d: float, gap_seconds: int) -> float:
+        """
+        Deterministic stall relief from (block_ts - tip_ts).
+        If the gap exceeds STALL_SECONDS, allow extra reduction beyond 4× clamp.
+        """
+        if gap_seconds < STALL_SECONDS:
+            return d
+        # How many target windows late (e.g. 20 min windows)
+        window = DIFFICULTY_ADJUST_INTERVAL * BLOCK_TIME_SECONDS
+        overdue_windows = gap_seconds / float(window)
+        # factor 1 at exactly STALL, grows with lateness
+        factor = min(STALL_MAX_ADJUST, max(1.0, overdue_windows))
+        # Also scale by how far past STALL_SECONDS we are
+        stall_extra = gap_seconds / float(STALL_SECONDS)
+        factor = min(STALL_MAX_ADJUST, max(factor, stall_extra))
+        return d / factor
+
+    def next_difficulty(self, at_timestamp: Optional[int] = None) -> int:
+        """
+        Raw difficulty that the next block must carry.
+
+        Legacy (height < SMOOTH_DIFF_ACTIVATION_HEIGHT): integer leading-zero
+        nibbles, retarget every 20 blocks, round to int 1..12.
+
+        Smooth (height >= activation): milli-nibble encoding (d*1000), continuous
+        target, same retarget ratio, plus timestamp-based stall relief.
+        """
+        height = self.height() + 1
+        if height < SMOOTH_DIFF_ACTIVATION_HEIGHT:
+            return self._next_difficulty_legacy_nibble()
+
+        at_ts = int(at_timestamp if at_timestamp is not None else time.time())
+        d = self.current_difficulty_float()
+
+        # First smooth block: tip may still be legacy nibble — float convert is fine
+        if height >= DIFFICULTY_ADJUST_INTERVAL and height % DIFFICULTY_ADJUST_INTERVAL == 0:
+            d = self._retarget_float(d)
+
+        tip_ts = int(self.tip()["header"]["timestamp"])
+        gap = max(0, at_ts - tip_ts)
+        d = self._apply_stall_float(d, gap)
+
+        d = max(MIN_DIFFICULTY_FLOAT, min(MAX_DIFFICULTY_FLOAT, d))
+        return encode_difficulty_milli(d)
+
+    def _next_difficulty_legacy_nibble(self) -> int:
+        """Pre-v0.6 schedule — must remain bit-identical for historical blocks."""
         height = self.height() + 1
         if height < DIFFICULTY_ADJUST_INTERVAL:
             return INITIAL_DIFFICULTY
         if height % DIFFICULTY_ADJUST_INTERVAL != 0:
             return self.current_difficulty()
 
-        # retarget based on last interval
         interval = DIFFICULTY_ADJUST_INTERVAL
         newer = self.blocks[-1]
         older = self.blocks[-interval]
         actual = max(1, newer["header"]["timestamp"] - older["header"]["timestamp"])
         expected = interval * BLOCK_TIME_SECONDS
         ratio = actual / expected
-        # slower blocks => ratio > 1 => lower difficulty
         diff = float(self.current_difficulty())
         if ratio > DIFFICULTY_MAX_ADJUST:
             ratio = DIFFICULTY_MAX_ADJUST
         if ratio < 1 / DIFFICULTY_MAX_ADJUST:
             ratio = 1 / DIFFICULTY_MAX_ADJUST
-        # if actual > expected, mining was hard/slow → decrease difficulty
         new_diff = diff / ratio if ratio != 0 else diff
         new_diff = max(1, min(12, round(new_diff)))
         return int(new_diff)
@@ -397,8 +476,20 @@ class Blockchain:
         block_hash = pow_hash_hex(h)
         if block_hash != block["hash"]:
             return False, "hash mismatch"
-        if not meets_difficulty(block_hash, int(h["difficulty"])):
+        height = int(block.get("height") or 0)
+        smooth = height >= SMOOTH_DIFF_ACTIVATION_HEIGHT
+        if not meets_difficulty(block_hash, int(h["difficulty"]), smooth=smooth):
             return False, "insufficient proof of work"
+        # timestamp bounds (monotonic + limited future drift)
+        try:
+            bts = int(h["timestamp"])
+            pts = int(prev["header"]["timestamp"])
+        except (KeyError, TypeError, ValueError):
+            return False, "bad timestamp"
+        if bts < pts:
+            return False, "timestamp before previous block"
+        if bts > int(time.time()) + MAX_FUTURE_DRIFT_SECONDS:
+            return False, "timestamp too far in the future"
         # coinbase checks
         txs = block["transactions"]
         if not txs or txs[0].get("type") != "coinbase":
@@ -453,8 +544,12 @@ class Blockchain:
         ok, msg = self.validate_block(block, self.tip())
         if not ok:
             return False, msg
-        # enforce difficulty schedule for non-genesis
-        expected_diff = self.next_difficulty()
+        # enforce difficulty schedule for non-genesis (timestamp-aware for stall)
+        try:
+            at_ts = int(block["header"]["timestamp"])
+        except (KeyError, TypeError, ValueError):
+            return False, "bad timestamp"
+        expected_diff = self.next_difficulty(at_timestamp=at_ts)
         if int(block["header"]["difficulty"]) != expected_diff:
             return False, f"wrong difficulty (got {block['header']['difficulty']}, want {expected_diff})"
         self.blocks.append(block)
@@ -520,8 +615,12 @@ class Blockchain:
             ok, msg = temp.validate_block(b, temp.tip())
             if not ok:
                 return False, f"invalid at height {i}: {msg}"
-            # difficulty schedule check against temp tip state
-            expected = temp.next_difficulty()
+            # difficulty schedule check against temp tip state (timestamp-aware)
+            try:
+                at_ts = int(b["header"]["timestamp"])
+            except (KeyError, TypeError, ValueError):
+                return False, f"bad timestamp at {i}"
+            expected = temp.next_difficulty(at_timestamp=at_ts)
             if int(b["header"]["difficulty"]) != expected:
                 return False, f"bad difficulty at {i}"
             temp.blocks.append(b)
@@ -545,7 +644,11 @@ class Blockchain:
 
     def build_block_template(self, miner_address: str, max_txs: int = 50) -> Dict[str, Any]:
         height = self.height() + 1
-        difficulty = self.next_difficulty()
+        now_ts = int(time.time())
+        # Ensure timestamp is at least tip+1 so validation is monotonic
+        tip_ts = int(self.tip()["header"]["timestamp"])
+        block_ts = max(now_ts, tip_ts + 1)
+        difficulty = self.next_difficulty(at_timestamp=block_ts)
         subsidy = block_subsidy(height)
         # select valid mempool txs first so coinbase can include their fees
         self.purge_invalid_mempool(save=True)
@@ -612,7 +715,7 @@ class Blockchain:
             "version": 1,
             "prev_hash": self.tip()["hash"],
             "merkle_root": merkle_root(txids),
-            "timestamp": int(time.time()),
+            "timestamp": block_ts,
             "difficulty": difficulty,
             "nonce": 0,
         }
@@ -629,14 +732,21 @@ class Blockchain:
         diff = template["difficulty"]
         subsidy = template["subsidy"]
         expect = expected_hashes(diff)
+        d_f = difficulty_float_from_raw(diff)
         print(
-            f"Mining block #{template['height']} | diff={diff} | "
+            f"Mining block #{template['height']} | diff={format_difficulty(diff)} | "
             f"reward={format_howl(subsidy)} | txs={len(template['transactions'])-1}"
         )
-        print(
-            f"  Need ~{format_count(expect)} hashes on average "
-            f"(diff {diff} = {diff} leading zero hex digits)."
-        )
+        if is_smooth_difficulty_raw(diff):
+            print(
+                f"  Need ~{format_count(expect)} hashes on average "
+                f"(smooth work index d={d_f:.3f}, target continuous)."
+            )
+        else:
+            print(
+                f"  Need ~{format_count(expect)} hashes on average "
+                f"(legacy: {diff} leading zero hex digits)."
+            )
         # rough laptop band so people know not to Ctrl+C after 30s
         for label, hps in (("~500 H/s", 500), ("~1.5k H/s", 1500), ("~5k H/s", 5000)):
             eta = expect / hps
@@ -674,12 +784,28 @@ class Blockchain:
         except (TypeError, ValueError):
             tip_ts = 0
         tip_age = max(0, int(time.time()) - tip_ts) if tip_ts else None
+        cur_raw = self.current_difficulty()
+        nxt_raw = self.next_difficulty()
+        next_h = self.height() + 1
         return {
             "name": "Howlcoin",
             "ticker": "HOWL",
+            "version": VERSION,
+            "protocol": "0.6-smooth-diff" if next_h >= SMOOTH_DIFF_ACTIVATION_HEIGHT else "0.5-nibble-diff",
+            "smooth_diff_activation_height": SMOOTH_DIFF_ACTIVATION_HEIGHT,
             "height": self.height(),
-            "difficulty": self.current_difficulty(),
-            "next_difficulty": self.next_difficulty(),
+            "difficulty": cur_raw,
+            "difficulty_float": self.current_difficulty_float(),
+            "difficulty_label": format_difficulty(cur_raw),
+            "next_difficulty": nxt_raw,
+            "next_difficulty_float": difficulty_float_from_raw(nxt_raw)
+            if is_smooth_difficulty_raw(nxt_raw) or next_h >= SMOOTH_DIFF_ACTIVATION_HEIGHT
+            else float(nxt_raw),
+            "next_difficulty_label": format_difficulty(nxt_raw)
+            if next_h >= SMOOTH_DIFF_ACTIVATION_HEIGHT or is_smooth_difficulty_raw(nxt_raw)
+            else f"{nxt_raw} (nibble)",
+            "expected_hashes_next": expected_hashes(nxt_raw),
+            "stall_seconds": STALL_SECONDS,
             "tip": tip["hash"],
             "tip_timestamp": tip_ts or None,
             "tip_age_seconds": tip_age,

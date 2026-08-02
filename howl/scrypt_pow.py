@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
-import json
 import struct
 import time
-from typing import Any, Dict, Optional, Tuple
+from decimal import Decimal, getcontext
+from typing import Any, Dict, Optional, Tuple, Union
 
 from Crypto.Protocol.KDF import scrypt as scrypt_kdf
 
-from .config import SCRYPT_DKLEN, SCRYPT_N, SCRYPT_P, SCRYPT_R
+from .config import DIFFICULTY_MILLI, SCRYPT_DKLEN, SCRYPT_N, SCRYPT_P, SCRYPT_R
+
+getcontext().prec = 80
+
+# Header difficulty field: legacy nibble (1–12) vs smooth milli (e.g. 2000 = d 2.000)
+SMOOTH_DIFF_RAW_THRESHOLD = 100
 
 
 def header_bytes(header: Dict[str, Any]) -> bytes:
@@ -47,21 +52,98 @@ def pow_hash_hex(header: Dict[str, Any]) -> str:
     return scrypt_hash(header_bytes(header)).hex()
 
 
-def meets_difficulty(hash_hex: str, difficulty: int) -> bool:
+def is_smooth_difficulty_raw(difficulty_raw: int) -> bool:
+    """True when header difficulty uses milli-nibble encoding (v0.6+)."""
+    return int(difficulty_raw) >= SMOOTH_DIFF_RAW_THRESHOLD
+
+
+def difficulty_float_from_raw(difficulty_raw: int) -> float:
+    """Interpret header difficulty as nibble-equivalent float."""
+    raw = int(difficulty_raw)
+    if is_smooth_difficulty_raw(raw):
+        return raw / float(DIFFICULTY_MILLI)
+    return float(raw)
+
+
+def encode_difficulty_milli(d: float) -> int:
+    """Encode nibble-equivalent float as milli integer for the header field."""
+    return max(1, int(round(float(d) * DIFFICULTY_MILLI)))
+
+
+def target_from_difficulty_float(d: float) -> int:
     """
-    Difficulty = number of leading zero hex nibbles required.
-    difficulty=4 => hash must start with '0000...'
+    Exclusive upper bound for hash integer: hash < target.
+    target = 2^256 / 16^d  (= 2^(256 - 4d)).
     """
-    if difficulty <= 0:
+    if d <= 0:
+        return 1 << 256
+    target = (Decimal(2) ** 256) / (Decimal(16) ** Decimal(str(d)))
+    t = int(target)
+    if t < 1:
+        return 1
+    return t
+
+
+def meets_difficulty(
+    hash_hex: str,
+    difficulty: Union[int, float],
+    *,
+    smooth: Optional[bool] = None,
+) -> bool:
+    """
+    Check proof-of-work.
+
+    Legacy (smooth=False): difficulty = leading zero hex nibbles.
+    Smooth (smooth=True): difficulty = milli-nibble (d*1000), continuous target.
+    If smooth is None, auto-detect: raw >= 100 → smooth.
+    """
+    raw = int(difficulty) if not isinstance(difficulty, float) else difficulty
+    if smooth is None:
+        if isinstance(difficulty, float):
+            smooth = True
+            d = float(difficulty)
+            return int(hash_hex, 16) < target_from_difficulty_float(d)
+        smooth = is_smooth_difficulty_raw(int(difficulty))
+
+    if not smooth:
+        n = int(difficulty)
+        if n <= 0:
+            return True
+        return hash_hex.startswith("0" * n)
+
+    d = difficulty_float_from_raw(int(difficulty)) if not isinstance(difficulty, float) else float(difficulty)
+    if d <= 0:
         return True
-    return hash_hex.startswith("0" * difficulty)
+    return int(hash_hex, 16) < target_from_difficulty_float(d)
 
 
-def expected_hashes(difficulty: int) -> float:
-    """Average hashes needed (each leading zero nibble is 1/16)."""
-    if difficulty <= 0:
+def expected_hashes(difficulty: Union[int, float], *, smooth: Optional[bool] = None) -> float:
+    """Average hashes needed for the given difficulty encoding."""
+    if isinstance(difficulty, float):
+        d = float(difficulty)
+        if d <= 0:
+            return 1.0
+        return float(16 ** d)
+    raw = int(difficulty)
+    if smooth is None:
+        smooth = is_smooth_difficulty_raw(raw)
+    if not smooth:
+        if raw <= 0:
+            return 1.0
+        return float(16 ** raw)
+    d = difficulty_float_from_raw(raw)
+    if d <= 0:
         return 1.0
-    return float(16**int(difficulty))
+    return float(16 ** d)
+
+
+def format_difficulty(difficulty_raw: int) -> str:
+    """Human-readable difficulty for logs and UI."""
+    raw = int(difficulty_raw)
+    if is_smooth_difficulty_raw(raw):
+        d = difficulty_float_from_raw(raw)
+        return f"{d:.3f} (smooth)"
+    return f"{raw} (nibble)"
 
 
 def format_duration(seconds: float) -> str:
@@ -120,11 +202,13 @@ def mine_block(
     Progress line shows H/s, % of expected work, elapsed, and ETA.
     """
     header = dict(header_template)
-    header["difficulty"] = difficulty
+    header["difficulty"] = int(difficulty)
     nonce = start_nonce
     tried = 0
     t0 = time.time()
     expect = expected_hashes(difficulty)
+    smooth = is_smooth_difficulty_raw(int(difficulty))
+    d_label = format_difficulty(int(difficulty))
 
     while True:
         header["nonce"] = nonce
@@ -140,19 +224,18 @@ def mine_block(
         if progress_every and tried % progress_every == 0:
             elapsed = max(time.time() - t0, 1e-6)
             rate = tried / elapsed
-            # progress vs average expected work (can go >100% — luck)
             pct = min(999.0, 100.0 * tried / expect) if expect > 0 else 0.0
             remain = max(0.0, expect - tried)
             eta_s = remain / rate if rate > 0 else float("inf")
-            # after 100% of expected, show "overdue (luck)" style ETA as next expect slice
             if tried >= expect:
                 eta_txt = f"overdue +{format_duration(elapsed - (expect / rate) if rate else 0)} (keep going)"
             else:
                 eta_txt = f"ETA ~{format_duration(eta_s)}"
+            mode = "smooth" if smooth else "nibble"
             print(
                 f"  … {rate:,.0f} H/s | {pct:.1f}% of avg | "
                 f"elapsed {format_duration(elapsed)} | {eta_txt} | "
-                f"{format_count(tried)}/{format_count(expect)} hashes   ",
+                f"{format_count(tried)}/{format_count(expect)} | {mode} {d_label}   ",
                 end="\r",
                 flush=True,
             )
@@ -165,7 +248,7 @@ def estimate_hashrate(seconds: float = 2.0) -> float:
         "prev_hash": "00" * 32,
         "merkle_root": "11" * 32,
         "timestamp": int(time.time()),
-        "difficulty": 99,  # impossible — just burn cycles
+        "difficulty": 99,  # impossible legacy — just burn cycles
         "nonce": 0,
     }
     t0 = time.time()
