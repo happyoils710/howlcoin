@@ -305,9 +305,14 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .bal .addr{font-family:ui-monospace,Menlo,monospace;font-size:.76rem;color:var(--muted);word-break:break-all;opacity:.9}
 .bal .sub-bal{font-size:.82rem;color:var(--muted);margin:2px 0 6px}
 .bal .sub-bal b{color:var(--text);font-weight:700}
+.wc-modal{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.72);
+  display:none;align-items:flex-end;justify-content:center;padding:16px;padding-bottom:calc(16px + var(--safe-b))}
+.wc-modal:not(.hidden){display:flex}
+.wc-modal-card{width:100%;max-width:440px;margin:0;max-height:85vh;overflow:auto}
+.wc-modal-detail{font-size:.7rem;white-space:pre-wrap;word-break:break-all;max-height:160px;overflow:auto;
+  background:var(--field-bg);padding:10px;border:1px solid var(--border)}
 .unit-toggle{display:inline-flex;gap:0;border:1px solid var(--border);border-radius:999px;
-  overflow:hidden;margin:4px auto 8px;background:var(--card2)}
-.unit-toggle button{border:0;background:transparent;color:var(--muted);font:inherit;font-weight:800;
+  overflow:hidden;margin:4px auto 8px;background:var(--card2)}.unit-toggle button{border:0;background:transparent;color:var(--muted);font:inherit;font-weight:800;
   font-size:.72rem;letter-spacing:.08em;padding:8px 16px;cursor:pointer;min-width:64px}
 .unit-toggle button.on{background:color-mix(in srgb,var(--green) 22%,transparent);color:var(--green)}
 .bal .price-hint{font-size:.68rem;color:var(--muted);opacity:.85;margin-bottom:4px}
@@ -756,6 +761,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
           <button type="button" class="menu-row" onclick="showPage('browser')"><span class="mi">◈</span><div><div class="mt">Howl Search</div><div class="ms">Search the open web · open any site or dapp</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('discover')"><span class="mi">✦</span><div><div class="mt">Discover</div><div class="ms">New crypto tech · scout agents</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('nft')"><span class="mi">◆</span><div><div class="mt">NFTs</div><div class="ms">Photo mint · multi-chain receive &amp; send</div></div><span class="chev">›</span></button>
+          <button type="button" class="menu-row" onclick="showPage('wc')"><span class="mi">🔗</span><div><div class="mt">WalletConnect</div><div class="ms" id="moreWcHint">Connect external dApps</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('oracle')"><span class="mi">◎</span><div><div class="mt">Oracle</div><div class="ms">Observe chains · post tips on HOWL</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('recv')"><span class="mi">↓</span><div><div class="mt">Deposits</div><div class="ms">HOWL · SOL · XTZ · ETH · tokens</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('send')"><span class="mi">↑</span><div><div class="mt">Send HOWL</div><div class="ms">Transfer on public chain</div></div><span class="chev">›</span></button>
@@ -1014,6 +1020,49 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       </div>
     </div>
 
+    <!-- WALLETCONNECT (external dApps) -->
+    <div class="page" id="p-wc">
+      <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>WalletConnect</h1></div>
+      <div class="panel">
+        <h2>Connect external dApps</h2>
+        <p class="hint">When you open a dApp <b>outside</b> Howl (Safari, Chrome, desktop), choose <b>WalletConnect</b> and paste the <span class="mono">wc:</span> link here — or open the deep link that launches this wallet. Approvals use your Howlcoin ETH address.</p>
+        <div class="item"><div>Status</div><div class="r" id="wcStatus" style="color:var(--text);font-size:.8rem">—</div></div>
+        <div class="item"><div>ETH account</div><div class="r mono" id="wcEthAddr" style="color:var(--cyan);font-size:.72rem;max-width:58%;overflow:hidden;text-overflow:ellipsis">—</div></div>
+        <div class="item"><div>Active chain</div><div class="r" id="wcChain" style="color:var(--text)">Ethereum</div></div>
+      </div>
+      <div class="panel">
+        <h2>Pair with dApp</h2>
+        <label>WalletConnect URI</label>
+        <input class="field" id="wcUri" placeholder="wc:…" spellcheck="false" autocomplete="off"/>
+        <button class="btn" type="button" onclick="wcPairFromInput()">Connect</button>
+        <button class="btn sec" type="button" onclick="wcPasteAndPair()">Paste &amp; connect</button>
+        <p class="err" id="wcErr"></p>
+        <p class="hint" id="wcHint">Tip: On mobile, many dApps open <span class="mono">howlscan.org/app#wc=…</span> automatically.</p>
+      </div>
+      <div class="panel">
+        <h2>Active sessions</h2>
+        <div id="wcSessions"><p class="hint">No sessions yet</p></div>
+        <button class="btn sec" type="button" onclick="wcRefreshSessions()">Refresh sessions</button>
+      </div>
+      <div class="panel">
+        <h2>Browser recognition</h2>
+        <p class="hint">This app also announces an <b>EIP-1193 / EIP-6963</b> provider as <b>Howlcoin</b> so dApps that support multi-wallet detection can pick it when injected (same app WebView). External browsers need WalletConnect above.</p>
+        <button class="btn sec" type="button" id="wcInjectBtn" onclick="wcToggleInject()">Enable in-page provider</button>
+        <p class="hint" id="wcInjectHint"></p>
+      </div>
+    </div>
+
+    <!-- WC approval modal -->
+    <div id="wcModal" class="wc-modal hidden">
+      <div class="panel wc-modal-card">
+        <h2 id="wcModalTitle">Approve request</h2>
+        <p class="hint" id="wcModalBody">—</p>
+        <pre id="wcModalDetail" class="mono wc-modal-detail"></pre>
+        <button class="btn" type="button" id="wcModalOk">Approve</button>
+        <button class="btn sec" type="button" id="wcModalNo">Reject</button>
+      </div>
+    </div>
+
     <!-- NFT MINT / GALLERY (multi-chain) -->
     <div class="page" id="p-nft">
       <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>NFTs</h1></div>
@@ -1216,6 +1265,10 @@ import {
   erc721TokenURIData, erc721TransferFromData, sendErc721Transfer,
   ethCall, decodeAbiString,
 } from "/assets/wallet-nft.mjs";
+import {
+  initWalletConnect, pairWithUri, listSessions, disconnectSession, getWcStatus,
+  createHowlEip1193Provider, installWindowEthereum, WC_CHAINS,
+} from "/assets/wallet-connect.mjs";
 
 const API = "";
 const ETH_RPC = "https://cloudflare-eth.com";
@@ -2544,6 +2597,11 @@ function showApp(){
   renderToolbar("home");
   refresh();
   setInterval(refresh, 15000);
+  // WalletConnect + injected provider after unlock
+  try{
+    installHowlProvider();
+    ensureWalletConnect().then(()=> tryConsumeWcDeepLink());
+  }catch(_){}
 }
 
 function updateSecUI(){
@@ -2709,6 +2767,7 @@ function showPage(name){
   if(name==="browser") initBrowserUI();
   if(name==="discover") loadDiscover(false);
   if(name==="nft"){ wireNftPage(); refreshNfts(); }
+  if(name==="wc"){ renderWcPage(); ensureWalletConnect(); }
   if(name==="oracle") refreshOracle();
   if(name==="toolbar") renderToolbarEditor();
   if(name==="appearance"){
@@ -4765,6 +4824,251 @@ async function mintNft(){
   }catch(e){ $("nftErr").textContent = e.message; }
 }
 
+/* —— WalletConnect + EIP-1193 —— */
+let wcProjectId = "";
+let wcInitPromise = null;
+let wcActiveChainId = 1;
+let howlProvider = null;
+let wcInjectEnabled = localStorage.getItem("howl_wc_inject") === "1";
+
+function wcApproval(opts){
+  return new Promise((resolve)=>{
+    const modal = $("wcModal");
+    if(!modal){ resolve(confirm(opts.message || "Approve?")); return; }
+    modal.classList.remove("hidden");
+    if($("wcModalTitle")) $("wcModalTitle").textContent = opts.type === "connect" ? "Connect dApp" : (opts.type === "tx" ? "Approve transaction" : "Approve signature");
+    if($("wcModalBody")) $("wcModalBody").textContent = opts.message || "Approve this request?";
+    if($("wcModalDetail")) $("wcModalDetail").textContent = opts.detail || opts.method || "";
+    const ok = $("wcModalOk");
+    const no = $("wcModalNo");
+    const done = (v)=>{
+      modal.classList.add("hidden");
+      if(ok) ok.onclick = null;
+      if(no) no.onclick = null;
+      resolve(v);
+    };
+    if(ok) ok.onclick = ()=> done(true);
+    if(no) no.onclick = ()=> done(false);
+  });
+}
+
+function wcGetRpc(chainId){
+  const id = Number(chainId || wcActiveChainId || 1);
+  const hit = Object.values(WC_CHAINS || {}).find(c => c.chainId === id);
+  if(hit?.rpc) return hit.rpc;
+  if(id === 1) return ETH_RPC;
+  const ev = Object.entries(EVM_CHAINS || {}).find(([, v]) => {
+    // EVM_CHAINS doesn't store chainId numbers consistently — map known
+    return false;
+  });
+  const map = { 1: "eth", 10: "op", 8453: "base", 56: "bnb", 43114: "avax" };
+  const evmId = map[id];
+  return (evmId && EVM_CHAINS[evmId]?.rpc) || ETH_RPC;
+}
+
+function installHowlProvider(){
+  if(!ethInfo?.address || !ethInfo?.privateKeyHex) return null;
+  howlProvider = createHowlEip1193Provider({
+    getAddress: ()=> ethInfo?.address || null,
+    getPrivateKey: ()=> ethInfo?.privateKeyHex || null,
+    getChainId: ()=> wcActiveChainId || 1,
+    getRpc: (cid)=> wcGetRpc(cid),
+    onRequestApproval: (req)=> wcApproval(req),
+  });
+  if(wcInjectEnabled){
+    installWindowEthereum(howlProvider, { announce: true });
+  }
+  return howlProvider;
+}
+
+async function ensureWalletConnect(){
+  if(!ethInfo){
+    if($("wcStatus")) $("wcStatus").textContent = "Unlock wallet first";
+    return false;
+  }
+  installHowlProvider();
+  if(wcInitPromise) return wcInitPromise;
+  wcInitPromise = (async ()=>{
+    try{
+      if(!wcProjectId){
+        const cfg = await api("/api/public/walletconnect").catch(()=>({}));
+        wcProjectId = cfg.projectId || window.HOWL_WC_PROJECT_ID || "";
+      }
+      if(!wcProjectId){
+        if($("wcStatus")) $("wcStatus").textContent = "Needs project ID";
+        if($("wcHint")) $("wcHint").textContent = "Server: set HOWL_WC_PROJECT_ID from https://cloud.reown.com (free). Then restart Howlscan.";
+        if($("moreWcHint")) $("moreWcHint").textContent = "Setup project ID";
+        return false;
+      }
+      if($("wcStatus")) $("wcStatus").textContent = "Connecting relay…";
+      const res = await initWalletConnect({
+        projectId: wcProjectId,
+        getAddress: ()=> ethInfo?.address,
+        getPrivateKey: ()=> ethInfo?.privateKeyHex,
+        getChainId: ()=> wcActiveChainId || 1,
+        getRpc: (cid)=> wcGetRpc(cid),
+        onSessionProposal: async (proposal)=>{
+          const meta = proposal?.params?.proposer?.metadata || {};
+          showPage("wc");
+          return wcApproval({
+            type: "connect",
+            method: "session_proposal",
+            message: `Connect to ${meta.name || "dApp"}?`,
+            detail: `${meta.url || ""}\n${meta.description || ""}\nChains: ${(proposal?.params?.requiredNamespaces?.eip155?.chains || []).join(", ")}`,
+          });
+        },
+        onSessionRequest: async (req)=>{
+          showPage("wc");
+          return wcApproval({
+            type: req.method?.includes("send") || req.method?.includes("Transaction") ? "tx" : "sign",
+            method: req.method,
+            message: `${req.method} from connected dApp`,
+            detail: req.detail || "",
+          });
+        },
+        onSessionDelete: ()=>{
+          toast("dApp disconnected");
+          wcRefreshSessions();
+        },
+      });
+      if(!res.ok){
+        if($("wcStatus")) $("wcStatus").textContent = "Failed: " + (res.error || "");
+        if($("wcHint")) $("wcHint").textContent = res.error || "WalletConnect failed to load";
+        return false;
+      }
+      if($("wcStatus")) $("wcStatus").textContent = "Ready · listening";
+      if($("moreWcHint")) $("moreWcHint").textContent = "Ready for dApps";
+      wcRefreshSessions();
+      // deep link after init
+      tryConsumeWcDeepLink();
+      return true;
+    }catch(e){
+      if($("wcStatus")) $("wcStatus").textContent = "Error";
+      if($("wcErr")) $("wcErr").textContent = e.message || String(e);
+      wcInitPromise = null;
+      return false;
+    }
+  })();
+  return wcInitPromise;
+}
+
+function renderWcPage(){
+  if($("wcEthAddr")) $("wcEthAddr").textContent = ethInfo?.address || "—";
+  if($("wcChain")){
+    const c = Object.values(WC_CHAINS).find(x => x.chainId === wcActiveChainId);
+    $("wcChain").textContent = (c?.name || "Ethereum") + " (" + wcActiveChainId + ")";
+  }
+  if($("wcInjectHint")){
+    $("wcInjectHint").textContent = wcInjectEnabled
+      ? "In-page provider ON — window.ethereum / Howlcoin (EIP-6963) announced"
+      : "In-page provider off — enable if a dApp loads inside this app and asks for a wallet";
+  }
+  if($("wcInjectBtn")) $("wcInjectBtn").textContent = wcInjectEnabled ? "Disable in-page provider" : "Enable in-page provider";
+  const st = getWcStatus();
+  if($("wcStatus") && st.ready) $("wcStatus").textContent = "Ready · listening";
+  else if($("wcStatus") && st.error) $("wcStatus").textContent = st.error;
+  wcRefreshSessions();
+}
+
+function wcRefreshSessions(){
+  const el = $("wcSessions");
+  if(!el) return;
+  const sessions = listSessions();
+  if(!sessions.length){
+    el.innerHTML = `<p class="hint">No active sessions — pair a dApp above</p>`;
+    return;
+  }
+  el.innerHTML = sessions.map(s=>{
+    const meta = s.peer?.metadata || {};
+    const topic = s.topic || "";
+    return `<div class="item">
+      <div style="min-width:0">
+        <div><b>${escHtml(meta.name || "dApp")}</b></div>
+        <div class="m" style="font-size:.72rem">${escHtml(meta.url || topic.slice(0,16))}</div>
+      </div>
+      <button class="btn sec" style="width:auto;margin:0;padding:6px 10px;min-height:0;font-size:.65rem" type="button"
+        onclick="wcDisconnect('${escAttr(topic)}')">Disconnect</button>
+    </div>`;
+  }).join("");
+}
+
+async function wcPairFromInput(){
+  if($("wcErr")) $("wcErr").textContent = "";
+  try{
+    const uri = ($("wcUri")?.value || "").trim();
+    if(!uri) throw new Error("Paste a wc:… URI from the dApp");
+    const ok = await ensureWalletConnect();
+    if(!ok) throw new Error("WalletConnect not ready — check project ID");
+    toast("Pairing…");
+    await pairWithUri(uri);
+    toast("Paired — approve the connection prompt");
+    if($("wcUri")) $("wcUri").value = "";
+    setTimeout(wcRefreshSessions, 800);
+  }catch(e){
+    if($("wcErr")) $("wcErr").textContent = e.message || String(e);
+  }
+}
+
+async function wcPasteAndPair(){
+  try{
+    const t = await navigator.clipboard.readText();
+    if($("wcUri")) $("wcUri").value = (t || "").trim();
+    await wcPairFromInput();
+  }catch(e){
+    if($("wcErr")) $("wcErr").textContent = "Clipboard blocked — paste manually into the field";
+  }
+}
+
+async function wcDisconnect(topic){
+  try{
+    await disconnectSession(topic);
+    toast("Disconnected");
+    wcRefreshSessions();
+  }catch(e){ toast(e.message || "Disconnect failed"); }
+}
+
+function wcToggleInject(){
+  wcInjectEnabled = !wcInjectEnabled;
+  localStorage.setItem("howl_wc_inject", wcInjectEnabled ? "1" : "0");
+  if(wcInjectEnabled){
+    installHowlProvider();
+    toast("Howlcoin provider enabled");
+  } else {
+    toast("In-page provider disabled (WalletConnect still works)");
+  }
+  renderWcPage();
+}
+
+/** Parse wc: URI from location hash/query after unlock */
+function tryConsumeWcDeepLink(){
+  try{
+    const hash = location.hash || "";
+    const search = location.search || "";
+    let uri = "";
+    // #wc=wc:... or #/wc?uri= or ?uri=wc:
+    const m1 = hash.match(/[#&?]wc=(wc%3A[^&]+|wc:[^&]+)/i) || hash.match(/uri=(wc%3A[^&]+|wc:[^&]+)/i);
+    const m2 = search.match(/[?&](?:uri|wc)=(wc%3A[^&]+|wc:[^&]+)/i);
+    const raw = (m1 && m1[1]) || (m2 && m2[1]) || "";
+    if(raw) uri = decodeURIComponent(raw);
+    // also support full hash #wc:xxxxx (some wallets)
+    if(!uri && hash.startsWith("#wc:")) uri = decodeURIComponent(hash.slice(1));
+    if(!uri || !uri.startsWith("wc:")) return false;
+    if($("wcUri")) $("wcUri").value = uri;
+    showPage("wc");
+    ensureWalletConnect().then((ok)=>{
+      if(ok) pairWithUri(uri).then(()=> toast("WalletConnect pair started")).catch(e=>{
+        if($("wcErr")) $("wcErr").textContent = e.message;
+      });
+    });
+    // clean URL so we don't re-pair forever
+    try{
+      history.replaceState(null, "", location.pathname + location.search.replace(/[?&](uri|wc)=[^&]*/g, "").replace(/^&/, "?"));
+      if(location.hash.includes("wc")) history.replaceState(null, "", location.pathname + location.search);
+    }catch(_){}
+    return true;
+  }catch(_){ return false; }
+}
+
 async function transferNft(){
   $("nftXferErr").textContent="";
   try{
@@ -5509,6 +5813,11 @@ window.refreshNfts = refreshNfts;
 window.copyNftRecvAddr = copyNftRecvAddr;
 window.watchNftFromForm = watchNftFromForm;
 window.wireNftPage = wireNftPage;
+window.wcPairFromInput = wcPairFromInput;
+window.wcPasteAndPair = wcPasteAndPair;
+window.wcRefreshSessions = wcRefreshSessions;
+window.wcToggleInject = wcToggleInject;
+window.wcDisconnect = wcDisconnect;
 window.observeChains = observeChains;
 window.postOracleManual = postOracleManual;
 // expose for dapp address copy handlers

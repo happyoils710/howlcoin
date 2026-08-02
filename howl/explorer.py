@@ -188,6 +188,8 @@ HOWL_SPL_MINT = os.environ.get("HOWL_SPL_MINT", "").strip()
 HOWL_SITE = os.environ.get("HOWL_SITE", "https://howlscan.org").rstrip("/")
 HOWL_GITHUB = os.environ.get("HOWL_GITHUB", "https://github.com/happyoils710/howlcoin")
 HOWL_SEED = os.environ.get("HOWL_SEED", "147.182.223.204:42069")
+# WalletConnect / Reown Cloud project id (public client id — free at cloud.reown.com)
+HOWL_WC_PROJECT_ID = os.environ.get("HOWL_WC_PROJECT_ID", "").strip()
 # NFT media uploads (compressed images for Howlcoin mints)
 MEDIA_DIR = Path(
     os.environ.get(
@@ -2684,6 +2686,38 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                 if path in ("/api/public/prices", "/api/prices"):
                     force = (qs.get("force") or ["0"])[0] in ("1", "true", "yes")
                     return self._json(200, fetch_market_prices(force=force))
+
+                # WalletConnect config (projectId is a public client id)
+                if path in (
+                    "/api/public/walletconnect",
+                    "/api/walletconnect",
+                    "/api/public/wc",
+                ):
+                    pid = HOWL_WC_PROJECT_ID
+                    return self._json(
+                        200,
+                        {
+                            "enabled": bool(pid),
+                            "projectId": pid,
+                            "metadata": {
+                                "name": "Howlcoin Wallet",
+                                "description": "Howlcoin multi-chain wallet",
+                                "url": HOWL_SITE,
+                                "icons": [
+                                    f"{HOWL_SITE}/assets/howlcoin-logo-meme-pup-coin.jpg"
+                                ],
+                            },
+                            "deepLink": f"{HOWL_SITE}/app",
+                            "setup": "Create a free project at https://cloud.reown.com and set HOWL_WC_PROJECT_ID on the server",
+                            "chains": [
+                                "eip155:1",
+                                "eip155:10",
+                                "eip155:8453",
+                                "eip155:56",
+                                "eip155:43114",
+                            ],
+                        },
+                    )
 
                 # Solana balance / history proxy (public RPCs block browser Origin: howlscan.org)
                 if path in ("/api/public/sol/balance", "/api/sol/balance"):
