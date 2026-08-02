@@ -455,3 +455,102 @@ class Blockchain:
             "algo": "scrypt (N=1024,r=1,p=1)",
             "block_time_target": f"{BLOCK_TIME_SECONDS}s",
         }
+
+    # ---------- explorer queries ----------
+
+    def get_block(self, height_or_hash: str) -> Optional[Dict[str, Any]]:
+        s = str(height_or_hash).strip()
+        if s.isdigit():
+            h = int(s)
+            if 0 <= h < len(self.blocks):
+                return self.blocks[h]
+            return None
+        s = s.lower()
+        for b in self.blocks:
+            if b.get("hash", "").lower() == s or b.get("hash", "").lower().startswith(s):
+                return b
+        return None
+
+    def recent_blocks(self, limit: int = 25) -> List[Dict[str, Any]]:
+        limit = max(1, min(200, limit))
+        out = []
+        for b in reversed(self.blocks[-limit:]):
+            txs = b.get("transactions") or []
+            coinbase = next((t for t in txs if t.get("type") == "coinbase"), None)
+            out.append(
+                {
+                    "height": b["height"],
+                    "hash": b["hash"],
+                    "timestamp": b["header"].get("timestamp"),
+                    "difficulty": b["header"].get("difficulty"),
+                    "tx_count": len(txs),
+                    "miner": (coinbase or {}).get("to"),
+                    "reward": (coinbase or {}).get("amount", 0),
+                }
+            )
+        return out
+
+    def find_tx(self, txid_q: str) -> Optional[Dict[str, Any]]:
+        q = txid_q.strip().lower()
+        for b in self.blocks:
+            for tx in b.get("transactions") or []:
+                tid = (tx.get("txid") or "").lower()
+                if tid == q or tid.startswith(q):
+                    return {
+                        "tx": tx,
+                        "block_height": b["height"],
+                        "block_hash": b["hash"],
+                        "confirmed": True,
+                    }
+        for tx in self.mempool:
+            tid = (tx.get("txid") or "").lower()
+            if tid == q or tid.startswith(q):
+                return {"tx": tx, "confirmed": False, "block_height": None, "block_hash": None}
+        return None
+
+    def address_history(self, address: str, limit: int = 50) -> Dict[str, Any]:
+        txs = []
+        for b in self.blocks:
+            for tx in b.get("transactions") or []:
+                if tx.get("type") == "coinbase" and tx.get("to") == address:
+                    txs.append(
+                        {
+                            "txid": tx.get("txid"),
+                            "type": "coinbase",
+                            "amount": tx.get("amount"),
+                            "block_height": b["height"],
+                            "block_hash": b["hash"],
+                            "direction": "in",
+                        }
+                    )
+                elif tx.get("from") == address or tx.get("to") == address:
+                    direction = "out" if tx.get("from") == address else "in"
+                    txs.append(
+                        {
+                            "txid": tx.get("txid"),
+                            "type": "transfer",
+                            "from": tx.get("from"),
+                            "to": tx.get("to"),
+                            "amount": tx.get("amount"),
+                            "fee": tx.get("fee", 0),
+                            "block_height": b["height"],
+                            "block_hash": b["hash"],
+                            "direction": direction,
+                        }
+                    )
+        txs = list(reversed(txs))[:limit]
+        return {
+            "address": address,
+            "balance": self.balance(address),
+            "balance_fmt": format_howl(self.balance(address)),
+            "nonce": self.next_nonce(address),
+            "tx_count": len(txs),
+            "transactions": txs,
+        }
+
+    def reload_from_disk(self) -> None:
+        """Re-read chain.json (for explorer watching live nodes)."""
+        if self.chain_path.exists():
+            self._load()
+            self._load_mempool()
+

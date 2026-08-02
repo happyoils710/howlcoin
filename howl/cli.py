@@ -360,14 +360,32 @@ def cmd_peers(args: argparse.Namespace) -> None:
     print(peer_file.read_text())
 
 
+def cmd_explorer(args: argparse.Namespace) -> None:
+    """Multi-chain block explorer (public + telegram data dirs)."""
+    from .explorer import main as explorer_main
+
+    explorer_main(
+        host=args.host,
+        port=args.port,
+        public_dir=args.public_data,
+        telegram_dir=args.telegram_data,
+    )
+
+
 def cmd_telegram(args: argparse.Namespace) -> None:
     """Run the Howlcoin Telegram bot (needs HOWL_TELEGRAM_TOKEN)."""
     import os
 
     if args.token:
         os.environ["HOWL_TELEGRAM_TOKEN"] = args.token
-    if args.data_dir:
-        os.environ["HOWL_DATA_DIR"] = args.data_dir
+    # Prefer explicit env HOWL_DATA_DIR; only override if user passed non-default --data-dir
+    # or if HOWL_DATA_DIR is unset.
+    if not os.environ.get("HOWL_DATA_DIR"):
+        os.environ["HOWL_DATA_DIR"] = str(
+            Path(args.data_dir).expanduser() if args.data_dir else Path.home() / ".howlcoin-telegram"
+        )
+    elif getattr(args, "data_dir", None) and str(args.data_dir) != str(DEFAULT_DATA_DIR):
+        os.environ["HOWL_DATA_DIR"] = str(Path(args.data_dir).expanduser())
     if args.seed:
         os.environ["HOWL_SEED"] = args.seed
     if args.cooldown:
@@ -487,6 +505,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="seconds between /mine per user (default 120)",
     )
     s.set_defaults(func=cmd_telegram)
+
+    s = sub.add_parser("explorer", help="block explorer for public + telegram chains")
+    s.add_argument("--host", default="127.0.0.1", help="bind host (0.0.0.0 for LAN/public)")
+    s.add_argument("--port", type=int, default=42080, help="port (default 42080)")
+    s.add_argument(
+        "--public-data",
+        default=None,
+        help="public chain data dir (default ~/.howlcoin or HOWL_PUBLIC_DATA)",
+    )
+    s.add_argument(
+        "--telegram-data",
+        default=None,
+        help="telegram bot chain data dir (default ~/.howlcoin-telegram)",
+    )
+    s.set_defaults(func=cmd_explorer)
 
     return p
 
