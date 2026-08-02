@@ -9,6 +9,7 @@ import { sha512 } from "https://esm.sh/@noble/hashes@1.4.0/sha512";
 import { sha1 } from "https://esm.sh/@noble/hashes@1.4.0/sha1";
 import { keccak_256 } from "https://esm.sh/@noble/hashes@1.4.0/sha3";
 import * as secp from "https://esm.sh/@noble/secp256k1@1.7.1";
+import { ed25519 } from "https://esm.sh/@noble/curves@1.4.2/ed25519.js";
 import { generateMnemonic, validateMnemonic, mnemonicToSeedSync } from "https://esm.sh/@scure/bip39@1.3.0";
 import { wordlist } from "https://esm.sh/@scure/bip39@1.3.0/wordlists/english";
 
@@ -203,6 +204,55 @@ export function ethAddressFromMnemonic(phrase, index = 0, passphrase = "") {
   };
 }
 
+// --- Solana (ed25519 / SLIP-0010) — Phantom path m/44'/501'/0'/0' ---
+function slip10MasterEd25519(seed) {
+  const I = hmac(sha512, new TextEncoder().encode("ed25519 seed"), seed);
+  return [I.slice(0, 32), I.slice(32)];
+}
+
+function slip10CkdEd25519(parentKey, parentChain, index) {
+  // Ed25519 SLIP-0010: only hardened derivation
+  if (index < 0x80000000) index = index | 0x80000000;
+  const data = concat(new Uint8Array([0]), parentKey, ser32(index >>> 0));
+  const I = hmac(sha512, parentChain, data);
+  return [I.slice(0, 32), I.slice(32)];
+}
+
+function deriveEd25519Path(seed, path) {
+  let [key, chain] = slip10MasterEd25519(seed);
+  for (const index of path) {
+    [key, chain] = slip10CkdEd25519(key, chain, index);
+  }
+  return key;
+}
+
+export function solPath(account = 0) {
+  // m/44'/501'/account'/0'  (Phantom-compatible)
+  return [
+    44 | 0x80000000,
+    501 | 0x80000000,
+    account | 0x80000000,
+    0 | 0x80000000,
+  ];
+}
+
+/** Solana address from same mnemonic (ed25519). */
+export function solAddressFromMnemonic(phrase, account = 0, passphrase = "") {
+  const norm = phrase.trim().toLowerCase().split(/\s+/).join(" ");
+  if (!validateMnemonic(norm, wordlist)) throw new Error("Invalid BIP39 mnemonic");
+  const seed = mnemonicToSeedSync(norm, passphrase);
+  const priv = deriveEd25519Path(seed, solPath(account));
+  const pub = ed25519.getPublicKey(priv);
+  // Solana address = base58(publicKey)
+  const address = base58Encode(pub);
+  return {
+    address,
+    privateKeyHex: bytesToHex(priv),
+    publicKeyHex: bytesToHex(pub),
+    path: `m/44'/501'/${account}'/0'`,
+  };
+}
+
 // --- Google Authenticator TOTP (RFC 6238) ---
 const B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
@@ -277,6 +327,7 @@ export function totpOtpauthUrl(secret, accountName = "Howlcoin", issuer = "Howlc
 /** Well-known ERC-20 tokens (Ethereum mainnet) for deposit UI */
 export const PRESET_ASSETS = [
   { id: "howl", symbol: "HOWL", name: "Howlcoin", network: "Howlcoin", kind: "howl" },
+  { id: "sol", symbol: "SOL", name: "Solana", network: "Solana", kind: "sol" },
   { id: "eth", symbol: "ETH", name: "Ethereum", network: "Ethereum", kind: "eth" },
   {
     id: "usdt",
@@ -294,6 +345,24 @@ export const PRESET_ASSETS = [
     network: "Ethereum (ERC-20)",
     kind: "erc20",
     contract: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    decimals: 6,
+  },
+  {
+    id: "usdt_sol",
+    symbol: "USDT",
+    name: "Tether (Solana)",
+    network: "Solana (SPL)",
+    kind: "spl",
+    mint: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+    decimals: 6,
+  },
+  {
+    id: "usdc_sol",
+    symbol: "USDC",
+    name: "USD Coin (Solana)",
+    network: "Solana (SPL)",
+    kind: "spl",
+    mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
     decimals: 6,
   },
   {
