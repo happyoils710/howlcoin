@@ -2,8 +2,6 @@
 //  ContentView.swift
 //  howlwallet
 //
-//  Created by  on 8/2/26.
-//
 
 import SwiftUI
 
