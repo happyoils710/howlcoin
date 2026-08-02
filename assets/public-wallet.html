@@ -161,6 +161,24 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .theme-pill small{display:block;font-weight:500;color:var(--muted);font-size:.7rem;margin-top:4px}
 .page{display:none}.page.on{display:block;animation:fadein .25s ease}
 @keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* Assets hub */
+.chain-select{width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--border);
+  background:var(--field-bg);color:var(--text);font:inherit;font-weight:700;margin:0 0 12px}
+.asset-row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:1px solid var(--border);
+  background:var(--card2);border-radius:16px;padding:12px 14px;margin:0 0 10px;cursor:pointer;color:var(--text);font:inherit}
+.asset-row:active{border-color:var(--green)}
+.asset-row .ico{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:.85rem;background:color-mix(in srgb,var(--green) 12%,transparent);color:var(--green);flex-shrink:0}
+.asset-row .meta{flex:1;min-width:0}
+.asset-row .sym{font-weight:800;font-size:1.02rem}
+.asset-row .nm{font-size:.78rem;color:var(--muted)}
+.asset-row .bal{font-weight:700;color:var(--cyan);font-size:.95rem;text-align:right}
+.asset-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.asset-actions .btn{margin:0;min-height:48px;font-size:.78rem}
+.tx-row{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:.88rem}
+.tx-row .dir.in{color:var(--green);font-weight:700}
+.tx-row .dir.out{color:var(--amber);font-weight:700}
+.tx-row .sub{font-size:.72rem;color:var(--muted);word-break:break-all}
 /* Pull-to-refresh */
 .ptr{position:fixed;left:50%;top:calc(8px + var(--safe-t));z-index:40;transform:translate(-50%,-120%);
   display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;
@@ -457,8 +475,54 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <div class="item"><div>Security</div><div class="r" id="secStatus" style="color:var(--text);font-size:.8rem">PIN</div></div>
       </div>
       <div class="panel">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">
+          <h2 style="margin:0">Assets</h2>
+          <button type="button" class="chip" style="cursor:pointer" onclick="showPage('assets')">All chains ›</button>
+        </div>
+        <label style="margin-bottom:6px">Chain</label>
+        <select class="chain-select" id="homeChainSelect" onchange="selectedChain=this.value;renderHomeAssets()"></select>
+        <div id="homeAssetList"><p class="hint">Loading assets…</p></div>
+      </div>
+      <div class="panel">
         <h2>HOWL activity</h2>
         <div id="activity"><p class="hint">Syncing…</p></div>
+      </div>
+    </div>
+
+    <!-- ASSETS BY CHAIN -->
+    <div class="page" id="p-assets">
+      <div class="page-head"><button type="button" class="back" onclick="showPage('home')">‹ Home</button><h1>Assets</h1></div>
+      <div class="panel">
+        <h2>Select chain</h2>
+        <select class="chain-select" id="assetsChainSelect" onchange="selectedChain=this.value;renderAssetsList()"></select>
+        <p class="hint">Tap an asset for deposit, swap, send, and transaction history.</p>
+      </div>
+      <div class="panel">
+        <h2 id="assetsListTitle">Assets</h2>
+        <div id="assetsList"><p class="hint">Loading…</p></div>
+      </div>
+    </div>
+
+    <!-- SINGLE ASSET DETAIL -->
+    <div class="page" id="p-asset">
+      <div class="page-head"><button type="button" class="back" onclick="showPage('assets')">‹ Assets</button><h1 id="assetDetailTitle">Asset</h1></div>
+      <div class="panel" style="text-align:center">
+        <div class="badge on" id="assetNetBadge">—</div>
+        <div class="bal" style="margin:12px 0;border:0;box-shadow:none;background:transparent;padding:8px">
+          <div class="amt" id="assetDetailBal" style="font-size:1.8rem">—</div>
+          <div class="lbl" id="assetDetailName">—</div>
+        </div>
+        <div class="mono" id="assetDetailAddr" style="font-size:.78rem;margin-bottom:8px" onclick="copyAssetAddress()" title="Copy">—</div>
+        <div class="asset-actions" id="assetActions"></div>
+      </div>
+      <div class="panel">
+        <h2>Receive / deposit</h2>
+        <div id="assetDepositMini"><p class="hint">—</p></div>
+      </div>
+      <div class="panel">
+        <h2>Transactions</h2>
+        <p class="hint" id="assetTxHint">Deposits and sends for this asset</p>
+        <div id="assetTxList"><p class="hint">Loading…</p></div>
       </div>
     </div>
 
@@ -467,6 +531,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       <div class="panel">
         <h2>Apps</h2>
         <div class="menu-list">
+          <button type="button" class="menu-row" onclick="showPage('assets')"><span class="mi">◈</span><div><div class="mt">Assets</div><div class="ms">By chain · deposit · history</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('swap')"><span class="mi">⇄</span><div><div class="mt">Swap</div><div class="ms">Jupiter · Howl Swap (→ HOWL)</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('browser')"><span class="mi">◈</span><div><div class="mt">Howl Search</div><div class="ms">Search the open web · open any site or dapp</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('discover')"><span class="mi">✦</span><div><div class="mt">Discover</div><div class="ms">New crypto tech · scout agents</div></div><span class="chev">›</span></button>
@@ -939,14 +1004,23 @@ const TOOLBAR_CATALOG = [
   { id: "home", label: "Home", icon: "⌂", page: "home", fixed: true },
   { id: "send", label: "Send", icon: "↑", page: "send" },
   { id: "recv", label: "Deposit", icon: "↓", page: "recv" },
-  { id: "browser", label: "Search", icon: "◈", page: "browser" },
+  { id: "assets", label: "Assets", icon: "◈", page: "assets" },
+  { id: "browser", label: "Search", icon: "⌕", page: "browser" },
   { id: "discover", label: "Discover", icon: "✦", page: "discover" },
   { id: "swap", label: "Swap", icon: "⇄", page: "swap" },
   { id: "nft", label: "NFT", icon: "◆", page: "nft" },
   { id: "oracle", label: "Oracle", icon: "◎", page: "oracle" },
   { id: "more", label: "More", icon: "☰", page: "more", fixed: true },
 ];
-const DEFAULT_TOOLBAR = ["home", "discover", "browser", "recv", "more"];
+const DEFAULT_TOOLBAR = ["home", "assets", "swap", "recv", "more"];
+
+/** Chains for asset browser */
+const ASSET_CHAINS = [
+  { id: "howl", label: "Howlcoin", kinds: ["howl"] },
+  { id: "solana", label: "Solana", kinds: ["sol", "spl"] },
+  { id: "ethereum", label: "Ethereum", kinds: ["eth", "erc20"] },
+  { id: "tezos", label: "Tezos", kinds: ["xtz"] },
+];
 
 let keypair = null;
 let ethInfo = null;
@@ -957,6 +1031,8 @@ let walletPin = null; // session-only after unlock
 let meta = { totpEnabled: false }; // totp secret lives inside encrypted blob
 let totpSecretPending = null;
 let selectedAsset = "howl";
+let selectedChain = "howl";
+let detailAssetId = "howl";
 let chainInfo = { height: 0, nonce: 0, balance: 0n, txs: [] };
 let minFeeHowl = 1;
 let ethBalances = {}; // id -> display string
@@ -1177,6 +1253,227 @@ function allAssets(){
   }))];
 }
 
+function chainOfAsset(a){
+  if(!a) return "howl";
+  if(a.kind === "howl") return "howl";
+  if(a.kind === "sol" || a.kind === "spl") return "solana";
+  if(a.kind === "eth" || a.kind === "erc20") return "ethereum";
+  if(a.kind === "xtz") return "tezos";
+  return "howl";
+}
+function assetsForChain(chainId){
+  const ch = ASSET_CHAINS.find(c => c.id === chainId) || ASSET_CHAINS[0];
+  return allAssets().filter(a => ch.kinds.includes(a.kind));
+}
+function assetBalanceText(a){
+  if(!a) return "—";
+  if(a.kind === "howl") return formatHowl(chainInfo.balance).replace(" HOWL","");
+  return ethBalances[a.id] != null ? ethBalances[a.id] : "…";
+}
+function assetAddress(a){
+  if(!a) return "";
+  if(a.kind === "howl") return keypair?.address || "";
+  if(a.kind === "sol" || a.kind === "spl") return solInfo?.address || "";
+  if(a.kind === "xtz") return xtzInfo?.address || "";
+  return ethInfo?.address || "";
+}
+function fillChainSelects(){
+  ["homeChainSelect", "assetsChainSelect"].forEach(id=>{
+    const el = $(id);
+    if(!el) return;
+    el.innerHTML = ASSET_CHAINS.map(c=>
+      `<option value="${c.id}" ${c.id===selectedChain?"selected":""}>${c.label}</option>`
+    ).join("");
+  });
+}
+function renderAssetRows(containerId){
+  const el = $(containerId);
+  if(!el) return;
+  const list = assetsForChain(selectedChain);
+  if(!list.length){
+    el.innerHTML = `<p class="hint">No assets on this chain</p>`;
+    return;
+  }
+  el.innerHTML = list.map(a=>`
+    <button type="button" class="asset-row" data-id="${escHtml(a.id)}">
+      <span class="ico">${escHtml((a.symbol||"?").slice(0,4))}</span>
+      <div class="meta">
+        <div class="sym">${escHtml(a.symbol)}</div>
+        <div class="nm">${escHtml(a.name||a.network||"")}</div>
+      </div>
+      <div class="bal">${escHtml(assetBalanceText(a))}</div>
+    </button>`).join("");
+  el.querySelectorAll(".asset-row").forEach(btn=>{
+    btn.onclick = ()=> openAssetDetail(btn.dataset.id);
+  });
+}
+function renderHomeAssets(){
+  fillChainSelects();
+  if($("assetsListTitle")){
+    const ch = ASSET_CHAINS.find(c=>c.id===selectedChain);
+    $("assetsListTitle").textContent = (ch?.label || "Assets") + " assets";
+  }
+  renderAssetRows("homeAssetList");
+}
+function renderAssetsList(){
+  fillChainSelects();
+  if($("assetsListTitle")){
+    const ch = ASSET_CHAINS.find(c=>c.id===selectedChain);
+    $("assetsListTitle").textContent = (ch?.label || "Assets") + " assets";
+  }
+  renderAssetRows("assetsList");
+}
+function openAssetDetail(id){
+  detailAssetId = id || selectedAsset || "howl";
+  selectedAsset = detailAssetId;
+  const a = allAssets().find(x=>x.id===detailAssetId);
+  if(a) selectedChain = chainOfAsset(a);
+  showPage("asset");
+}
+function copyAssetAddress(){
+  const a = allAssets().find(x=>x.id===detailAssetId);
+  copyText(assetAddress(a));
+}
+function assetActions(a){
+  const acts = [];
+  if(!a) return acts;
+  acts.push({ label: "Deposit / receive", fn: ()=>{ selectedAsset=a.id; showPage("recv"); selectAsset(a.id); } });
+  acts.push({ label: "Copy address", fn: ()=> copyText(assetAddress(a)) });
+  if(a.kind === "howl"){
+    acts.push({ label: "Send HOWL", fn: ()=> showPage("send") });
+    acts.push({ label: "Howl Swap (get HOWL)", fn: ()=>{ showPage("swap"); setSwapMode("howl"); } });
+    acts.push({ label: "Explorer", fn: ()=> openExternalUrl("https://howlscan.org/#/public/address/"+encodeURIComponent(keypair.address)) });
+  }
+  if(a.kind === "sol" || a.kind === "spl"){
+    acts.push({ label: "Swap (Jupiter)", fn: ()=>{ showPage("swap"); setSwapMode("jup"); } });
+    if(a.id === "sol" || a.id === "usdc_sol" || a.symbol === "USDC"){
+      acts.push({ label: "Howl Swap → HOWL", fn: ()=>{ showPage("swap"); setSwapMode("howl"); if($("bridgeAsset")) $("bridgeAsset").value = a.id==="sol"?"sol":"usdc"; } });
+    }
+    acts.push({ label: "Explorer", fn: ()=> openExternalUrl("https://solscan.io/account/"+encodeURIComponent(solInfo?.address||"")) });
+  }
+  if(a.kind === "eth" || a.kind === "erc20"){
+    acts.push({ label: "Uniswap", fn: ()=> openDapp("https://app.uniswap.org/") });
+    acts.push({ label: "Explorer", fn: ()=> openExternalUrl("https://etherscan.io/address/"+encodeURIComponent(ethInfo?.address||"")) });
+  }
+  if(a.kind === "xtz"){
+    acts.push({ label: "Explorer", fn: ()=> openExternalUrl("https://tzkt.io/"+encodeURIComponent(xtzInfo?.address||"")) });
+  }
+  return acts;
+}
+function renderAssetDetail(){
+  const a = allAssets().find(x=>x.id===detailAssetId) || PRESET_ASSETS[0];
+  if($("assetDetailTitle")) $("assetDetailTitle").textContent = a.symbol || "Asset";
+  if($("assetNetBadge")) $("assetNetBadge").textContent = a.network || chainOfAsset(a);
+  if($("assetDetailBal")) $("assetDetailBal").textContent = assetBalanceText(a) + " " + (a.symbol||"");
+  if($("assetDetailName")) $("assetDetailName").textContent = a.name || "";
+  const addr = assetAddress(a);
+  if($("assetDetailAddr")) $("assetDetailAddr").textContent = addr || "—";
+  const actions = assetActions(a);
+  if($("assetActions")){
+    $("assetActions").innerHTML = actions.map((act,i)=>
+      `<button type="button" class="btn ${i===0?"":"sec"}" data-i="${i}">${escHtml(act.label)}</button>`
+    ).join("");
+    $("assetActions").querySelectorAll("button").forEach(btn=>{
+      btn.onclick = ()=> actions[Number(btn.dataset.i)]?.fn();
+    });
+  }
+  // mini deposit / receive
+  const mini = $("assetDepositMini");
+  if(mini){
+    mini.innerHTML = `
+      <div style="text-align:center">
+        <div class="qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(addr||"")}" alt="QR"/></div>
+        <button class="btn sec" type="button" onclick="copyAssetAddress()">Copy ${escHtml(a.symbol)} address</button>
+        <p class="hint" style="margin-top:8px">Only send <b>${escHtml(a.symbol)}</b> on <b>${escHtml(a.network||"")}</b>.</p>
+        ${a.contract?`<p class="hint mono" style="font-size:.7rem">Contract: ${escHtml(a.contract)}</p>`:""}
+        ${a.mint?`<p class="hint mono" style="font-size:.7rem">Mint: ${escHtml(a.mint)}</p>`:""}
+      </div>`;
+  }
+  loadAssetTransactions(a);
+}
+async function loadAssetTransactions(a){
+  const el = $("assetTxList");
+  const hint = $("assetTxHint");
+  if(!el) return;
+  el.innerHTML = `<p class="hint">Loading history…</p>`;
+  if(hint) hint.textContent = `Activity for ${a.symbol} on ${a.network||""}`;
+  try{
+    let rows = [];
+    if(a.kind === "howl" && keypair){
+      const addr = await api("/api/public/address/" + encodeURIComponent(keypair.address));
+      rows = (addr.transactions || []).slice(0, 40).map(t=>{
+        const typ = t.type || "";
+        const dir = typ==="coinbase" || t.direction==="in" ? "in" : "out";
+        const amt = t.amount_fmt || formatHowl(BigInt(t.amount||0));
+        return {
+          dir,
+          title: typ==="coinbase" ? "Mined / reward" : typ==="oracle" ? "Oracle" : typ==="nft_mint" ? "NFT mint" : (dir==="in"?"Received":"Sent"),
+          amount: amt,
+          sub: (t.txid||"").slice(0,18) + (t.block_height!=null ? ` · #${t.block_height}` : " · mempool"),
+          url: t.txid ? "https://howlscan.org/#/public/tx/"+encodeURIComponent(t.txid) : "",
+        };
+      });
+    } else if((a.kind === "sol" || a.kind === "spl") && solInfo?.address){
+      const r = await fetch(SOL_RPC, {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ jsonrpc:"2.0", id:1, method:"getSignaturesForAddress", params:[solInfo.address, { limit: 20 }] }),
+      });
+      const j = await r.json();
+      rows = (j.result||[]).map(s=>({
+        dir: "in",
+        title: s.err ? "Failed" : "Solana tx",
+        amount: a.symbol,
+        sub: (s.signature||"").slice(0,18)+"…" + (s.blockTime ? " · "+new Date(s.blockTime*1000).toLocaleString() : ""),
+        url: "https://solscan.io/tx/"+encodeURIComponent(s.signature||""),
+      }));
+    } else if((a.kind === "eth" || a.kind === "erc20") && ethInfo?.address){
+      // Public Etherscan-less fallback: recent via eth_getBlock is heavy — use light note + link
+      rows = [{
+        dir: "in",
+        title: "View on Etherscan",
+        amount: a.symbol,
+        sub: "Full ETH / ERC-20 history opens outside",
+        url: a.contract
+          ? `https://etherscan.io/token/${a.contract}?a=${ethInfo.address}`
+          : `https://etherscan.io/address/${ethInfo.address}`,
+      }];
+    } else if(a.kind === "xtz" && xtzInfo?.address){
+      const r = await fetch("https://api.tzkt.io/v1/accounts/"+encodeURIComponent(xtzInfo.address)+"/operations?limit=20&type=transaction");
+      if(r.ok){
+        const list = await r.json();
+        rows = (list||[]).map(op=>{
+          const inbound = op.target?.address === xtzInfo.address;
+          const mutez = Number(op.amount||0);
+          return {
+            dir: inbound ? "in" : "out",
+            title: inbound ? "Received" : "Sent",
+            amount: (mutez/1e6).toLocaleString(undefined,{maximumFractionDigits:6})+" XTZ",
+            sub: (op.hash||"").slice(0,16)+"… · "+(op.timestamp?new Date(op.timestamp).toLocaleString():""),
+            url: "https://tzkt.io/"+encodeURIComponent(op.hash||""),
+          };
+        });
+      }
+    }
+    if(!rows.length){
+      el.innerHTML = `<p class="hint">No transactions found yet for this asset.</p>`;
+      return;
+    }
+    el.innerHTML = rows.map(r=>`
+      <div class="tx-row" ${r.url?`style="cursor:pointer" data-url="${escAttr(r.url)}"`:""}>
+        <div>
+          <div class="dir ${r.dir}">${escHtml(r.title)}</div>
+          <div class="sub">${escHtml(r.sub)}</div>
+        </div>
+        <div style="font-weight:700;white-space:nowrap">${escHtml(r.amount)}</div>
+      </div>`).join("");
+    el.querySelectorAll("[data-url]").forEach(row=>{
+      row.onclick = ()=> openExternalUrl(row.dataset.url);
+    });
+  }catch(e){
+    el.innerHTML = `<p class="hint">History unavailable: ${escHtml(e.message)}</p>`;
+  }
+}
+
 function showGate(html){
   $("app").classList.add("hidden");
   $("gate").classList.remove("hidden");
@@ -1186,6 +1483,8 @@ function showApp(){
   $("gate").classList.add("hidden");
   $("app").classList.remove("hidden");
   updateSecUI();
+  fillChainSelects();
+  renderHomeAssets();
   renderAssetSeg();
   renderToolbar("home");
   refresh();
@@ -1332,6 +1631,9 @@ function showPage(name){
   if(app) app.classList.toggle("browser-focus", name === "browser");
   if(name!=="browser" && app) app.classList.remove("browser-focus");
   if(name==="recv") selectAsset(selectedAsset);
+  if(name==="home"){ renderHomeAssets(); }
+  if(name==="assets"){ renderAssetsList(); refreshEthBalances().then(()=>renderAssetsList()); }
+  if(name==="asset"){ renderAssetDetail(); refreshEthBalances().then(()=>renderAssetDetail()); }
   if(name==="sec" || name==="more") updateSecUI();
   if(name==="swap"){ initSwapUI(); if(swapMode==="howl") initBridgeUI(); }
   if(name==="browser") initBrowserUI();
@@ -1426,7 +1728,14 @@ async function refreshCurrentPage(){
     if(page === "home" || page === "send" || page === "more" || page === "recv"){
       await refresh();
       if(page === "recv") selectAsset(selectedAsset);
+      if(page === "home") renderHomeAssets();
       if(page === "more") updateSecUI();
+    } else if(page === "assets"){
+      await refreshEthBalances();
+      renderAssetsList();
+    } else if(page === "asset"){
+      await refreshEthBalances();
+      renderAssetDetail();
     } else if(page === "swap"){
       await refresh();
       initSwapUI();
@@ -2794,7 +3103,10 @@ async function refreshEthBalances(){
       } else ethBalances.xtz = "—";
     }catch{ ethBalances.xtz = "—"; }
   }
-  if($("p-recv").classList.contains("on")) selectAsset(selectedAsset);
+  if($("p-recv")?.classList.contains("on")) selectAsset(selectedAsset);
+  if($("p-home")?.classList.contains("on")) renderHomeAssets();
+  if($("p-assets")?.classList.contains("on")) renderAssetsList();
+  if($("p-asset")?.classList.contains("on")) renderAssetDetail();
 }
 
 async function refreshNfts(){
@@ -3018,6 +3330,7 @@ async function refresh(){
     $("liveChip").className = "chip ok";
     if($("sendFee") && !$("sendFee").dataset.init){ $("sendFee").value = String(minFeeHowl); $("sendFee").dataset.init="1"; }
     const act = $("activity");
+    renderHomeAssets();
     if(!chainInfo.txs.length) act.innerHTML = '<p class="hint">No HOWL transactions yet</p>';
     else act.innerHTML = chainInfo.txs.slice(0,15).map(t=>{
       const typ = t.type||"transfer";
@@ -3335,6 +3648,10 @@ window.disableTotp = disableTotp;
 window.addCustomToken = addCustomToken;
 window.removeCustom = removeCustom;
 window.selectAsset = selectAsset;
+window.openAssetDetail = openAssetDetail;
+window.copyAssetAddress = copyAssetAddress;
+window.renderHomeAssets = renderHomeAssets;
+window.renderAssetsList = renderAssetsList;
 window.refresh = refresh;
 window.refreshCurrentPage = refreshCurrentPage;
 window.toast = toast;
