@@ -152,6 +152,19 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
   font-size:.72rem;letter-spacing:.08em;padding:8px 16px;cursor:pointer;min-width:64px}
 .unit-toggle button.on{background:color-mix(in srgb,var(--green) 22%,transparent);color:var(--green)}
 .bal .price-hint{font-size:.68rem;color:var(--muted);opacity:.85;margin-bottom:4px}
+.bal-head{display:flex;align-items:center;justify-content:center;position:relative;min-height:28px}
+.bal-head .lbl{flex:1;text-align:center}
+.hide-bal-btn{position:absolute;right:4px;top:50%;transform:translateY(-50%);
+  width:36px;height:36px;padding:0;border:1px solid var(--border);border-radius:12px;
+  background:var(--card2);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  color:var(--muted);line-height:0;transition:border-color .15s, box-shadow .15s, transform .15s}
+.hide-bal-btn:active{transform:translateY(-50%) scale(.94)}
+.hide-bal-btn.on{border-color:var(--green);color:var(--green);
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--green) 20%,transparent)}
+.hide-bal-btn svg{width:26px;height:26px;display:block}
+.bal.hidden-bals .amt,
+.bal.hidden-bals .sub-bal b,
+.bal.hidden-bals .price-hint{filter:blur(0);letter-spacing:.12em}
 .actions{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin:16px 0}
 .action{border:1px solid var(--border);background:var(--card);border-radius:16px;padding:14px 4px;
   color:var(--text);font:inherit;cursor:pointer}
@@ -465,8 +478,37 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
   <div class="content">
     <!-- HOME -->
     <div class="page on" id="p-home">
-      <div class="bal">
-        <div class="lbl">Total balance</div>
+      <div class="bal" id="balCard">
+        <div class="bal-head">
+          <div class="lbl">Total balance</div>
+          <button type="button" class="hide-bal-btn" id="hideBalBtn" title="Hide balances" aria-label="Hide balances" aria-pressed="false">
+            <!-- Dog covering eyes with paws (Howl hide) -->
+            <svg viewBox="0 0 64 64" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+              <ellipse cx="32" cy="36" rx="18" ry="16" fill="currentColor" opacity=".14"/>
+              <path d="M18 28c-4-8-10-10-12-6 2 6 6 10 12 12" fill="currentColor" opacity=".9"/>
+              <path d="M46 28c4-8 10-10 12-6-2 6-6 10-12 12" fill="currentColor" opacity=".9"/>
+              <ellipse cx="32" cy="34" rx="15" ry="14" fill="currentColor"/>
+              <ellipse cx="32" cy="40" rx="7" ry="5.5" fill="var(--card2, #1a1024)" opacity=".35"/>
+              <!-- snout -->
+              <ellipse cx="32" cy="40" rx="5" ry="3.5" fill="var(--card2, #1a1024)" opacity=".25"/>
+              <ellipse cx="32" cy="38.5" rx="2.2" ry="1.6" fill="var(--card2, #1a1024)"/>
+              <!-- paws covering eyes -->
+              <g class="hide-paws">
+                <ellipse cx="22" cy="30" rx="7.5" ry="5.5" fill="currentColor" transform="rotate(-18 22 30)"/>
+                <ellipse cx="42" cy="30" rx="7.5" ry="5.5" fill="currentColor" transform="rotate(18 42 30)"/>
+                <circle cx="18.5" cy="28" r="1.6" fill="var(--card2, #1a1024)" opacity=".35"/>
+                <circle cx="20.5" cy="26.5" r="1.4" fill="var(--card2, #1a1024)" opacity=".35"/>
+                <circle cx="45.5" cy="28" r="1.6" fill="var(--card2, #1a1024)" opacity=".35"/>
+                <circle cx="43.5" cy="26.5" r="1.4" fill="var(--card2, #1a1024)" opacity=".35"/>
+              </g>
+              <!-- peek eyes when balances visible (paws slightly lower opacity still cover) -->
+              <g class="hide-eyes" opacity=".0">
+                <circle cx="25" cy="31" r="2.2" fill="var(--card2, #1a1024)"/>
+                <circle cx="39" cy="31" r="2.2" fill="var(--card2, #1a1024)"/>
+              </g>
+            </svg>
+          </button>
+        </div>
         <div class="amt" id="bal">—</div>
         <div class="unit-toggle" id="unitToggle" role="group" aria-label="Display currency">
           <button type="button" data-u="usd" class="on" id="unitUsdBtn">USD</button>
@@ -1078,6 +1120,10 @@ let marketPrices = {};
 let marketPricesUpdated = 0;
 /** Portfolio display unit: "usd" | "btc" */
 let portfolioUnit = (localStorage.getItem("howl_portfolio_unit") === "btc") ? "btc" : "usd";
+/** Hide balances (dog covering eyes) */
+const LS_HIDE_BAL = "howl_hide_balance_v1";
+let hideBalances = localStorage.getItem(LS_HIDE_BAL) === "1";
+const HIDDEN_BAL = "••••";
 
 /** Map wallet asset id → CoinGecko coin id (null = unpriced / skip) */
 const ASSET_PRICE_ID = {
@@ -1499,6 +1545,37 @@ function syncUnitToggleUI(){
   if(btcBtn) btcBtn.classList.toggle("on", portfolioUnit === "btc");
 }
 
+function syncHideBalUI(){
+  const btn = $("hideBalBtn");
+  const card = $("balCard");
+  if(card) card.classList.toggle("hidden-bals", hideBalances);
+  if(btn){
+    btn.classList.toggle("on", hideBalances);
+    btn.setAttribute("aria-pressed", hideBalances ? "true" : "false");
+    btn.title = hideBalances ? "Show balances" : "Hide balances";
+    btn.setAttribute("aria-label", hideBalances ? "Show balances" : "Hide balances");
+  }
+}
+
+function setHideBalances(on){
+  hideBalances = !!on;
+  try{ localStorage.setItem(LS_HIDE_BAL, hideBalances ? "1" : "0"); }catch(_){}
+  syncHideBalUI();
+  updatePortfolioTotal();
+  // re-render lists so asset row amounts hide/show
+  if($("p-home")?.classList.contains("on")) renderHomeAssets(false);
+  if($("p-assets")?.classList.contains("on")) renderAssetsList(false);
+  if($("p-asset")?.classList.contains("on")) renderAssetDetail();
+  if($("p-recv")?.classList.contains("on") && typeof selectAsset === "function"){
+    try{ selectAsset(selectedAsset); }catch(_){}
+  }
+}
+
+function toggleHideBalances(){
+  setHideBalances(!hideBalances);
+  toast(hideBalances ? "Balances hidden 🐶" : "Balances visible");
+}
+
 function setPortfolioUnit(u){
   portfolioUnit = (u === "btc") ? "btc" : "usd";
   try{ localStorage.setItem("howl_portfolio_unit", portfolioUnit); }catch(_){}
@@ -1510,14 +1587,24 @@ function updatePortfolioTotal(){
   const el = $("bal");
   const hint = $("portfolioHint");
   const howlEl = $("howlSubBal");
+  syncHideBalUI();
   if(howlEl){
-    const h = howlAmount();
-    howlEl.innerHTML = "HOWL: <b>" + escHtml(
-      Number.isFinite(h) ? h.toLocaleString(undefined,{maximumFractionDigits:8}) : "—"
-    ) + "</b>";
+    if(hideBalances){
+      howlEl.innerHTML = "HOWL: <b>" + HIDDEN_BAL + "</b>";
+    } else {
+      const h = howlAmount();
+      howlEl.innerHTML = "HOWL: <b>" + escHtml(
+        Number.isFinite(h) ? h.toLocaleString(undefined,{maximumFractionDigits:8}) : "—"
+      ) + "</b>";
+    }
   }
   syncUnitToggleUI();
   if(!el) return;
+  if(hideBalances){
+    el.textContent = portfolioUnit === "btc" ? "₿" + HIDDEN_BAL : "$" + HIDDEN_BAL;
+    if(hint) hint.textContent = "Balances hidden · tap the shy pup to show";
+    return;
+  }
   if(!Object.keys(marketPrices).length){
     el.textContent = portfolioUnit === "btc" ? "₿…" : "$…";
     if(hint) hint.textContent = "Loading prices…";
@@ -1554,6 +1641,12 @@ function wireUnitToggle(){
   box.querySelectorAll("button").forEach(btn=>{
     btn.addEventListener("click", ()=> setPortfolioUnit(btn.dataset.u));
   });
+  const hideBtn = $("hideBalBtn");
+  if(hideBtn && !hideBtn.dataset.wired){
+    hideBtn.dataset.wired = "1";
+    hideBtn.addEventListener("click", (e)=>{ e.preventDefault(); toggleHideBalances(); });
+  }
+  syncHideBalUI();
 }
 async function splBalance(mint, owner){
   try{
@@ -1683,6 +1776,7 @@ function assetsForChain(chainId){
 }
 function assetBalanceText(a){
   if(!a) return "—";
+  if(hideBalances) return HIDDEN_BAL;
   if(a.kind === "howl") return formatHowl(chainInfo.balance).replace(" HOWL","");
   return ethBalances[a.id] != null ? ethBalances[a.id] : "…";
 }
