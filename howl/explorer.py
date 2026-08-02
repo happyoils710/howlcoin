@@ -2312,58 +2312,127 @@ async function showRunNode(){
   setHeroVisible(false);
   setBottomTab('more');
   await loadNetworks();
-  let height='?';
+  let height='?', protocol='0.6-smooth-diff', version='0.6.0', dLabel='—', smoothH=120;
   try{
     const s=await api('/api/public/summary');
-    if(s.online) height=s.height;
+    if(s.online || s.height!=null){
+      height=s.height;
+      protocol=s.protocol||protocol;
+      version=s.version||version;
+      dLabel=s.difficulty_label||s.difficulty||dLabel;
+      smoothH=s.smooth_diff_activation_height||120;
+    }
   }catch(e){}
   const clone = `git clone ${REPO}.git
 cd howlcoin
 python3 -m pip install -r requirements.txt`;
-  const initCmd = `python3 -m howl init`;
-  const syncCmd = `python3 -m howl node --connect ${SEED}`;
-  const mineCmd = `python3 -m howl mine
-# or continuous:
+  const goCmd = `cd howlcoin
+python3 -m howl go`;
+  const fullCmd = `git clone ${REPO}.git && cd howlcoin && python3 -m pip install -r requirements.txt && python3 -m howl go`;
+  const upgradeCmd = `cd howlcoin
+git pull origin main
+# free ports if "Address already in use":
+#   kill $(lsof -t -iTCP:42069 -sTCP:LISTEN) 2>/dev/null
+#   kill $(lsof -t -iTCP:42070 -sTCP:LISTEN) 2>/dev/null
+python3 -m howl go`;
+  const desktopCmd = `cd howlcoin
+./scripts/install-desktop-launcher.sh
+# then double-click "Howlcoin Mine" on your Desktop`;
+  const nodeOnlyCmd = `python3 -m howl node --public --auto-mine --open`;
+  const mineOnceCmd = `python3 -m howl mine
+# or continuous (without full node UI):
 python3 -m howl mine --continuous`;
-  const fullCmd = `git clone ${REPO}.git && cd howlcoin && python3 -m pip install -r requirements.txt && python3 -m howl init && python3 -m howl node --connect ${SEED}`;
+  const statusCmd = `python3 -m howl status
+python3 -m howl wallet`;
   app().innerHTML=`<div class="main" style="padding-top:12px">
     ${crumbs([{label:'Home',href:'#/public'},{label:'Run a node'}])}
     <div class="page-actions"><button class="back" onclick="location.hash='#/public'">← Home</button></div>
     <div class="card detail" style="margin-top:4px">
-      <div class="badge ok">Sync to Howlcoin</div>
-      <h2 style="margin:8px 0 6px;font-size:1.25rem">Run a node on your computer</h2>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <span class="badge ok">v${esc(String(version))} required</span>
+        <span class="badge" style="background:rgba(192,132,252,.15);color:#c084fc;border:1px solid rgba(192,132,252,.35)">smooth difficulty</span>
+      </div>
+      <h2 style="margin:8px 0 6px;font-size:1.25rem">Run a node · connect &amp; mine</h2>
       <p class="muted" style="margin:0 0 12px">
-        Websites <b>cannot open your Terminal</b> (browser security). Copy these commands into
-        Terminal (Mac/Linux) or a terminal on Windows, and you will sync to the live public chain
-        (currently height <b>${esc(String(height))}</b>).
+        Live chain height <b>${esc(String(height))}</b> · protocol <span class="mono">${esc(String(protocol))}</span>
+        · diff <b>${esc(String(dLabel))}</b>.
+        From height <b>${esc(String(smoothH))}</b>, Howlcoin uses <b>v0.6 smooth difficulty</b>
+        (continuous work target + 2h stall relief). Older nodes cannot follow the public tip — upgrade first.
       </p>
       <div class="kv">
         <div class="k">Public seed</div><div class="mono">${esc(SEED)}${copyBtn(SEED)}</div>
+        <div class="k">Software</div><div>Howlcoin <b>v0.6+</b> (smooth diff hard fork)</div>
+        <div class="k">Dashboard</div><div class="mono">http://127.0.0.1:42070/</div>
         <div class="k">Explorer</div><div><a href="https://howlscan.org/">https://howlscan.org/</a></div>
-        <div class="k">Source code</div><div><a href="${REPO}" target="_blank" rel="noopener">${esc(REPO)}</a></div>
+        <div class="k">Source</div><div><a href="${REPO}" target="_blank" rel="noopener">${esc(REPO)}</a></div>
       </div>
     </div>
-    <div class="card detail" style="margin-top:14px">
-      <h3 style="margin-top:0">One-line setup + sync</h3>
-      <p class="muted">Paste into Terminal, then leave the node running to stay synced.</p>
-      ${cmdBox('Clone, install, init, connect to seed', fullCmd)}
+
+    <div class="card detail" style="margin-top:14px;border-color:rgba(61,255,154,.35)">
+      <h3 style="margin-top:0">⚡ Fastest path — one command</h3>
+      <p class="muted" style="margin:0 0 10px">
+        <code>howl go</code> connects the public seed, starts <b>mine forever</b>, opens the local dashboard,
+        and frees ports if an old node is stuck. Leave Terminal open while mining.
+      </p>
+      ${cmdBox('New machine: clone + install + go', fullCmd)}
+      ${cmdBox('Already cloned: connect & mine forever', goCmd)}
+      <p style="margin:10px 0 0">
+        <button class="chipbtn" style="margin:4px" onclick="copyText('python3 -m howl go', this)">Copy: howl go</button>
+        <button class="chipbtn" style="margin:4px" onclick="copyText(${JSON.stringify(fullCmd)}, this)">Copy full setup</button>
+      </p>
     </div>
+
+    <div class="card detail" style="margin-top:14px">
+      <h3 style="margin-top:0">⬆ Upgrade an existing node (v0.6)</h3>
+      <p class="muted">If you mined before smooth difficulty, pull main and restart with <code>howl go</code>.</p>
+      ${cmdBox('git pull + restart (recommended)', upgradeCmd)}
+      <p class="muted" style="margin-bottom:0">
+        Error <span class="mono">Address already in use</span>? The upgrade command comments show how to free
+        ports <span class="mono">42069</span> / <span class="mono">42070</span>. <code>howl go</code> also tries to free them automatically.
+      </p>
+    </div>
+
+    <div class="card detail" style="margin-top:14px">
+      <h3 style="margin-top:0">🖥 Mac Desktop (double-click)</h3>
+      <p class="muted">Install a Desktop app shortcut that does the same as <code>howl go</code>.</p>
+      ${cmdBox('Install “Howlcoin Mine” on Desktop', desktopCmd)}
+      <p class="muted" style="margin-bottom:0">Then double-click <b>Howlcoin Mine</b> on your Desktop. Keep the Terminal window open while mining.</p>
+    </div>
+
     <div class="card detail" style="margin-top:14px">
       <h3 style="margin-top:0">Step by step</h3>
       ${cmdBox('1) Install Howlcoin', clone)}
-      ${cmdBox('2) Create wallet + genesis (first time only)', initCmd)}
-      ${cmdBox('3) Sync to the public network (run a node)', syncCmd)}
-      <p class="muted">Dashboard while node runs: <span class="mono">http://127.0.0.1:42070/</span></p>
-      ${cmdBox('4) Mine blocks (optional)', mineCmd)}
+      ${cmdBox('2) Connect public seed + mine forever + open dashboard', goCmd)}
+      <p class="muted">Equivalent flags:</p>
+      ${cmdBox('Node with flags (same as go)', nodeOnlyCmd)}
+      <p class="muted">Dashboard: <span class="mono">http://127.0.0.1:42070/</span> — use <b>⚡ Connect seed &amp; mine forever</b> if mining did not auto-start.</p>
+      ${cmdBox('3) Check height & wallet', statusCmd)}
+      ${cmdBox('4) Mine without full dashboard (optional)', mineOnceCmd)}
     </div>
+
+    <div class="card detail" style="margin-top:14px">
+      <h3 style="margin-top:0">What v0.6 changed</h3>
+      <ul class="muted" style="margin:0;padding-left:1.2rem;line-height:1.55">
+        <li><b>Smooth difficulty</b> from height ${esc(String(smoothH))} — continuous work target (no more 16× nibble jumps)</li>
+        <li><b>Stall relief</b> — if blocks are &gt;2 hours apart, difficulty can drop so CPUs can catch up</li>
+        <li><b>howl go</b> — public seed + auto-mine + browser dashboard in one command</li>
+        <li>Nodes below <b>v0.6</b> will not accept post-fork blocks — always <code>git pull</code> before mining</li>
+      </ul>
+    </div>
+
     <div class="card detail" style="margin-top:14px">
       <h3 style="margin-top:0">Useful links</h3>
       <p>
         <a class="chipbtn" style="display:inline-block;text-decoration:none;margin:4px" href="${REPO}" target="_blank" rel="noopener">Open GitHub repo</a>
         <a class="chipbtn" style="display:inline-block;text-decoration:none;margin:4px" href="${REPO}/archive/refs/heads/main.zip" target="_blank" rel="noopener">Download ZIP</a>
-        <button class="chipbtn" style="margin:4px" onclick="copyText('python3 -m howl node --connect ${SEED}', this)">Copy connect command</button>
+        <a class="chipbtn" style="display:inline-block;text-decoration:none;margin:4px" href="/whitepaper" target="_blank" rel="noopener">White paper</a>
+        <button class="chipbtn" style="margin:4px" onclick="copyText('python3 -m howl go', this)">Copy howl go</button>
+        <button class="chipbtn" style="margin:4px" onclick="copyText('${SEED}', this)">Copy seed</button>
       </p>
-      <p class="muted" style="margin-bottom:0">After you connect, your node downloads blocks from the seed until your tip matches Howlscan.</p>
+      <p class="muted" style="margin-bottom:0">
+        After connect, your node downloads blocks until height matches Howlscan.
+        Mining rewards go to your <b>local</b> wallet (<code>python3 -m howl wallet</code> / <code>mnemonic</code> to back up).
+      </p>
     </div>
   </div>`;
 }
