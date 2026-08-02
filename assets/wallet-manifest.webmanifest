@@ -1,0 +1,19 @@
+{
+  "name": "Howlcoin Wallet",
+  "short_name": "Howlcoin",
+  "description": "Public Howlcoin wallet — send and receive HOWL on the live chain",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#070b14",
+  "theme_color": "#0b1020",
+  "icons": [
+    {
+      "src": "/assets/howlcoin-logo-meme-pup-coin.jpg",
+      "sizes": "1024x1024",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}

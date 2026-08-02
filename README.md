@@ -86,23 +86,21 @@ python3 -m howl node --connect 147.182.223.204:42069
 # wallet:  http://127.0.0.1:42070/app  → Add to Home Screen, then Create wallet
 ```
 
-### Wallet app (local)
+### Wallet (public chain — any device)
 
-Guide on Howlscan: **[howlscan.org/wallet](https://howlscan.org/wallet)**
+**Open:** **[https://howlscan.org/app](https://howlscan.org/app)** · guide: [howlscan.org/wallet](https://howlscan.org/wallet)
 
-The wallet is a **home-screen app** at `http://127.0.0.1:42070/app`:
+- Non-custodial: keys stay in your browser (PIN-encrypted)  
+- **Syncs** balance & history from the live public ledger  
+- **Send / receive** HOWL from any phone or computer  
+- Restore with your 12-word phrase on a new device  
+- Network fee (min **1 HOWL**) paid to miners  
 
-1. **Add to Home Screen** (required — it will not open in a normal browser tab)  
-2. Tap **Create wallet**  
-3. Back up your recovery phrase under Security  
+Optional: **Add to Home Screen** for an app-like icon.
 
-Features:
+### Local node dashboard
 
-- **Send / receive** HOWL with QR code  
-- **Network fee** (min **1 HOWL**, paid to the miner who confirms)  
-- **BIP39 backup phrase**  
-- Optional PIN / Face ID / Touch ID  
-- Mine, peers, activity from the Node tab  
+While a node is running: `http://127.0.0.1:42070/` (portal) and `/app` (local tools / mining).
 
 ### Solo CLI mining
 

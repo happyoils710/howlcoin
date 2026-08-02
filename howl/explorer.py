@@ -13,15 +13,25 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import os
+import urllib.error
 import urllib.parse
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .blockchain import Blockchain
-from .config import DEFAULT_DATA_DIR
+from .config import (
+    DEFAULT_DATA_DIR,
+    DEFAULT_TX_FEE_HOWLIES,
+    MIN_TX_FEE_HOWLIES,
+)
 from .crypto import is_valid_address
 from .wallet import format_howl
+
+# Live seed node RPC (for broadcasting browser-signed txs into the public mempool)
+NODE_RPC = os.environ.get("HOWL_NODE_RPC", "http://127.0.0.1:42070").rstrip("/")
 
 ASSETS_DIR = Path(__file__).resolve().parents[1] / "assets"
 
@@ -986,6 +996,10 @@ class ExplorerServer:
                 self.send_response(code)
                 self.send_header("Content-Type", ctype)
                 self.send_header("Content-Length", str(len(data)))
+                self.send_header("Access-Control-Allow-Origin", "*")
+                # ES modules need correct CORS; allow caching of static wallet assets
+                if "javascript" in ctype or "manifest" in ctype:
+                    self.send_header("Cache-Control", "public, max-age=300")
                 self.end_headers()
                 self.wfile.write(data)
 
@@ -1009,6 +1023,25 @@ class ExplorerServer:
                         return self._json(404, {"error": "wallet guide not found"})
                     return self._bytes(200, wh.read_bytes(), "text/html; charset=utf-8")
 
+                # Public non-custodial wallet (syncs to public chain via API)
+                if path in ("/app", "/app/", "/wallet/app", "/wallet/app/"):
+                    app = ASSETS_DIR / "public-wallet.html"
+                    if not app.is_file():
+                        return self._json(404, {"error": "public wallet not found"})
+                    return self._bytes(200, app.read_bytes(), "text/html; charset=utf-8")
+
+                if path in ("/manifest.webmanifest", "/manifest.json"):
+                    man = ASSETS_DIR / "wallet-manifest.webmanifest"
+                    if man.is_file():
+                        return self._bytes(
+                            200, man.read_bytes(), "application/manifest+json"
+                        )
+
+                if path == "/sw.js":
+                    sw = ASSETS_DIR / "wallet-sw.js"
+                    if sw.is_file():
+                        return self._bytes(200, sw.read_bytes(), "application/javascript")
+
                 if path.startswith("/assets/"):
                     name = path[len("/assets/") :]
                     if ".." in name:
@@ -1017,10 +1050,25 @@ class ExplorerServer:
                     if not f.is_file():
                         return self._json(404, {"error": "not found"})
                     ctype = mimetypes.guess_type(str(f))[0] or "application/octet-stream"
+                    if name.endswith(".mjs"):
+                        ctype = "text/javascript; charset=utf-8"
                     return self._bytes(200, f.read_bytes(), ctype)
 
                 if path == "/api/networks":
                     return self._json(200, {"networks": hub.list_networks()})
+
+                if path in ("/api/public/fees", "/api/fees"):
+                    return self._json(
+                        200,
+                        {
+                            "min_fee": format_howl(MIN_TX_FEE_HOWLIES),
+                            "min_fee_howlies": MIN_TX_FEE_HOWLIES,
+                            "default_fee": format_howl(DEFAULT_TX_FEE_HOWLIES),
+                            "default_fee_howlies": DEFAULT_TX_FEE_HOWLIES,
+                            "default_fee_howl": DEFAULT_TX_FEE_HOWLIES / 100_000_000,
+                            "note": "Fees are paid to the miner who confirms the transaction",
+                        },
+                    )
 
                 # /api/<net>/...
                 parts = path.strip("/").split("/")
@@ -1090,6 +1138,73 @@ class ExplorerServer:
                             # still allow lookup of known strings
                             pass
                         return self._json(200, {"network": net, **chain.address_history(addr)})
+
+                return self._json(404, {"error": "not found"})
+
+            def do_OPTIONS(self):
+                self.send_response(204)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                self.send_header("Access-Control-Allow-Headers", "Content-Type")
+                self.end_headers()
+
+            def do_POST(self):
+                parsed = urllib.parse.urlparse(self.path)
+                path = parsed.path
+                length = int(self.headers.get("Content-Length", 0))
+                raw = self.rfile.read(length) if length else b"{}"
+                try:
+                    body = json.loads(raw.decode() or "{}")
+                except json.JSONDecodeError:
+                    return self._json(400, {"error": "invalid json"})
+
+                # Browser wallets broadcast signed txs → live seed node mempool + P2P
+                if path in ("/api/public/broadcast", "/api/broadcast"):
+                    tx = body.get("tx") if isinstance(body.get("tx"), dict) else body
+                    if not isinstance(tx, dict):
+                        return self._json(400, {"error": "tx object required"})
+                    try:
+                        req = urllib.request.Request(
+                            f"{NODE_RPC}/api/broadcast",
+                            data=json.dumps({"tx": tx}).encode(),
+                            headers={"Content-Type": "application/json"},
+                            method="POST",
+                        )
+                        with urllib.request.urlopen(req, timeout=15) as resp:
+                            data = json.loads(resp.read().decode())
+                        return self._json(200, data)
+                    except urllib.error.HTTPError as e:
+                        try:
+                            err = json.loads(e.read().decode())
+                            return self._json(e.code, err)
+                        except Exception:
+                            return self._json(e.code, {"error": str(e.reason)})
+                    except Exception as e:
+                        # Fallback: inject into explorer's on-disk chain (may not relay P2P)
+                        try:
+                            chain = hub.get("public")
+                            if not chain:
+                                return self._json(
+                                    503,
+                                    {
+                                        "error": (
+                                            f"seed RPC unreachable ({e}); public chain offline"
+                                        )
+                                    },
+                                )
+                            ok, msg = chain.add_to_mempool(tx)
+                            if not ok:
+                                return self._json(400, {"error": msg})
+                            return self._json(
+                                200,
+                                {
+                                    "ok": True,
+                                    "txid": msg,
+                                    "warning": "queued on disk only; seed RPC was offline",
+                                },
+                            )
+                        except Exception as e2:
+                            return self._json(503, {"error": f"broadcast failed: {e}; {e2}"})
 
                 return self._json(404, {"error": "not found"})
 

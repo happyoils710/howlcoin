@@ -1088,6 +1088,25 @@ class Dashboard:
                     finally:
                         dash._mine_lock.release()
 
+                if path == "/api/broadcast":
+                    # Accept a pre-signed transfer (public / browser wallets)
+                    try:
+                        tx = body.get("tx") if isinstance(body.get("tx"), dict) else body
+                        if not isinstance(tx, dict):
+                            return self._json(400, {"error": "tx object required"})
+                        if dash.node:
+                            with dash.node.chain_lock:
+                                ok, msg = dash.chain.add_to_mempool(tx)
+                            if ok:
+                                dash.node.announce_tx(tx)
+                        else:
+                            ok, msg = dash.chain.add_to_mempool(tx)
+                        if not ok:
+                            return self._json(400, {"error": msg})
+                        return self._json(200, {"ok": True, "txid": msg})
+                    except Exception as e:
+                        return self._json(400, {"error": str(e)})
+
                 if path == "/api/send":
                     try:
                         to = body["to"].strip()

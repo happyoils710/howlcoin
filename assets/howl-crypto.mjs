@@ -1,0 +1,256 @@
+/**
+ * Howlcoin browser crypto — matches howl/crypto.py + howl/bip39util.py
+ * Uses @noble / @scure (CDN).
+ */
+import { sha256 } from "https://esm.sh/@noble/hashes@1.4.0/sha256";
+import { ripemd160 } from "https://esm.sh/@noble/hashes@1.4.0/ripemd160";
+import { hmac } from "https://esm.sh/@noble/hashes@1.4.0/hmac";
+import { sha512 } from "https://esm.sh/@noble/hashes@1.4.0/sha512";
+import * as secp from "https://esm.sh/@noble/secp256k1@1.7.1";
+import { generateMnemonic, validateMnemonic, mnemonicToSeedSync } from "https://esm.sh/@scure/bip39@1.3.0";
+import { wordlist } from "https://esm.sh/@scure/bip39@1.3.0/wordlists/english";
+
+const ADDRESS_VERSION = 0x28;
+const HOWL_COIN_TYPE = 42069;
+const CURVE_ORDER = BigInt("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141");
+
+const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+function bytesToHex(b) {
+  return Array.from(b).map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+function hexToBytes(h) {
+  const s = h.replace(/^0x/, "");
+  const out = new Uint8Array(s.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(s.slice(i * 2, i * 2 + 2), 16);
+  return out;
+}
+function concat(...parts) {
+  const n = parts.reduce((a, p) => a + p.length, 0);
+  const out = new Uint8Array(n);
+  let o = 0;
+  for (const p of parts) {
+    out.set(p, o);
+    o += p.length;
+  }
+  return out;
+}
+
+function base58Encode(bytes) {
+  let zeros = 0;
+  while (zeros < bytes.length && bytes[zeros] === 0) zeros++;
+  const digits = [0];
+  for (let i = zeros; i < bytes.length; i++) {
+    let carry = bytes[i];
+    for (let j = 0; j < digits.length; j++) {
+      carry += digits[j] << 8;
+      digits[j] = carry % 58;
+      carry = (carry / 58) | 0;
+    }
+    while (carry) {
+      digits.push(carry % 58);
+      carry = (carry / 58) | 0;
+    }
+  }
+  let str = "1".repeat(zeros);
+  for (let i = digits.length - 1; i >= 0; i--) str += B58[digits[i]];
+  return str;
+}
+
+function base58Decode(str) {
+  let zeros = 0;
+  while (zeros < str.length && str[zeros] === "1") zeros++;
+  const bytes = [0];
+  for (let i = zeros; i < str.length; i++) {
+    const v = B58.indexOf(str[i]);
+    if (v < 0) throw new Error("invalid base58");
+    let carry = v;
+    for (let j = 0; j < bytes.length; j++) {
+      carry += bytes[j] * 58;
+      bytes[j] = carry & 0xff;
+      carry >>= 8;
+    }
+    while (carry) {
+      bytes.push(carry & 0xff);
+      carry >>= 8;
+    }
+  }
+  for (let i = 0; i < zeros; i++) bytes.push(0);
+  return new Uint8Array(bytes.reverse());
+}
+
+function hash160(data) {
+  return ripemd160(sha256(data));
+}
+function doubleSha256(data) {
+  return sha256(sha256(data));
+}
+
+export function pubkeyToAddress(pubkey) {
+  // uncompressed 65-byte 04||X||Y or raw
+  const pub = typeof pubkey === "string" ? hexToBytes(pubkey) : pubkey;
+  const payload = concat(new Uint8Array([ADDRESS_VERSION]), hash160(pub));
+  const checksum = doubleSha256(payload).slice(0, 4);
+  return base58Encode(concat(payload, checksum));
+}
+
+export function isValidAddress(address) {
+  try {
+    const raw = base58Decode(address);
+    if (raw.length !== 25) return false;
+    const payload = raw.slice(0, 21);
+    const checksum = raw.slice(21);
+    if (bytesToHex(doubleSha256(payload).slice(0, 4)) !== bytesToHex(checksum)) return false;
+    return payload[0] === ADDRESS_VERSION;
+  } catch {
+    return false;
+  }
+}
+
+function ser32(i) {
+  return new Uint8Array([(i >>> 24) & 255, (i >>> 16) & 255, (i >>> 8) & 255, i & 255]);
+}
+
+function pointCompressed(privBytes) {
+  // noble Point from private
+  const pub = secp.getPublicKey(privBytes, true); // compressed
+  return pub;
+}
+
+function ckdPriv(parentKey, parentChain, index) {
+  let data;
+  if (index >= 0x80000000) {
+    data = concat(new Uint8Array([0]), parentKey, ser32(index));
+  } else {
+    data = concat(pointCompressed(parentKey), ser32(index));
+  }
+  const I = hmac(sha512, parentChain, data);
+  const IL = I.slice(0, 32);
+  const IR = I.slice(32);
+  const il = BigInt("0x" + bytesToHex(IL));
+  const parent = BigInt("0x" + bytesToHex(parentKey));
+  if (il >= CURVE_ORDER) throw new Error("invalid child");
+  const child = (il + parent) % CURVE_ORDER;
+  if (child === 0n) throw new Error("invalid child zero");
+  const childBytes = hexToBytes(child.toString(16).padStart(64, "0"));
+  return [childBytes, IR];
+}
+
+function masterFromSeed(seed) {
+  const I = hmac(sha512, new TextEncoder().encode("Bitcoin seed"), seed);
+  return [I.slice(0, 32), I.slice(32)];
+}
+
+function derivePath(seed, path) {
+  let [key, chain] = masterFromSeed(seed);
+  for (const index of path) {
+    [key, chain] = ckdPriv(key, chain, index);
+  }
+  return key;
+}
+
+export function howlPath(index = 0) {
+  return [
+    44 | 0x80000000,
+    HOWL_COIN_TYPE | 0x80000000,
+    0 | 0x80000000,
+    0,
+    index,
+  ];
+}
+
+export function createMnemonic() {
+  return generateMnemonic(wordlist, 128);
+}
+
+export function checkMnemonic(phrase) {
+  return validateMnemonic(phrase.trim().toLowerCase().split(/\s+/).join(" "), wordlist);
+}
+
+export function keypairFromMnemonic(phrase, index = 0, passphrase = "") {
+  const norm = phrase.trim().toLowerCase().split(/\s+/).join(" ");
+  if (!validateMnemonic(norm, wordlist)) throw new Error("Invalid BIP39 mnemonic");
+  const seed = mnemonicToSeedSync(norm, passphrase);
+  const priv = derivePath(seed, howlPath(index));
+  const privHex = bytesToHex(priv);
+  // uncompressed pubkey 04||x||y (65 bytes) — matches Python ecdsa
+  const pubUncompressed = secp.getPublicKey(priv, false);
+  const pubHex = bytesToHex(pubUncompressed);
+  const address = pubkeyToAddress(pubUncompressed);
+  return { privateKeyHex: privHex, publicKeyHex: pubHex, address, index };
+}
+
+export function txSighash(txBody) {
+  const body = {
+    amount: txBody.amount,
+    fee: txBody.fee ?? 0,
+    from: txBody.from,
+    memo: txBody.memo ?? "",
+    nonce: txBody.nonce,
+    to: txBody.to,
+  };
+  // Python: json.dumps(body, sort_keys=True, separators=(",", ":"))
+  const canonical = JSON.stringify(body, Object.keys(body).sort());
+  // JSON.stringify with sorted keys: need manual
+  const keys = Object.keys(body).sort();
+  const json = "{" + keys.map((k) => JSON.stringify(k) + ":" + JSON.stringify(body[k])).join(",") + "}";
+  return sha256(new TextEncoder().encode(json));
+}
+
+export async function signTxBody(privateKeyHex, txBody) {
+  const msg = txSighash(txBody);
+  // Python ecdsa sign_deterministic(..., hashfunc=sha256) hashes message again
+  const digest = sha256(msg);
+  const priv = hexToBytes(privateKeyHex);
+  // noble v1 returns compact 64-byte sig Uint8Array
+  const sig = await secp.sign(digest, priv, { der: false, recovered: false });
+  const sigBytes = sig instanceof Uint8Array ? sig : sig;
+  return bytesToHex(sigBytes);
+}
+
+export function txId(tx) {
+  const keys = Object.keys(tx).sort();
+  const json = "{" + keys.map((k) => JSON.stringify(k) + ":" + JSON.stringify(tx[k])).join(",") + "}";
+  return bytesToHex(sha256(new TextEncoder().encode(json)));
+}
+
+export async function buildSignedTx({ keypair, to, amountHowlies, feeHowlies, nonce, memo = "" }) {
+  if (!isValidAddress(to)) throw new Error("Invalid HOWL address");
+  if (amountHowlies <= 0) throw new Error("Amount must be positive");
+  const body = {
+    from: keypair.address,
+    to,
+    amount: amountHowlies,
+    fee: feeHowlies,
+    nonce,
+    memo,
+    public_key: keypair.publicKeyHex,
+  };
+  const signature = await signTxBody(keypair.privateKeyHex, body);
+  const tx = { ...body, signature };
+  tx.txid = txId(tx);
+  return tx;
+}
+
+export function parseHowl(text) {
+  let t = String(text).trim().toUpperCase().replace("HOWL", "").trim();
+  if (!t) throw new Error("empty amount");
+  if (t.includes(".")) {
+    let [left, right] = t.split(".");
+    right = (right + "00000000").slice(0, 8);
+    return BigInt(left || "0") * 100000000n + BigInt(right);
+  }
+  return BigInt(t) * 100000000n;
+}
+
+export function formatHowl(howlies) {
+  const n = BigInt(howlies);
+  const neg = n < 0n;
+  const v = neg ? -n : n;
+  const whole = v / 100000000n;
+  const frac = (v % 100000000n).toString().padStart(8, "0");
+  return `${neg ? "-" : ""}${whole}.${frac} HOWL`;
+}
+
+export const COIN = 100000000n;
+export { bytesToHex, hexToBytes };
