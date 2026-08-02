@@ -89,6 +89,10 @@ DEFAULT_TX_FEE_HOWLIES = 1 * COIN  # default wallet fee suggestion
 DEFAULT_P2P_PORT = 42069
 DEFAULT_RPC_PORT = 42070
 MAGIC_BYTES = b"HOWL"  # network message magic
+# Public seed (howlscan.org / DigitalOcean) — used by desktop launcher & --public
+PUBLIC_SEED = "147.182.223.204:42069"
+PUBLIC_SEED_HOST = "147.182.223.204"
+PUBLIC_SEED_PORT = 42069
 
 # --- Storage ---
 DEFAULT_DATA_DIR = Path.home() / ".howlcoin"

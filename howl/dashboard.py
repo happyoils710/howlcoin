@@ -842,6 +842,24 @@ async function mineForever(){
     setMineButtons(false);
   }
 }
+async function connectAndMine(){
+  const peer = (document.getElementById('peer') && document.getElementById('peer').value.trim()) || '147.182.223.204:42069';
+  const st = document.getElementById('mineStatus');
+  const msg = document.getElementById('mineMsg');
+  try{
+    if(st) st.textContent = 'Connecting to ' + peer + '…';
+    if(msg) msg.textContent = 'Connecting to public seed…';
+    await api('/api/connect', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({peer})});
+    toast('Connected · starting miner');
+    await mineForever();
+    if(msg) msg.textContent = 'Connected to ' + peer + ' · mining forever';
+  }catch(e){
+    const err = e.message || String(e);
+    if(st) st.textContent = err;
+    if(msg) msg.textContent = err;
+    toast(err);
+  }
+}
 async function stopMining(){
   const st = document.getElementById('mineStatus');
   try{
@@ -912,9 +930,10 @@ a.secondary{background:#151e32;color:var(--text);border-color:var(--border)}
   <div class="stat"><span>Mining</span><span id="m">Idle</span></div>
 </div>
 <div class="card">
+  <button class="btn" type="button" id="connectMineBtn" onclick="connectAndMine()" style="font-size:1.05rem;padding:16px">⚡ Connect seed &amp; mine forever</button>
   <button class="btn" type="button" id="mineForeverBtn" onclick="mineForever()">⛏ Mine forever</button>
   <button class="btn secondary" type="button" id="mineStopBtn" onclick="stopMining()" disabled>Stop mining</button>
-  <p class="mono" id="mineMsg" style="margin:8px 0 0;color:var(--muted)">Rewards go to the miner wallet above.</p>
+  <p class="mono" id="mineMsg" style="margin:8px 0 0;color:var(--muted)">One click joins 147.182.223.204:42069 and starts mining. Rewards → miner wallet above.</p>
 </div>
 <a class="btn secondary" href="/app">Open mining wallet</a>
 <p style="font-size:.85rem">Works in this browser on desktop. This is <b style="color:var(--text)">not</b> the public howlscan.org/app wallet unless you use the same recovery phrase.</p>
@@ -945,6 +964,21 @@ function paintMine(m){
     forever.disabled = false;
     stop.disabled = true;
     if(m.blocks_this_run) msg.textContent = 'Stopped after ' + m.blocks_this_run + ' block(s)';
+  }
+}
+async function connectAndMine(){
+  const msg = document.getElementById('mineMsg');
+  try{
+    msg.textContent = 'Connecting to public seed…';
+    await api('/api/connect', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({peer:'147.182.223.204:42069'}),
+    });
+    await mineForever();
+    msg.textContent = 'Connected · mining forever → rewards to miner wallet';
+  }catch(e){
+    msg.textContent = e.message || String(e);
   }
 }
 async function refreshPortal(){

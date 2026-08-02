@@ -15,6 +15,7 @@ from .config import (
     DEFAULT_DATA_DIR,
     DEFAULT_P2P_PORT,
     DEFAULT_RPC_PORT,
+    PUBLIC_SEED,
     TICKER,
     WALLET_FILE,
     block_subsidy_howl,
@@ -373,23 +374,66 @@ def cmd_richlist(args: argparse.Namespace) -> None:
         print(f"{addr:<40} {format_howl(bal)}")
 
 
+def _want_auto_mine(args: argparse.Namespace) -> bool:
+    import os
+
+    if getattr(args, "auto_mine", False):
+        return True
+    if getattr(args, "no_mine", False):
+        return False
+    return os.environ.get("HOWL_AUTO_MINE", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+def _resolve_seeds(args: argparse.Namespace) -> list:
+    seeds = list(args.connect or [])
+    if getattr(args, "public", False) or getattr(args, "desktop", False):
+        if PUBLIC_SEED not in seeds:
+            seeds.insert(0, PUBLIC_SEED)
+    # Env override: HOWL_SEED=host:port
+    import os
+
+    env_seed = os.environ.get("HOWL_SEED", "").strip()
+    if env_seed and env_seed not in seeds:
+        seeds.insert(0, env_seed)
+    return seeds
+
+
 def cmd_node(args: argparse.Namespace) -> None:
     """Run P2P node + web dashboard (the full local Howlcoin experience)."""
     import signal
+    import threading
+    import webbrowser
 
     dd = data_dir(args)
+    wallet_path = dd / WALLET_FILE
+    first_wallet = not wallet_path.exists()
     chain = Blockchain(dd)
-    wallet = Wallet(dd / WALLET_FILE)
-    seeds = list(args.connect or [])
+    # Wallet auto-creates BIP39 keys if missing
+    wallet = Wallet(wallet_path, create_if_missing=True)
+    if first_wallet:
+        print("New wallet created — back up your phrase:\n  python3 -m howl mnemonic\n")
+    seeds = _resolve_seeds(args)
+    auto = _want_auto_mine(args)
+    open_browser = bool(getattr(args, "open_browser", False) or getattr(args, "desktop", False))
+
     print(BANNER)
     print(f"Data dir : {dd}")
     print(f"Wallet   : {wallet.address}")
     print(f"Height   : {chain.height()}")
     print(f"P2P      : {args.host}:{args.port}")
-    print(f"Dashboard: http://{args.rpc_host}:{args.rpc_port}/")
+    dash_url = f"http://{args.rpc_host}:{args.rpc_port}/"
+    print(f"Dashboard: {dash_url}")
     if seeds:
         print(f"Seeds    : {', '.join(seeds)}")
-    print("\nMine & manage peers in the dashboard. Ctrl+C to stop.\n")
+    else:
+        print("Seeds    : (none — use --public or --connect host:port)")
+    print(f"Auto-mine: {'ON' if auto else 'OFF (use --auto-mine or Mine forever in UI)'}")
+    print("\nCtrl+C to stop.\n")
 
     node = Node(
         chain,
@@ -415,32 +459,35 @@ def cmd_node(args: argparse.Namespace) -> None:
         p2p_port=args.port,
     )
 
-    # Optional: mine forever in background (HOWL_AUTO_MINE=1)
-    import os
-    import threading
-
-    auto = os.environ.get("HOWL_AUTO_MINE", "").strip().lower() in (
-        "1",
-        "true",
-        "yes",
-        "on",
-    )
     if auto:
 
         def _auto_mine() -> None:
             import time as _t
 
-            _t.sleep(2.0)
+            _t.sleep(2.5)
             try:
                 r = dash.start_continuous_mining()
                 if r.get("ok"):
-                    print("Auto-mine forever: ON (HOWL_AUTO_MINE)")
+                    print("⛏ Mine forever: ON — rewards →", wallet.address)
                 else:
                     print(f"Auto-mine not started: {r.get('error')}")
             except Exception as e:
                 print(f"Auto-mine failed: {e}")
 
         threading.Thread(target=_auto_mine, name="howl-auto-mine", daemon=True).start()
+
+    if open_browser:
+
+        def _open() -> None:
+            import time as _t
+
+            _t.sleep(1.2)
+            try:
+                webbrowser.open(dash_url)
+            except Exception:
+                pass
+
+        threading.Thread(target=_open, name="howl-open-browser", daemon=True).start()
 
     def _stop(*_a):
         print("\nShutting down Howlcoin node…")
@@ -454,6 +501,20 @@ def cmd_node(args: argparse.Namespace) -> None:
     signal.signal(signal.SIGINT, _stop)
     signal.signal(signal.SIGTERM, _stop)
     dash.serve_forever()
+
+
+def cmd_go(args: argparse.Namespace) -> None:
+    """
+    One-shot desktop mode: connect public seed + mine forever + open dashboard.
+    Same as: howl node --public --auto-mine --open
+    """
+    args.public = True
+    args.auto_mine = True
+    args.open_browser = True
+    args.desktop = True
+    if not getattr(args, "connect", None):
+        args.connect = []
+    cmd_node(args)
 
 
 def cmd_dashboard(args: argparse.Namespace) -> None:
@@ -597,7 +658,51 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help="seed peer host:port (repeatable)",
     )
-    s.set_defaults(func=cmd_node)
+    s.add_argument(
+        "--public",
+        action="store_true",
+        help=f"connect to the public seed ({PUBLIC_SEED})",
+    )
+    s.add_argument(
+        "--auto-mine",
+        action="store_true",
+        help="start continuous mining after connect (or HOWL_AUTO_MINE=1)",
+    )
+    s.add_argument(
+        "--no-mine",
+        action="store_true",
+        help="do not auto-mine even if HOWL_AUTO_MINE is set",
+    )
+    s.add_argument(
+        "--open",
+        dest="open_browser",
+        action="store_true",
+        help="open the local dashboard in your browser",
+    )
+    s.set_defaults(func=cmd_node, desktop=False)
+
+    s = sub.add_parser(
+        "go",
+        help="one-click mode: public seed + mine forever + open dashboard",
+    )
+    s.add_argument("--host", default="0.0.0.0", help="P2P bind host")
+    s.add_argument("--port", type=int, default=DEFAULT_P2P_PORT, help="P2P port")
+    s.add_argument("--rpc-host", default="127.0.0.1", help="dashboard bind host")
+    s.add_argument("--rpc-port", type=int, default=DEFAULT_RPC_PORT, help="dashboard port")
+    s.add_argument(
+        "--connect",
+        action="append",
+        default=[],
+        help="extra seed peer host:port (public seed always included)",
+    )
+    s.set_defaults(
+        func=cmd_go,
+        public=True,
+        auto_mine=True,
+        no_mine=False,
+        open_browser=True,
+        desktop=True,
+    )
 
     s = sub.add_parser("dashboard", help="web UI only (no P2P)")
     s.add_argument("--rpc-host", default="127.0.0.1")
