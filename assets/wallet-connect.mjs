@@ -455,14 +455,38 @@ function padUint(n) {
   return hexToBytes(hex);
 }
 
-/* —— WalletConnect Web3Wallet —— */
-let web3wallet = null;
+/* —— WalletConnect SignClient (wallet mode) —— */
+let signClient = null;
 let wcReady = false;
 let wcError = "";
 let handlers = {};
+let listenersBound = false;
 
 export function getWcStatus() {
-  return { ready: wcReady, error: wcError, hasWallet: !!web3wallet };
+  return { ready: wcReady, error: wcError, hasWallet: !!signClient, projectBound: !!signClient };
+}
+
+async function loadSignClientCtor() {
+  // Prefer SignClient — lighter and more reliable than Web3Wallet via CDN
+  const urls = [
+    "https://esm.sh/@walletconnect/sign-client@2.17.3",
+    "https://esm.sh/@walletconnect/sign-client@2.17.3?bundle",
+    "https://cdn.jsdelivr.net/npm/@walletconnect/sign-client@2.17.3/+esm",
+  ];
+  let lastErr;
+  for (const url of urls) {
+    try {
+      const mod = await import(url);
+      const Ctor = mod.SignClient || mod.default?.SignClient || mod.default;
+      if (Ctor && (typeof Ctor.init === "function" || typeof Ctor === "function")) {
+        return { Ctor, url };
+      }
+      lastErr = new Error("SignClient export missing from " + url);
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error("Could not load WalletConnect SignClient");
 }
 
 export async function initWalletConnect({
@@ -476,74 +500,85 @@ export async function initWalletConnect({
   onSessionDelete,
 }) {
   handlers = { getAddress, getPrivateKey, getChainId, getRpc, onSessionProposal, onSessionRequest, onSessionDelete };
-  if (!projectId) {
+  const pid = String(projectId || "").trim();
+  if (!pid) {
     wcError = "Missing WalletConnect projectId";
     wcReady = false;
     return { ok: false, error: wcError };
   }
+  // Already ready
+  if (signClient && wcReady) {
+    return { ok: true, wallet: signClient };
+  }
   try {
-    const { Core } = await import("https://esm.sh/@walletconnect/core@2.17.3?bundle");
-    const { Web3Wallet } = await import("https://esm.sh/@walletconnect/web3wallet@1.16.1?bundle");
+    const { Ctor, url } = await loadSignClientCtor();
+    const initFn = Ctor.init ? Ctor.init.bind(Ctor) : null;
+    if (!initFn) throw new Error("SignClient.init not found");
 
-    const core = new Core({ projectId });
-    web3wallet = await Web3Wallet.init({
-      core,
+    signClient = await initFn({
+      projectId: pid,
       metadata: META,
+      // relayUrl default is fine (wss://relay.walletconnect.com)
     });
 
-    web3wallet.on("session_proposal", async (proposal) => {
-      try {
-        if (handlers.onSessionProposal) {
-          const ok = await handlers.onSessionProposal(proposal);
-          if (!ok) {
-            await web3wallet.rejectSession({
-              id: proposal.id,
-              reason: { code: 5000, message: "User rejected." },
-            });
-            return;
+    if (!listenersBound) {
+      listenersBound = true;
+      signClient.on("session_proposal", async (proposal) => {
+        try {
+          if (handlers.onSessionProposal) {
+            const ok = await handlers.onSessionProposal(proposal);
+            if (!ok) {
+              await signClient.reject({
+                id: proposal.id,
+                reason: { code: 5000, message: "User rejected." },
+              });
+              return;
+            }
           }
+          await approveSessionProposal(proposal);
+        } catch (e) {
+          console.warn("session_proposal", e);
+          try {
+            await signClient.reject({
+              id: proposal.id,
+              reason: { code: 5000, message: e.message || "Rejected" },
+            });
+          } catch (_) {}
         }
-        await approveSessionProposal(proposal);
-      } catch (e) {
-        console.warn("session_proposal", e);
-        try {
-          await web3wallet.rejectSession({
-            id: proposal.id,
-            reason: { code: 5000, message: e.message || "Rejected" },
-          });
-        } catch (_) {}
-      }
-    });
+      });
 
-    web3wallet.on("session_request", async (event) => {
-      try {
-        await handleSessionRequest(event);
-      } catch (e) {
-        console.warn("session_request", e);
+      signClient.on("session_request", async (event) => {
         try {
-          const { getSdkError } = await import("https://esm.sh/@walletconnect/utils@2.17.3?bundle");
-          await web3wallet.respondSessionRequest({
-            topic: event.topic,
-            response: {
-              id: event.id,
-              jsonrpc: "2.0",
-              error: getSdkError?.("USER_REJECTED") || { code: 5000, message: e.message || "Rejected" },
-            },
-          });
-        } catch (_) {}
-      }
-    });
+          await handleSessionRequest(event);
+        } catch (e) {
+          console.warn("session_request", e);
+          try {
+            await signClient.respond({
+              topic: event.topic,
+              response: {
+                id: event.id,
+                jsonrpc: "2.0",
+                error: { code: 5000, message: e.message || "Rejected" },
+              },
+            });
+          } catch (_) {}
+        }
+      });
 
-    web3wallet.on("session_delete", (ev) => {
-      handlers.onSessionDelete?.(ev);
-    });
+      signClient.on("session_delete", (ev) => {
+        handlers.onSessionDelete?.(ev);
+      });
+    }
 
     wcReady = true;
     wcError = "";
-    return { ok: true, wallet: web3wallet };
+    console.info("Howl WalletConnect ready via", url);
+    return { ok: true, wallet: signClient };
   } catch (e) {
+    signClient = null;
     wcReady = false;
-    wcError = e.message || String(e);
+    listenersBound = false;
+    wcError = e?.message || String(e);
     console.error("WalletConnect init failed", e);
     return { ok: false, error: wcError };
   }
@@ -554,35 +589,36 @@ async function approveSessionProposal(proposal) {
   if (!address) throw new Error("Unlock wallet first");
   const chainId = Number(handlers.getChainId?.() || 1);
   const caip = `eip155:${chainId}`;
-  // namespaces from required + optional
-  const required = proposal.params.requiredNamespaces || {};
-  const optional = proposal.params.optionalNamespaces || {};
+  const required = proposal.params?.requiredNamespaces || {};
+  const optional = proposal.params?.optionalNamespaces || {};
   const eip155Req = required.eip155 || optional.eip155 || {};
-  const chains = eip155Req.chains?.length
-    ? eip155Req.chains.filter((c) => WC_CHAINS[c] || c.startsWith("eip155:"))
-    : Object.keys(WC_CHAINS);
-  const useChains = chains.length ? chains : [caip];
-  // always include active chain
-  if (!useChains.includes(caip)) useChains.unshift(caip);
+  let chains = (eip155Req.chains || []).filter((c) => String(c).startsWith("eip155:"));
+  if (!chains.length) chains = Object.keys(WC_CHAINS);
+  if (!chains.includes(caip)) chains = [caip, ...chains];
+  // de-dupe
+  chains = [...new Set(chains)];
 
-  const accounts = useChains.map((c) => `${c}:${address}`);
+  const accounts = chains.map((c) => `${c}:${address}`);
   const methods = eip155Req.methods?.length ? eip155Req.methods : METHODS;
   const events = eip155Req.events?.length ? eip155Req.events : EVENTS;
 
   const namespaces = {
     eip155: {
-      chains: useChains,
+      chains,
       accounts,
       methods,
       events,
     },
   };
 
-  const session = await web3wallet.approveSession({
+  const { acknowledged } = await signClient.approve({
     id: proposal.id,
     namespaces,
   });
-  return session;
+  try {
+    await acknowledged?.();
+  } catch (_) {}
+  return true;
 }
 
 async function handleSessionRequest(event) {
@@ -605,6 +641,11 @@ async function handleSessionRequest(event) {
     detail = String(p);
   }
 
+  let peerMeta = null;
+  try {
+    peerMeta = signClient.session.get(topic)?.peer?.metadata;
+  } catch (_) {}
+
   if (handlers.onSessionRequest) {
     const ok = await handlers.onSessionRequest({
       id,
@@ -613,16 +654,15 @@ async function handleSessionRequest(event) {
       params: p,
       chainId: chainNum,
       detail,
-      dapp: web3wallet?.engine?.signClient?.session?.get?.(topic)?.peer?.metadata,
+      dapp: peerMeta,
     });
     if (!ok) {
-      const { getSdkError } = await import("https://esm.sh/@walletconnect/utils@2.17.3?bundle");
-      await web3wallet.respondSessionRequest({
+      await signClient.respond({
         topic,
         response: {
           id,
           jsonrpc: "2.0",
-          error: getSdkError("USER_REJECTED"),
+          error: { code: 5000, message: "User rejected." },
         },
       });
       return;
@@ -670,7 +710,7 @@ async function handleSessionRequest(event) {
       throw new Error("Unsupported method: " + method);
   }
 
-  await web3wallet.respondSessionRequest({
+  await signClient.respond({
     topic,
     response: { id, jsonrpc: "2.0", result },
   });
@@ -678,34 +718,40 @@ async function handleSessionRequest(event) {
 
 /** Pair with dApp using wc: URI (from QR paste or deep link) */
 export async function pairWithUri(uri) {
-  if (!web3wallet) throw new Error("WalletConnect not ready");
+  if (!signClient || !wcReady) throw new Error("WalletConnect not ready — open WalletConnect page and wait for Ready");
   const u = String(uri || "").trim();
   if (!u.startsWith("wc:")) throw new Error("Invalid WalletConnect URI (must start with wc:)");
-  await web3wallet.core.pairing.pair({ uri: u });
+  await signClient.pair({ uri: u });
   return true;
 }
 
 export function listSessions() {
-  if (!web3wallet) return [];
+  if (!signClient) return [];
   try {
-    const map = web3wallet.getActiveSessions?.() || {};
-    return Object.values(map);
+    return signClient.session.getAll?.() || [];
   } catch {
     return [];
   }
 }
 
 export async function disconnectSession(topic) {
-  if (!web3wallet || !topic) return;
+  if (!signClient || !topic) return;
   try {
-    const { getSdkError } = await import("https://esm.sh/@walletconnect/utils@2.17.3?bundle");
-    await web3wallet.disconnectSession({
+    await signClient.disconnect({
       topic,
-      reason: getSdkError("USER_DISCONNECTED"),
+      reason: { code: 6000, message: "User disconnected." },
     });
   } catch (e) {
     console.warn(e);
   }
+}
+
+/** Force re-init on next ensureWalletConnect call */
+export function resetWalletConnect() {
+  signClient = null;
+  wcReady = false;
+  wcError = "";
+  listenersBound = false;
 }
 
 /** Install window.ethereum EIP-1193 provider (Howlcoin) for in-page dApps */
