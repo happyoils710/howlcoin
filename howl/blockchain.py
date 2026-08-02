@@ -27,6 +27,7 @@ from .config import (
 )
 from .crypto import is_valid_address, sha256, tx_sighash, txid, verify_signature
 from .scrypt_pow import (
+    MiningSliceTimeout,
     difficulty_float_from_raw,
     encode_difficulty_milli,
     expected_hashes,
@@ -767,51 +768,69 @@ class Blockchain:
             "subsidy": subsidy,
         }
 
-    def mine_one(self, miner_address: str) -> Dict[str, Any]:
-        template = self.build_block_template(miner_address)
-        diff = template["difficulty"]
-        subsidy = template["subsidy"]
-        expect = expected_hashes(diff)
-        d_f = difficulty_float_from_raw(diff)
-        print(
-            f"Mining block #{template['height']} | diff={format_difficulty(diff)} | "
-            f"reward={format_howl(subsidy)} | txs={len(template['transactions'])-1}"
-        )
-        if is_smooth_difficulty_raw(diff):
-            print(
-                f"  Need ~{format_count(expect)} hashes on average "
-                f"(smooth work index d={d_f:.3f}, target continuous)."
-            )
-        else:
-            print(
-                f"  Need ~{format_count(expect)} hashes on average "
-                f"(legacy: {diff} leading zero hex digits)."
-            )
-        # rough laptop band so people know not to Ctrl+C after 30s
-        for label, hps in (("~500 H/s", 500), ("~1.5k H/s", 1500), ("~5k H/s", 5000)):
-            eta = expect / hps
-            print(f"  · at {label} → avg ~{format_duration(eta)}")
-        print("  Leave this running — Ctrl+C cancels the block. Luck varies.\n")
+    def mine_one(self, miner_address: str, slice_seconds: float = 90.0) -> Dict[str, Any]:
+        """
+        Mine the next block. Rebuilds the template every `slice_seconds` so
+        stall relief / retarget / mempool can update (avoids multi-day stuck slices).
+        """
+        total_tried = 0
         t0 = time.time()
-        header, block_hash, tried = mine_block(template["header"], difficulty=diff)
-        elapsed = max(time.time() - t0, 1e-9)
-        block = {
-            "height": template["height"],
-            "hash": block_hash,
-            "header": header,
-            "transactions": template["transactions"],
-        }
-        ok, msg = self.append_block(block)
-        if not ok:
-            raise RuntimeError(f"mined block rejected: {msg}")
-        luck = (expect / tried) if tried else 0.0
-        print(
-            f"\n✓ Block #{block['height']} {block_hash[:16]}… | "
-            f"{format_count(tried)} hashes in {format_duration(elapsed)} "
-            f"({tried / elapsed:,.0f} H/s) | luck ×{luck:.2f} vs avg | "
-            f"+{format_howl(subsidy)}"
-        )
-        return block
+        while True:
+            template = self.build_block_template(miner_address)
+            diff = template["difficulty"]
+            subsidy = template["subsidy"]
+            expect = expected_hashes(diff)
+            d_f = difficulty_float_from_raw(diff)
+            print(
+                f"Mining block #{template['height']} | diff={format_difficulty(diff)} | "
+                f"reward={format_howl(subsidy)} | txs={len(template['transactions'])-1}"
+            )
+            if is_smooth_difficulty_raw(diff):
+                print(
+                    f"  Need ~{format_count(expect)} hashes on average "
+                    f"(smooth d={d_f:.3f}). Refreshing template every {slice_seconds:.0f}s."
+                )
+            else:
+                print(
+                    f"  Need ~{format_count(expect)} hashes on average "
+                    f"(legacy: {diff} leading zero hex digits)."
+                )
+            for label, hps in (("~500 H/s", 500), ("~1.5k H/s", 1500), ("~5k H/s", 5000)):
+                eta = expect / hps
+                print(f"  · at {label} → avg ~{format_duration(eta)}")
+            print("  Leave this running — Ctrl+C cancels the block. Luck varies.\n")
+            try:
+                header, block_hash, tried = mine_block(
+                    template["header"],
+                    difficulty=diff,
+                    max_seconds=float(slice_seconds),
+                )
+            except MiningSliceTimeout as e:
+                total_tried += e.tried
+                print(
+                    f"  ↻ Template refresh after {format_duration(e.seconds)} "
+                    f"({format_count(e.tried)} hashes) — rechecking difficulty/stall…"
+                )
+                continue
+            total_tried += tried
+            elapsed = max(time.time() - t0, 1e-9)
+            block = {
+                "height": template["height"],
+                "hash": block_hash,
+                "header": header,
+                "transactions": template["transactions"],
+            }
+            ok, msg = self.append_block(block)
+            if not ok:
+                raise RuntimeError(f"mined block rejected: {msg}")
+            luck = (expect / tried) if tried else 0.0
+            print(
+                f"\n✓ Block #{block['height']} {block_hash[:16]}… | "
+                f"{format_count(total_tried)} hashes in {format_duration(elapsed)} "
+                f"({total_tried / elapsed:,.0f} H/s) | last slice luck ×{luck:.2f} | "
+                f"+{format_howl(subsidy)}"
+            )
+            return block
 
     # ---------- info ----------
 

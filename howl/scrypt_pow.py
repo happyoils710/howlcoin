@@ -189,17 +189,29 @@ def merkle_root(txids: list) -> str:
     return layer[0]
 
 
+class MiningSliceTimeout(Exception):
+    """Raised when a mining slice expires so the caller can rebuild the template."""
+
+    def __init__(self, tried: int, seconds: float):
+        self.tried = tried
+        self.seconds = seconds
+        super().__init__(f"mining slice timeout after {tried} hashes / {seconds:.0f}s")
+
+
 def mine_block(
     header_template: Dict[str, Any],
     difficulty: int,
     max_nonce: Optional[int] = None,
     start_nonce: int = 0,
     progress_every: int = 400,
+    max_seconds: Optional[float] = None,
 ) -> Tuple[Dict[str, Any], str, int]:
     """
     Brute-force nonce until scrypt hash meets difficulty.
     Returns (header, hash_hex, hashes_tried).
-    Progress line shows H/s, % of expected work, elapsed, and ETA.
+
+    If max_seconds is set, raises MiningSliceTimeout so continuous miners can
+    rebuild the block template (stall relief / retarget / new mempool txs).
     """
     header = dict(header_template)
     header["difficulty"] = int(difficulty)
@@ -221,6 +233,9 @@ def mine_block(
         nonce += 1
         if max_nonce is not None and nonce > max_nonce:
             raise RuntimeError("max_nonce exceeded without finding block")
+        if max_seconds is not None and (time.time() - t0) >= float(max_seconds):
+            print(" " * 100, end="\r", flush=True)
+            raise MiningSliceTimeout(tried, time.time() - t0)
         if progress_every and tried % progress_every == 0:
             elapsed = max(time.time() - t0, 1e-6)
             rate = tried / elapsed
@@ -232,10 +247,11 @@ def mine_block(
             else:
                 eta_txt = f"ETA ~{format_duration(eta_s)}"
             mode = "smooth" if smooth else "nibble"
+            slice_note = f" | slice {format_duration(float(max_seconds))}" if max_seconds else ""
             print(
                 f"  … {rate:,.0f} H/s | {pct:.1f}% of avg | "
                 f"elapsed {format_duration(elapsed)} | {eta_txt} | "
-                f"{format_count(tried)}/{format_count(expect)} | {mode} {d_label}   ",
+                f"{format_count(tried)}/{format_count(expect)} | {mode} {d_label}{slice_note}   ",
                 end="\r",
                 flush=True,
             )
