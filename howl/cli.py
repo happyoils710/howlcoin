@@ -397,6 +397,14 @@ def cmd_node(args: argparse.Namespace) -> None:
         seeds=seeds,
     )
     node.start()
+    # Drop invalid / conflicting mempool txs on startup
+    try:
+        dropped = chain.purge_invalid_mempool(save=True)
+        if dropped:
+            print(f"Purged {dropped} invalid mempool tx(s)")
+    except Exception as e:
+        print(f"Mempool purge skipped: {e}")
+
     dash = Dashboard(
         chain,
         wallet,
@@ -406,8 +414,39 @@ def cmd_node(args: argparse.Namespace) -> None:
         p2p_port=args.port,
     )
 
+    # Optional: mine forever in background (HOWL_AUTO_MINE=1)
+    import os
+    import threading
+
+    auto = os.environ.get("HOWL_AUTO_MINE", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    if auto:
+
+        def _auto_mine() -> None:
+            import time as _t
+
+            _t.sleep(2.0)
+            try:
+                r = dash.start_continuous_mining()
+                if r.get("ok"):
+                    print("Auto-mine forever: ON (HOWL_AUTO_MINE)")
+                else:
+                    print(f"Auto-mine not started: {r.get('error')}")
+            except Exception as e:
+                print(f"Auto-mine failed: {e}")
+
+        threading.Thread(target=_auto_mine, name="howl-auto-mine", daemon=True).start()
+
     def _stop(*_a):
         print("\nShutting down Howlcoin node…")
+        try:
+            dash.stop_mining()
+        except Exception:
+            pass
         node.stop()
         sys.exit(0)
 

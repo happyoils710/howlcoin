@@ -2965,6 +2965,10 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                         )
 
                     if rest[0] == "mempool":
+                        try:
+                            chain.purge_invalid_mempool(save=True)
+                        except Exception:
+                            pass
                         return self._json(
                             200,
                             {

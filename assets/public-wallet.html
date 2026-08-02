@@ -681,6 +681,15 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <div class="price-hint" id="portfolioHint">All assets · tap USD / BTC</div>
         <div class="sub-bal" id="howlSubBal">HOWL: —</div>
         <div class="addr" id="addr" onclick="copyText(keypair&&keypair.address)" style="cursor:pointer" title="Copy HOWL address">—</div>
+        <div class="wallet-switch" id="walletSwitch">
+          <label class="hint" style="margin:0;text-transform:none;letter-spacing:0">Wallets</label>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;justify-content:center">
+            <select class="chain-select" id="walletSelect" style="margin:0;flex:1;min-width:140px;max-width:220px"></select>
+            <button type="button" class="chip" id="btnWalletNew" style="cursor:pointer" title="Create another wallet">+ New</button>
+            <button type="button" class="chip" id="btnWalletImport" style="cursor:pointer" title="Import recovery phrase">Import</button>
+          </div>
+          <p class="hint" id="walletSwitchHint" style="margin:6px 0 0">Switch · create · import as many as you need</p>
+        </div>
       </div>
       <div class="actions">
         <button class="action" type="button" onclick="showPage('send')"><span class="ico">↑</span><span class="n">Send</span></button>
@@ -1317,6 +1326,8 @@ const LS_BIO_VAULT = "howl_public_bio_vault_v1"; // convenience unlock payload (
 const LS_CUSTOM = "howl_custom_tokens_v1";
 const LS_CREATED = "howl_public_wallet_ready_v2";
 const LS_TOOLBAR = "howl_toolbar_v1";
+/** Public index of wallets (names/addresses) for switcher UI */
+const LS_WALLET_INDEX = "howl_wallet_index_v1";
 
 /** All items that can appear on the bottom bar */
 const TOOLBAR_CATALOG = [
@@ -1381,6 +1392,11 @@ let multiInfo = {};
 let mnemonic = null;
 let walletPin = null; // session-only after unlock
 let meta = { totpEnabled: false }; // totp secret lives inside encrypted blob
+/** Multi-wallet session state (decrypted after unlock) */
+let multiVault = null; // { version:3, wallets:[...], activeId }
+let activeWalletId = null;
+/** Local pending nonces per HOWL address to prevent double-submit */
+let localPendingNonce = {}; // address -> next reserved nonce
 let totpSecretPending = null;
 let selectedAsset = "howl";
 let selectedChain = "howl";
@@ -1475,16 +1491,95 @@ async function decryptWithRawKey(rawKeyBytes, blob){
   return new TextDecoder().decode(pt);
 }
 
+function newWalletId(){
+  return "w_" + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+function normalizeMultiVault(obj){
+  // Accept v3 multi, v2 single object, or plain string mnemonic
+  if(typeof obj === "string"){
+    const id = newWalletId();
+    return {
+      version: 3,
+      activeId: id,
+      wallets: [{ id, name: "Main", mnemonic: obj, totpSecret: null, totpEnabled: false, createdAt: Date.now() }],
+    };
+  }
+  if(obj && obj.version === 3 && Array.isArray(obj.wallets) && obj.wallets.length){
+    if(!obj.activeId || !obj.wallets.some(w=>w.id===obj.activeId)){
+      obj.activeId = obj.wallets[0].id;
+    }
+    return obj;
+  }
+  // v2 single-wallet payload
+  const phrase = obj?.mnemonic;
+  if(!phrase) throw new Error("Invalid vault");
+  const id = newWalletId();
+  return {
+    version: 3,
+    activeId: id,
+    wallets: [{
+      id,
+      name: "Main",
+      mnemonic: phrase,
+      totpSecret: obj.totpSecret || null,
+      totpEnabled: !!obj.totpEnabled,
+      createdAt: Date.now(),
+    }],
+  };
+}
+function activeWalletEntry(){
+  if(!multiVault?.wallets?.length) return null;
+  return multiVault.wallets.find(w=>w.id===multiVault.activeId) || multiVault.wallets[0];
+}
+function persistWalletIndex(){
+  try{
+    const idx = {
+      activeId: multiVault?.activeId || null,
+      wallets: (multiVault?.wallets || []).map(w=>{
+        let address = "";
+        try{ address = keypairFromMnemonic(w.mnemonic, 0).address; }catch(_){}
+        return { id: w.id, name: w.name || "Wallet", address, createdAt: w.createdAt || 0 };
+      }),
+    };
+    localStorage.setItem(LS_WALLET_INDEX, JSON.stringify(idx));
+  }catch(_){}
+}
+function loadWalletIndex(){
+  try{ return JSON.parse(localStorage.getItem(LS_WALLET_INDEX) || "null"); }catch{ return null; }
+}
+
 async function saveVault(payload, pin){
+  // payload may be single-wallet legacy fields OR full multiVault
+  let multi;
+  if(payload && payload.version === 3 && Array.isArray(payload.wallets)){
+    multi = normalizeMultiVault(payload);
+  } else if(payload && payload.mnemonic){
+    // update active wallet mnemonic/totp inside multiVault
+    multi = multiVault ? JSON.parse(JSON.stringify(multiVault)) : null;
+    if(!multi){
+      multi = normalizeMultiVault(payload);
+    } else {
+      const w = multi.wallets.find(x=>x.id===multi.activeId) || multi.wallets[0];
+      if(w){
+        w.mnemonic = payload.mnemonic;
+        w.totpSecret = payload.totpSecret || null;
+        w.totpEnabled = !!payload.totpEnabled;
+      }
+    }
+  } else {
+    multi = normalizeMultiVault(payload);
+  }
+  multiVault = multi;
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await deriveKey(pin, salt);
-  const ct = await crypto.subtle.encrypt({ name:"AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(payload)));
+  const ct = await crypto.subtle.encrypt({ name:"AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(multi)));
   localStorage.setItem(LS_ENC, JSON.stringify({ salt:b64(salt), iv:b64(iv), data:b64(new Uint8Array(ct)) }));
   localStorage.setItem(LS_CREATED, "1");
+  persistWalletIndex();
   // Keep Face ID unlock payload in sync if biometrics already enabled
   if(localStorage.getItem(LS_BIO) && localStorage.getItem(LS_BIO_VAULT)){
-    try{ await saveBioVault(payload); }catch(_){}
+    try{ await saveBioVault(multi); }catch(_){}
   }
 }
 async function loadVault(pin){
@@ -1494,9 +1589,7 @@ async function loadVault(pin){
   const key = await deriveKey(pin, unb64(salt));
   const pt = await crypto.subtle.decrypt({ name:"AES-GCM", iv:unb64(iv) }, key, unb64(data));
   const obj = JSON.parse(new TextDecoder().decode(pt));
-  // migrate plain phrase
-  if(typeof obj === "string") return { mnemonic: obj, totpSecret: null };
-  return obj;
+  return normalizeMultiVault(typeof obj === "string" ? obj : obj);
 }
 
 /** Convenience Face ID unlock: device key + encrypted vault (requires WebAuthn each unlock). */
@@ -1547,7 +1640,7 @@ async function setupBiometric(){
     if(!cred) throw new Error("Cancelled");
     localStorage.setItem(LS_BIO, JSON.stringify({ id: bufToB64(cred.rawId) }));
     // Store vault for PIN-free unlock after Face ID succeeds
-    await saveBioVault({
+    await saveBioVault(multiVault || {
       mnemonic,
       totpSecret: meta.totpSecret || null,
       totpEnabled: !!meta.totpEnabled,
@@ -5202,7 +5295,7 @@ async function refreshOracle(){
 }
 
 async function nextLocalNonce(){
-  // confirmed nonce + pending mempool txs from us
+  // confirmed nonce + pending mempool txs from us + local reserved nonces
   const addr = await api("/api/public/address/" + encodeURIComponent(keypair.address));
   let n = addr.nonce || 0;
   try{
@@ -5211,7 +5304,13 @@ async function nextLocalNonce(){
       if(t.from === keypair.address) n = Math.max(n, (t.nonce||0) + 1);
     }
   }catch(_){}
+  const reserved = localPendingNonce[keypair.address];
+  if(reserved != null) n = Math.max(n, reserved);
   return n;
+}
+function reserveLocalNonce(addr, nonce){
+  // next send must use > this nonce
+  localPendingNonce[addr] = Math.max(localPendingNonce[addr] || 0, nonce + 1);
 }
 
 async function postOracle({ source_chain, oracle_key, oracle_value, nonce }){
@@ -5306,6 +5405,10 @@ async function refresh(){
     chainInfo.height = sum.height;
     chainInfo.balance = BigInt(addr.balance || 0);
     chainInfo.nonce = addr.nonce || 0;
+    // Clear local pending reservation once chain nonce catches up
+    if(localPendingNonce[keypair.address] != null && chainInfo.nonce >= localPendingNonce[keypair.address]){
+      delete localPendingNonce[keypair.address];
+    }
     chainInfo.txs = addr.transactions || [];
     minFeeHowl = fees.default_fee_howl || 1;
     setAssetBal("howl", howlAmount(), 8);
@@ -5321,13 +5424,28 @@ async function refresh(){
     const act = $("activity");
     wireUnitToggle();
     updatePortfolioTotal();
+    renderWalletSwitcher();
     renderHomeAssets();
-    if(!chainInfo.txs.length) act.innerHTML = '<p class="hint">No HOWL transactions yet</p>';
-    else act.innerHTML = chainInfo.txs.slice(0,15).map(t=>{
+    // Pending mempool for this wallet
+    let pending = [];
+    try{
+      const mp = await api("/api/public/mempool");
+      pending = (mp.transactions||[]).filter(t => t.from === keypair.address || t.to === keypair.address);
+    }catch(_){}
+    const pendingHtml = pending.length
+      ? pending.slice(0,8).map(t=>{
+          const dir = t.from === keypair.address ? "Pending send" : "Pending receive";
+          const amt = t.amount!=null ? formatHowl(t.amount) : "";
+          return `<div class="item"><div><div style="color:var(--amber)">${dir}</div><div class="m">mempool · nonce ${t.nonce} · ${(t.txid||"").slice(0,12)}…</div></div><div class="r">${String(amt).replace(" HOWL","")}</div></div>`;
+        }).join("")
+      : "";
+    if(!chainInfo.txs.length && !pending.length) act.innerHTML = '<p class="hint">No HOWL transactions yet</p>';
+    else act.innerHTML = pendingHtml + chainInfo.txs.slice(0,15).map(t=>{
       const typ = t.type||"transfer";
       const dir = typ==="nft_mint"?"NFT mint": typ==="oracle"?"Oracle": (t.direction==="in"||typ==="coinbase"?"Received":"Sent");
       const amt = t.amount!=null && Number(t.amount)>0 ? formatHowl(t.amount) : (typ!=="transfer"?typ:"");
-      return `<div class="item"><div><div>${dir}</div><div class="m">${t.block_height!=null?"#"+t.block_height:"…"} · ${(t.txid||"").slice(0,12)}…</div></div><div class="r">${String(amt).replace(" HOWL","")}</div></div>`;
+      const conf = t.block_height!=null ? "#"+t.block_height : "pending";
+      return `<div class="item"><div><div>${dir}</div><div class="m">${conf} · ${(t.txid||"").slice(0,12)}…</div></div><div class="r">${String(amt).replace(" HOWL","")}</div></div>`;
     }).join("");
     // Prices + SOL first, then full multi-chain balances
     refreshMarketPrices(false);
@@ -5356,21 +5474,36 @@ async function doSend(){
     if(fee < COIN) throw new Error("Fee must be at least 1 HOWL");
     if(!isValidAddress(to)) throw new Error("Invalid address");
     if(amount + fee > chainInfo.balance) throw new Error("Insufficient balance");
-    const addr = await api("/api/public/address/" + encodeURIComponent(keypair.address));
-    if(!confirm(`Send ${formatHowl(amount)}\nto ${to}\nFee ${formatHowl(fee)}`)) return;
+    // Use mempool-aware nonce so we never double-submit the same nonce
+    const nonce = await nextLocalNonce();
+    // Guard: if something is already pending at this nonce on mempool, refuse
+    try{
+      const mp = await api("/api/public/mempool");
+      const clash = (mp.transactions||[]).find(t => t.from === keypair.address && Number(t.nonce) === Number(nonce));
+      if(clash){
+        throw new Error(
+          "A send is already pending for this wallet (nonce " + nonce + "). " +
+          "Wait until it confirms in a block before sending again."
+        );
+      }
+    }catch(e){
+      if(e.message && e.message.includes("pending")) throw e;
+    }
+    if(!confirm(`Send ${formatHowl(amount)}\nto ${to}\nFee ${formatHowl(fee)}\nNonce ${nonce}`)) return;
     $("sendBtn").disabled = true;
+    reserveLocalNonce(keypair.address, nonce); // reserve before broadcast to block double-tap
     const tx = await buildSignedTx({
       keypair, to,
       amountHowlies: Number(amount),
       feeHowlies: Number(fee),
-      nonce: addr.nonce||0,
+      nonce,
       memo: $("sendMemo").value||"",
     });
     const res = await api("/api/public/broadcast", {
       method:"POST", headers:{ "Content-Type":"application/json" },
       body: JSON.stringify({ tx }),
     });
-    toast("Queued " + (res.txid||"").slice(0,14) + "…");
+    toast("Queued " + (res.txid||"").slice(0,14) + "… wait for a block");
     $("sendAmt").value = "";
     if($("sendTotp")) $("sendTotp").value = "";
     showPage("home");
@@ -5390,21 +5523,23 @@ function hideSeed(){ $("seedBox").classList.add("hidden"); $("seedWords").innerH
 
 function lockWallet(){
   keypair=null; ethInfo=null; solInfo=null; xtzInfo=null; mnemonic=null; walletPin=null; meta.totpSecret=null;
+  multiVault=null; activeWalletId=null; multiInfo={}; localPendingNonce={};
   boot();
   toast("Locked");
 }
 function wipeWallet(){
-  if(!confirm("Remove wallet from this device? Keep your recovery phrase safe.")) return;
+  if(!confirm("Remove ALL wallets from this device? Keep recovery phrases safe.")) return;
   localStorage.removeItem(LS_ENC);
   localStorage.removeItem(LS_META);
   localStorage.removeItem(LS_BIO);
   localStorage.removeItem(LS_BIO_VAULT);
   localStorage.removeItem(LS_CREATED);
   localStorage.removeItem(LS_CUSTOM);
+  localStorage.removeItem(LS_WALLET_INDEX);
   lockWallet();
 }
 
-async function openSession(phrase, pin, vaultExtras={}){
+function deriveAllFromMnemonic(phrase){
   mnemonic = phrase.trim().toLowerCase().split(/\s+/).join(" ");
   if(!checkMnemonic(mnemonic)) throw new Error("Invalid recovery phrase");
   keypair = keypairFromMnemonic(mnemonic, 0);
@@ -5421,18 +5556,192 @@ async function openSession(phrase, pin, vaultExtras={}){
   try { multiInfo.trx = trxAddressFromMnemonic(mnemonic, 0); } catch(_){}
   try { multiInfo.xrp = xrpAddressFromMnemonic(mnemonic, 0); } catch(_){}
   try { multiInfo.xlm = xlmAddressFromMnemonic(mnemonic, 0); } catch(_){}
-  walletPin = pin;
-  meta.totpSecret = vaultExtras.totpSecret || null;
+}
+
+async function activateWalletEntry(entry, pin){
+  if(!entry?.mnemonic) throw new Error("Wallet entry missing");
+  deriveAllFromMnemonic(entry.mnemonic);
+  activeWalletId = entry.id;
+  if(multiVault) multiVault.activeId = entry.id;
+  walletPin = pin != null ? pin : walletPin;
+  meta.totpSecret = entry.totpSecret || null;
   meta.hasTotp = !!meta.totpSecret;
-  meta.totpEnabled = !!(vaultExtras.totpEnabled && meta.totpSecret);
+  meta.totpEnabled = !!(entry.totpEnabled && entry.totpSecret);
   saveMeta();
-  if(pin) await saveVault({ mnemonic, totpSecret: meta.totpSecret||null, totpEnabled: meta.totpEnabled }, pin);
+  persistWalletIndex();
+  localPendingNonce = {};
+  renderWalletSwitcher();
+}
+
+/** Open or create session. vaultExtras may be multi-vault or single wallet fields. */
+async function openSession(phrase, pin, vaultExtras={}){
+  // If vaultExtras is already multi v3 (from unlock), activate active wallet
+  if(vaultExtras && vaultExtras.version === 3 && Array.isArray(vaultExtras.wallets)){
+    multiVault = normalizeMultiVault(vaultExtras);
+    const entry = activeWalletEntry();
+    if(!entry) throw new Error("No wallets in vault");
+    await activateWalletEntry(entry, pin);
+    if(pin) await saveVault(multiVault, pin);
+    else if(hasBiometricUnlock()){
+      try{ await saveBioVault(multiVault); }catch(_){}
+    }
+    showApp();
+    return;
+  }
+
+  deriveAllFromMnemonic(phrase);
+  // Merge into multiVault
+  if(!multiVault){
+    const id = newWalletId();
+    multiVault = {
+      version: 3,
+      activeId: id,
+      wallets: [{
+        id,
+        name: vaultExtras.name || "Main",
+        mnemonic,
+        totpSecret: vaultExtras.totpSecret || null,
+        totpEnabled: !!(vaultExtras.totpEnabled && vaultExtras.totpSecret),
+        createdAt: Date.now(),
+      }],
+    };
+  } else {
+    // add or update by mnemonic match
+    let found = multiVault.wallets.find(w => w.mnemonic === mnemonic);
+    if(!found){
+      const id = newWalletId();
+      found = {
+        id,
+        name: vaultExtras.name || ("Wallet " + (multiVault.wallets.length + 1)),
+        mnemonic,
+        totpSecret: vaultExtras.totpSecret || null,
+        totpEnabled: !!(vaultExtras.totpEnabled && vaultExtras.totpSecret),
+        createdAt: Date.now(),
+      };
+      multiVault.wallets.push(found);
+    } else {
+      if(vaultExtras.totpSecret !== undefined) found.totpSecret = vaultExtras.totpSecret;
+      if(vaultExtras.totpEnabled !== undefined) found.totpEnabled = !!vaultExtras.totpEnabled;
+      if(vaultExtras.name) found.name = vaultExtras.name;
+    }
+    multiVault.activeId = found.id;
+  }
+  await activateWalletEntry(activeWalletEntry(), pin);
+  if(pin) await saveVault(multiVault, pin);
   else if(hasBiometricUnlock()){
-    try{
-      await saveBioVault({ mnemonic, totpSecret: meta.totpSecret||null, totpEnabled: meta.totpEnabled });
-    }catch(_){}
+    try{ await saveBioVault(multiVault); }catch(_){}
   }
   showApp();
+}
+
+function renderWalletSwitcher(){
+  const sel = $("walletSelect");
+  if(!sel) return;
+  const list = multiVault?.wallets || [];
+  if(!list.length){
+    sel.innerHTML = `<option value="">—</option>`;
+    return;
+  }
+  sel.innerHTML = list.map(w=>{
+    let addr = "";
+    try{ addr = keypairFromMnemonic(w.mnemonic, 0).address; }catch(_){}
+    const short = addr ? (addr.slice(0,6)+"…"+addr.slice(-4)) : "";
+    const label = (w.name || "Wallet") + (short ? " · " + short : "");
+    return `<option value="${escAttr(w.id)}" ${w.id===activeWalletId?"selected":""}>${escHtml(label)}</option>`;
+  }).join("");
+  if(!sel.dataset.wired){
+    sel.dataset.wired = "1";
+    sel.addEventListener("change", async ()=>{
+      const id = sel.value;
+      if(!id || id === activeWalletId) return;
+      try{
+        await switchWallet(id);
+        toast("Switched wallet");
+      }catch(e){ toast(e.message || "Switch failed"); renderWalletSwitcher(); }
+    });
+  }
+  if($("btnWalletNew") && !$("btnWalletNew").dataset.wired){
+    $("btnWalletNew").dataset.wired = "1";
+    $("btnWalletNew").onclick = ()=> promptCreateWallet();
+  }
+  if($("btnWalletImport") && !$("btnWalletImport").dataset.wired){
+    $("btnWalletImport").dataset.wired = "1";
+    $("btnWalletImport").onclick = ()=> promptImportWallet();
+  }
+  if($("walletSwitchHint")){
+    $("walletSwitchHint").textContent = list.length + " wallet" + (list.length===1?"":"s") + " on this device";
+  }
+}
+
+async function switchWallet(id){
+  if(!multiVault) throw new Error("Unlock first");
+  const entry = multiVault.wallets.find(w=>w.id===id);
+  if(!entry) throw new Error("Wallet not found");
+  await activateWalletEntry(entry, walletPin);
+  if(walletPin) await saveVault(multiVault, walletPin);
+  else if(hasBiometricUnlock()){
+    try{ await saveBioVault(multiVault); }catch(_){}
+  }
+  ethBalances = {};
+  assetRaw = {};
+  chainInfo = { height: 0, nonce: 0, balance: 0n, txs: [] };
+  await refresh();
+  renderWalletSwitcher();
+}
+
+async function promptCreateWallet(){
+  if(!walletPin && !hasBiometricUnlock()){
+    toast("Unlock with PIN first to add wallets");
+    return;
+  }
+  const name = (prompt("Name for the new wallet", "Wallet " + ((multiVault?.wallets?.length||0)+1)) || "").trim();
+  if(!name) return;
+  const phrase = createMnemonic();
+  const ok = confirm("Write down these 12 words offline:\n\n" + phrase + "\n\nContinue to create \"" + name + "\"?");
+  if(!ok) return;
+  if(!multiVault) multiVault = { version: 3, activeId: null, wallets: [] };
+  const id = newWalletId();
+  multiVault.wallets.push({
+    id, name, mnemonic: phrase.trim().toLowerCase().split(/\s+/).join(" "),
+    totpSecret: null, totpEnabled: false, createdAt: Date.now(),
+  });
+  multiVault.activeId = id;
+  if(walletPin) await saveVault(multiVault, walletPin);
+  else if(hasBiometricUnlock()) await saveBioVault(multiVault);
+  await switchWallet(id);
+  toast("Wallet \"" + name + "\" created");
+  alert("Recovery phrase for \"" + name + "\":\n\n" + phrase + "\n\nStore offline. You will not see it again here unless you open Security → Reveal.");
+}
+
+async function promptImportWallet(){
+  if(!walletPin && !hasBiometricUnlock()){
+    toast("Unlock with PIN first to import wallets");
+    return;
+  }
+  const name = (prompt("Name for imported wallet", "Imported") || "").trim() || "Imported";
+  const phrase = (prompt("Paste 12-word recovery phrase") || "").trim();
+  if(!phrase) return;
+  if(!checkMnemonic(phrase.trim().toLowerCase().split(/\s+/).join(" "))){
+    toast("Invalid recovery phrase");
+    return;
+  }
+  const norm = phrase.trim().toLowerCase().split(/\s+/).join(" ");
+  if(!multiVault) multiVault = { version: 3, activeId: null, wallets: [] };
+  if(multiVault.wallets.some(w => w.mnemonic === norm)){
+    toast("That wallet is already on this device");
+    const existing = multiVault.wallets.find(w => w.mnemonic === norm);
+    if(existing) await switchWallet(existing.id);
+    return;
+  }
+  const id = newWalletId();
+  multiVault.wallets.push({
+    id, name, mnemonic: norm, totpSecret: null, totpEnabled: false, createdAt: Date.now(),
+  });
+  multiVault.activeId = id;
+  if(walletPin) await saveVault(multiVault, walletPin);
+  else if(hasBiometricUnlock()) await saveBioVault(multiVault);
+  await switchWallet(id);
+  toast("Imported \"" + name + "\"");
 }
 
 function startTotpSetup(){
@@ -5450,9 +5759,10 @@ async function confirmTotpSetup(){
   meta.totpEnabled = true;
   meta.hasTotp = true;
   totpSecretPending = null;
-  const payload = { mnemonic, totpSecret: meta.totpSecret, totpEnabled: true };
-  if(walletPin) await saveVault(payload, walletPin);
-  else if(hasBiometricUnlock()) await saveBioVault(payload);
+  const entry = activeWalletEntry();
+  if(entry){ entry.totpSecret = meta.totpSecret; entry.totpEnabled = true; }
+  if(walletPin) await saveVault(multiVault || { mnemonic, totpSecret: meta.totpSecret, totpEnabled: true }, walletPin);
+  else if(hasBiometricUnlock()) await saveBioVault(multiVault || { mnemonic, totpSecret: meta.totpSecret, totpEnabled: true });
   saveMeta();
   $("totpSetup").classList.add("hidden");
   updateSecUI();
@@ -5462,9 +5772,10 @@ async function disableTotp(){
   const code = prompt("Enter Authenticator code to disable 2FA");
   if(!meta.totpSecret || !verifyTotp(meta.totpSecret, code||"")){ toast("Invalid code"); return; }
   meta.totpSecret = null; meta.totpEnabled = false; meta.hasTotp = false;
-  const payload = { mnemonic, totpSecret: null, totpEnabled: false };
-  if(walletPin) await saveVault(payload, walletPin);
-  else if(hasBiometricUnlock()) await saveBioVault(payload);
+  const entry = activeWalletEntry();
+  if(entry){ entry.totpSecret = null; entry.totpEnabled = false; }
+  if(walletPin) await saveVault(multiVault || { mnemonic, totpSecret: null, totpEnabled: false }, walletPin);
+  else if(hasBiometricUnlock()) await saveBioVault(multiVault || { mnemonic, totpSecret: null, totpEnabled: false });
   saveMeta();
   updateSecUI();
   toast("2FA disabled");
@@ -5728,14 +6039,16 @@ function uiUnlock(){
     <button class="btn sec" type="button" id="btnRest2">Restore different phrase</button>
   `);
   async function applyVault(vault, pinOrNull){
-    if(vault.totpEnabled && vault.totpSecret){
+    const multi = normalizeMultiVault(vault);
+    const entry = multi.wallets.find(w=>w.id===multi.activeId) || multi.wallets[0];
+    if(entry?.totpEnabled && entry?.totpSecret){
       const code = $("unTotp")?.value?.trim() || "";
-      if(!verifyTotp(vault.totpSecret, code)) throw new Error("Invalid authenticator code");
+      if(!verifyTotp(entry.totpSecret, code)) throw new Error("Invalid authenticator code");
     }
-    meta.totpEnabled = !!vault.totpEnabled;
-    meta.hasTotp = !!vault.totpSecret;
+    meta.totpEnabled = !!(entry?.totpEnabled);
+    meta.hasTotp = !!entry?.totpSecret;
     // PIN may be null after Face ID unlock; openSession still works
-    await openSession(vault.mnemonic, pinOrNull, vault);
+    await openSession(entry.mnemonic, pinOrNull, multi);
   }
   async function tryOpen(fromBio){
     try{

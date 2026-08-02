@@ -306,6 +306,8 @@ class Blockchain:
         return True, "ok"
 
     def add_to_mempool(self, tx: Dict[str, Any]) -> Tuple[bool, str]:
+        # Drop dead txs first so new valid nonces are not blocked by ghosts
+        self.purge_invalid_mempool(save=False)
         ok, msg = self.validate_tx(tx)
         if not ok:
             return False, msg
@@ -318,9 +320,70 @@ class Blockchain:
             for t in b["transactions"]:
                 if t.get("txid") == tid:
                     return False, "already confirmed"
+        # Reject conflicting nonce from same sender (prevents dual-stuck sends)
+        frm = tx.get("from")
+        nonce = int(tx.get("nonce", -1))
+        for t in self.mempool:
+            if t.get("from") == frm and int(t.get("nonce", -2)) == nonce:
+                return False, (
+                    f"nonce {nonce} already pending for this address "
+                    f"(txid {(t.get('txid') or '')[:16]}…). "
+                    "Wait for confirm or drop the pending tx first."
+                )
         self.mempool.append(tx)
         self.save_mempool()
         return True, tid
+
+    def purge_invalid_mempool(self, save: bool = True) -> int:
+        """
+        Remove mempool txs that fail validation (wrong nonce, low balance, etc.).
+        Returns number of dropped txs. Call after blocks land or on broadcast.
+        """
+        if not self.mempool:
+            return 0
+        kept: List[Dict[str, Any]] = []
+        # Simulate selection order so only first valid nonce-N from a sender survives
+        bals = dict(self.balances)
+        nonces = dict(self.nonces)
+        nfts = {k: dict(v) for k, v in self.nfts.items()}
+        dropped = 0
+        for tx in self.mempool:
+            ok, _ = self.validate_tx(
+                tx,
+                provisional_balances=bals,
+                provisional_nonces=nonces,
+                provisional_nfts=nfts,
+            )
+            if not ok:
+                dropped += 1
+                continue
+            kept.append(tx)
+            amount, fee = int(tx.get("amount", 0)), int(tx.get("fee", 0))
+            frm, to = tx.get("from") or "", tx.get("to") or ""
+            bals[frm] = bals.get(frm, 0) - amount - fee
+            if amount:
+                bals[to] = bals.get(to, 0) + amount
+            nonces[frm] = int(tx.get("nonce", 0)) + 1
+            tt = tx.get("type") or "transfer"
+            if tt == "nft_mint":
+                nid = tx.get("nft_id") or ""
+                if nid:
+                    nfts[nid] = {
+                        "nft_id": nid,
+                        "owner": to,
+                        "creator": frm,
+                        "name": tx.get("name") or "",
+                        "uri": tx.get("uri") or "",
+                    }
+            elif tt == "nft_transfer":
+                nid = tx.get("nft_id") or ""
+                if nid in nfts:
+                    nfts[nid]["owner"] = to
+        if dropped:
+            self.mempool = kept
+            if save:
+                self.save_mempool()
+        return dropped
 
     def validate_block(self, block: Dict[str, Any], prev: Dict[str, Any]) -> Tuple[bool, str]:
         h = block["header"]
@@ -399,6 +462,8 @@ class Blockchain:
         # purge mempool txs that confirmed
         confirmed = {t["txid"] for t in block["transactions"] if "txid" in t}
         self.mempool = [t for t in self.mempool if t.get("txid") not in confirmed]
+        # also drop invalid / conflicting-nonce leftovers
+        self.purge_invalid_mempool(save=False)
         self.save()
         self.save_mempool()
         return True, "ok"
@@ -483,6 +548,7 @@ class Blockchain:
         difficulty = self.next_difficulty()
         subsidy = block_subsidy(height)
         # select valid mempool txs first so coinbase can include their fees
+        self.purge_invalid_mempool(save=True)
         selected: List[Dict[str, Any]] = []
         bals = dict(self.balances)
         nonces = dict(self.nonces)
