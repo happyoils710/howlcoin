@@ -11,3 +11,21 @@ capacitor-cordova-ios-plugins
 # Generated Config files
 App/App/capacitor.config.json
 App/App/config.xml
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+sudo xcodebuild -license accept
+xcodebuild -version
+export PATH="/usr/local/opt/node@20/bin:$PATH"
+export LANG=en_US.UTF-8
+
+# CocoaPods (once)
+brew install cocoapods
+
+cd ~/Desktop/howlcoin/native
+npm install
+npm run cap:sync
+
+cd ios/App
+pod install
+cd ../..
+
+npx cap open ios

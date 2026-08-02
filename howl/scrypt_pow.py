@@ -57,6 +57,38 @@ def meets_difficulty(hash_hex: str, difficulty: int) -> bool:
     return hash_hex.startswith("0" * difficulty)
 
 
+def expected_hashes(difficulty: int) -> float:
+    """Average hashes needed (each leading zero nibble is 1/16)."""
+    if difficulty <= 0:
+        return 1.0
+    return float(16**int(difficulty))
+
+
+def format_duration(seconds: float) -> str:
+    """Human duration for ETA / elapsed (e.g. 45s, 12.3m, 2.4h)."""
+    if seconds < 0 or seconds != seconds:  # NaN
+        return "?"
+    if seconds < 60:
+        return f"{seconds:.0f}s"
+    if seconds < 3600:
+        return f"{seconds / 60:.1f}m"
+    if seconds < 86400:
+        return f"{seconds / 3600:.1f}h"
+    return f"{seconds / 86400:.1f}d"
+
+
+def format_count(n: float) -> str:
+    """Compact hash counts: 34400 → 34.4k, 1.68e7 → 16.8M."""
+    n = float(n)
+    if n < 1000:
+        return f"{n:.0f}"
+    if n < 1_000_000:
+        return f"{n / 1000:.1f}k"
+    if n < 1_000_000_000:
+        return f"{n / 1_000_000:.1f}M"
+    return f"{n / 1_000_000_000:.2f}B"
+
+
 def merkle_root(txids: list) -> str:
     if not txids:
         return "0" * 64
@@ -80,23 +112,27 @@ def mine_block(
     difficulty: int,
     max_nonce: Optional[int] = None,
     start_nonce: int = 0,
-    progress_every: int = 200,
+    progress_every: int = 400,
 ) -> Tuple[Dict[str, Any], str, int]:
     """
     Brute-force nonce until scrypt hash meets difficulty.
     Returns (header, hash_hex, hashes_tried).
+    Progress line shows H/s, % of expected work, elapsed, and ETA.
     """
     header = dict(header_template)
     header["difficulty"] = difficulty
     nonce = start_nonce
     tried = 0
     t0 = time.time()
+    expect = expected_hashes(difficulty)
 
     while True:
         header["nonce"] = nonce
         h = pow_hash_hex(header)
         tried += 1
         if meets_difficulty(h, difficulty):
+            # clear progress line
+            print(" " * 100, end="\r", flush=True)
             return header, h, tried
         nonce += 1
         if max_nonce is not None and nonce > max_nonce:
@@ -104,8 +140,19 @@ def mine_block(
         if progress_every and tried % progress_every == 0:
             elapsed = max(time.time() - t0, 1e-6)
             rate = tried / elapsed
+            # progress vs average expected work (can go >100% — luck)
+            pct = min(999.0, 100.0 * tried / expect) if expect > 0 else 0.0
+            remain = max(0.0, expect - tried)
+            eta_s = remain / rate if rate > 0 else float("inf")
+            # after 100% of expected, show "overdue (luck)" style ETA as next expect slice
+            if tried >= expect:
+                eta_txt = f"overdue +{format_duration(elapsed - (expect / rate) if rate else 0)} (keep going)"
+            else:
+                eta_txt = f"ETA ~{format_duration(eta_s)}"
             print(
-                f"  … mining {tried} hashes | {rate:.1f} H/s | nonce={nonce}",
+                f"  … {rate:,.0f} H/s | {pct:.1f}% of avg | "
+                f"elapsed {format_duration(elapsed)} | {eta_txt} | "
+                f"{format_count(tried)}/{format_count(expect)} hashes   ",
                 end="\r",
                 flush=True,
             )

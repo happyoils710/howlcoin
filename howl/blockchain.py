@@ -19,7 +19,15 @@ from .config import (
     block_subsidy,
 )
 from .crypto import is_valid_address, sha256, tx_sighash, txid, verify_signature
-from .scrypt_pow import meets_difficulty, merkle_root, mine_block, pow_hash_hex
+from .scrypt_pow import (
+    expected_hashes,
+    format_count,
+    format_duration,
+    meets_difficulty,
+    merkle_root,
+    mine_block,
+    pow_hash_hex,
+)
 from .wallet import format_howl
 
 
@@ -554,10 +562,20 @@ class Blockchain:
         template = self.build_block_template(miner_address)
         diff = template["difficulty"]
         subsidy = template["subsidy"]
+        expect = expected_hashes(diff)
         print(
             f"Mining block #{template['height']} | diff={diff} | "
             f"reward={format_howl(subsidy)} | txs={len(template['transactions'])-1}"
         )
+        print(
+            f"  Need ~{format_count(expect)} hashes on average "
+            f"(diff {diff} = {diff} leading zero hex digits)."
+        )
+        # rough laptop band so people know not to Ctrl+C after 30s
+        for label, hps in (("~500 H/s", 500), ("~1.5k H/s", 1500), ("~5k H/s", 5000)):
+            eta = expect / hps
+            print(f"  · at {label} → avg ~{format_duration(eta)}")
+        print("  Leave this running — Ctrl+C cancels the block. Luck varies.\n")
         t0 = time.time()
         header, block_hash, tried = mine_block(template["header"], difficulty=diff)
         elapsed = max(time.time() - t0, 1e-9)
@@ -570,9 +588,11 @@ class Blockchain:
         ok, msg = self.append_block(block)
         if not ok:
             raise RuntimeError(f"mined block rejected: {msg}")
+        luck = (expect / tried) if tried else 0.0
         print(
             f"\n✓ Block #{block['height']} {block_hash[:16]}… | "
-            f"{tried} hashes in {elapsed:.1f}s ({tried/elapsed:.1f} H/s) | "
+            f"{format_count(tried)} hashes in {format_duration(elapsed)} "
+            f"({tried / elapsed:,.0f} H/s) | luck ×{luck:.2f} vs avg | "
             f"+{format_howl(subsidy)}"
         )
         return block
