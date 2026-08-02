@@ -324,14 +324,15 @@ async function loadHome(){
     <div class="card">
       <h3>Latest transactions <a class="more" href="#/${net}/mempool">mempool →</a></h3>
       <table>
-        <thead><tr><th>Txid</th><th>From → To</th><th>Amount</th><th>Status</th></tr></thead>
+        <thead><tr><th>Txid</th><th>Type</th><th>Flow</th><th>Amount</th><th>Status</th></tr></thead>
         <tbody>
           ${(txs.transactions||[]).map(t=>`<tr onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
             <td onclick="event.stopPropagation()">${linkTx(t.txid)}</td>
-            <td class="mono" onclick="event.stopPropagation()">${t.type==='coinbase'?'coinbase → '+linkAddr(t.to):linkAddr(t.from)+' → '+linkAddr(t.to)}</td>
+            <td><span class="badge ${t.type==='coinbase'?'ok':'blue'}">${t.type==='coinbase'?'reward':'transfer'}</span></td>
+            <td class="mono" onclick="event.stopPropagation()">${t.type==='coinbase'?'new coins → '+linkAddr(t.to):linkAddr(t.from)+' → '+linkAddr(t.to)}</td>
             <td class="amount">${fmtAmt(t.amount)}</td>
             <td>${t.confirmed?`<span class="badge ok" onclick="event.stopPropagation();location.hash='#/${net}/block/${t.block_height}'">#${t.block_height}</span>`:`<span class="badge warn">mempool</span>`}</td>
-          </tr>`).join('') || '<tr><td colspan="4" class="muted" style="padding:16px">No transactions yet</td></tr>'}
+          </tr>`).join('') || '<tr><td colspan="5" class="muted" style="padding:16px">No transactions yet</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -373,12 +374,12 @@ async function showBlock(id){
     <div class="card" style="margin-top:14px">
       <h3>Transactions in this block</h3>
       <table>
-        <thead><tr><th>Txid</th><th>Type</th><th>From → To</th><th>Amount</th></tr></thead>
+        <thead><tr><th>Txid</th><th>Type</th><th>Flow</th><th>Amount</th></tr></thead>
         <tbody>
           ${txs.map(t=>`<tr onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
             <td onclick="event.stopPropagation()">${t.txid?linkTx(t.txid):'—'}</td>
-            <td><span class="badge ${t.type==='coinbase'?'ok':'blue'}">${esc(t.type||'transfer')}</span></td>
-            <td class="mono" onclick="event.stopPropagation()">${t.type==='coinbase'?'coinbase → '+linkAddr(t.to):linkAddr(t.from)+' → '+linkAddr(t.to)}</td>
+            <td><span class="badge ${t.type==='coinbase'?'ok':'blue'}">${t.type==='coinbase'?'mining reward':'transfer'}</span></td>
+            <td class="mono" onclick="event.stopPropagation()">${t.type==='coinbase'?'new coins → '+linkAddr(t.to):linkAddr(t.from)+' → '+linkAddr(t.to)}</td>
             <td class="amount">${fmtAmt(t.amount)}</td>
           </tr>`).join('')}
         </tbody>
@@ -404,7 +405,8 @@ async function showTx(id){
         <div class="k">Status</div><div>${d.confirmed?('Block '+linkBlock(d.block_height)):'Unconfirmed'}</div>
         <div class="k">Type</div><div>${esc(t.type||'transfer')}</div>
         ${t.type==='coinbase'?`
-          <div class="k">To</div><div>${linkAddr(t.to)}</div>
+          <div class="k">Source</div><div>Mining reward (no sender — new HOWL created)</div>
+          <div class="k">Miner (to)</div><div>${linkAddr(t.to)}</div>
           <div class="k">Reward</div><div class="amount">${fmtAmt(t.amount)}</div>
         `:`
           <div class="k">From</div><div>${linkAddr(t.from)}</div>
