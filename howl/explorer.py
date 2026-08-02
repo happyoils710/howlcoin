@@ -1373,7 +1373,7 @@ tbody tr:hover{background:var(--rowh)}
     <button class="chipbtn" onclick="location.hash='#/'+net+'/mempool'">Mempool</button>
     <button class="chipbtn" onclick="location.hash='#/'+net+'/block/0'">Genesis</button>
     <a class="chipbtn" href="/whitepaper" style="text-decoration:none;display:inline-flex;align-items:center">White paper</a>
-    <a class="chipbtn" href="/token" style="text-decoration:none;display:inline-flex;align-items:center;border-color:rgba(61,255,154,.4);color:var(--green)">Token info</a>
+    <a class="chipbtn" href="/token" style="text-decoration:none;display:inline-flex;align-items:center;color:var(--text)">Token info</a>
     <a class="chipbtn" href="/wallet" style="text-decoration:none;display:inline-flex;align-items:center">Wallet</a>
     <button class="chipbtn" style="border-color:rgba(61,255,154,.45);color:var(--green)" onclick="location.hash='#/run'">Run a node</button>
     <button class="chipbtn" onclick="refreshData()">Refresh</button>
