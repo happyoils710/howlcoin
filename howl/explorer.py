@@ -147,6 +147,13 @@ a:hover{text-decoration:underline}
 .grow{flex:1}
 .hero{padding:28px 20px 10px;max-width:1200px;margin:0 auto}
 .hero h2{margin:0 0 6px;font-size:1.55rem;font-weight:750}
+.ascii-banner{margin:14px 0 8px;padding:14px 16px;border-radius:12px;border:1px solid var(--border);
+  background:linear-gradient(135deg,rgba(61,255,154,.06),rgba(12,15,20,.9) 45%,rgba(77,163,255,.05));
+  overflow-x:auto}
+.ascii-banner pre{margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:clamp(.55rem,.95vw,.78rem);line-height:1.15;color:var(--green);white-space:pre;
+  text-shadow:0 0 18px rgba(61,255,154,.15)}
+@media(max-width:700px){.ascii-banner pre{font-size:.52rem}}
 .searchwrap{max-width:1200px;margin:0 auto;padding:8px 20px 18px}
 .searchbox{display:flex;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px}
 .searchbox input{flex:1;border:0;outline:0;background:transparent;color:var(--text);font:inherit;padding:10px 12px;min-width:0}
@@ -291,10 +298,22 @@ async function loadNetworks(){
   renderNav();
 }
 
+function howlBanner(){
+  // same mark as CLI banner (dog + Howlcoin wordmark)
+  const art = `        __    __
+       /  \\__/  \\      _   _                 _           _
+      |  ◕    ◕  |    | | | | _____      __ | | ___ ___ (_)_ __
+       \\   ▽    /     | |_| |/ _ \\ \\ /\\ / / | |/ __/ _ \\| | '_ \\
+        \\______/      |  _  | (_) \\ V  V /  | | (_| (_) | | | | |
+       /|      |\\     |_| |_|\\___/ \\_/\\_/   |_|\\___/\\___/|_|_| |_|
+      (_|  ▬▬  |_)           Scrypt meme coin · ticker HOWL  ·  awoo`;
+  return `<div class="ascii-banner" aria-hidden="true"><pre>${art}</pre></div>`;
+}
 function shellSearch(extra=''){
   return `<div class="hero">
+      ${howlBanner()}
       <h2>Blockchain explorer for <span style="color:var(--green)">Howlcoin</span></h2>
-      <p class="muted">Search blocks, transactions, and addresses across Howlcoin networks</p>
+      <p class="muted">Search blocks, transactions, and addresses across the public network</p>
     </div>
     <div class="searchwrap">
       <div class="searchbox">
