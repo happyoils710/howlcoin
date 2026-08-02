@@ -154,20 +154,20 @@ a:hover{text-decoration:underline}
 .ascii-banner::before{left:0;background:linear-gradient(90deg,rgba(12,15,20,.95),transparent)}
 .ascii-banner::after{right:0;background:linear-gradient(270deg,rgba(12,15,20,.95),transparent)}
 .ascii-track{flex:0 0 auto;will-change:transform;
-  animation:howl-pan 16s ease-in-out infinite}
+  animation:howl-pan 20s linear infinite}
 .ascii-track pre{margin:0;padding:0 24px;font-family:"SF Mono","Menlo","Consolas","DejaVu Sans Mono",ui-monospace,monospace;
   font-size:clamp(.58rem,1.05vw,.82rem);line-height:1.22;letter-spacing:.04em;color:var(--green);
   white-space:pre;text-shadow:0 0 20px rgba(61,255,154,.18)}
-/* center → full left → jump to right → slide back to center */
+/* continuous: pause center → drift left off → enter from right → pause center (no page refresh) */
 @keyframes howl-pan{
-  0%, 8%{transform:translateX(0)}
-  42%{transform:translateX(calc(-50vw - 50%))}
-  42.01%{transform:translateX(calc(50vw + 50%))}
-  92%, 100%{transform:translateX(0)}
+  0%, 22%{transform:translateX(0)}
+  48%{transform:translateX(calc(-55vw - 55%))}
+  48.02%{transform:translateX(calc(55vw + 55%))}
+  78%, 100%{transform:translateX(0)}
 }
 @media(max-width:700px){
   .ascii-track pre{font-size:.5rem;letter-spacing:.02em}
-  .ascii-track{animation-duration:14s}
+  .ascii-track{animation-duration:18s}
 }
 @media(prefers-reduced-motion:reduce){
   .ascii-track{animation:none;transform:none}
@@ -224,7 +224,18 @@ tbody tr:hover{background:var(--rowh)}
   <button class="chipbtn" onclick="location.hash='#/'+net+'/mempool'">Mempool</button>
   <button class="chipbtn" onclick="location.hash='#/'+net+'/block/0'">Genesis</button>
   <button class="chipbtn" style="border-color:rgba(61,255,154,.45);color:var(--green)" onclick="location.hash='#/run'">Run a node</button>
-  <button class="chipbtn" onclick="loadHome()">Refresh</button>
+  <button class="chipbtn" onclick="refreshData()">Refresh</button>
+</div>
+<div class="hero" id="hero-static">
+  <div class="ascii-banner" aria-hidden="true" id="howl-banner-host"></div>
+  <h2>Blockchain explorer for <span style="color:var(--green)">Howlcoin</span></h2>
+  <p class="muted">Search blocks, transactions, and addresses across the public network</p>
+</div>
+<div class="searchwrap">
+  <div class="searchbox">
+    <input id="q" placeholder="Search block height / hash, txid, or address (H…)" onkeydown="if(event.key==='Enter')doSearch()"/>
+    <button onclick="doSearch()">Search</button>
+  </div>
 </div>
 <div id="app"></div>
 <div class="footer">
@@ -316,8 +327,10 @@ async function loadNetworks(){
   renderNav();
 }
 
-function howlBanner(){
-  // Single clean mark: dog + Howlcoin (pans left, then re-enters from the right to center)
+function ensureBanner(){
+  // Mount banner once so data refresh never restarts the animation
+  const host = document.getElementById('howl-banner-host');
+  if(!host || host.dataset.ready==='1') return;
   const art = [
     '      __      __                                                    ',
     '     /  \\____/  \\      _   _                 _           _         ',
@@ -327,35 +340,31 @@ function howlBanner(){
     '      /|      |\\      |_| |_|\\___/ \\_/\\_/   |_|\\___/\\___/|_|_| |_|  ',
     '     (_|  ▬▬  |_)            Scrypt · HOWL · awoo                   ',
   ].join('\n');
-  return `<div class="ascii-banner" aria-hidden="true"><div class="ascii-track"><pre>${art}</pre></div></div>`;
+  host.innerHTML = `<div class="ascii-track"><pre>${art}</pre></div>`;
+  host.dataset.ready = '1';
 }
-function shellSearch(extra=''){
-  return `<div class="hero">
-      ${howlBanner()}
-      <h2>Blockchain explorer for <span style="color:var(--green)">Howlcoin</span></h2>
-      <p class="muted">Search blocks, transactions, and addresses across the public network</p>
-    </div>
-    <div class="searchwrap">
-      <div class="searchbox">
-        <input id="q" placeholder="Search block height / hash, txid, or address (H…)" onkeydown="if(event.key==='Enter')doSearch()"/>
-        <button onclick="doSearch()">Search</button>
-      </div>
-      ${extra}
-    </div>`;
+function setHeroVisible(show){
+  const h = document.getElementById('hero-static');
+  const s = document.querySelector('.searchwrap');
+  if(h) h.style.display = show ? '' : 'none';
+  if(s) s.style.display = show ? '' : 'none';
 }
 
 async function loadHome(){
+  ensureBanner();
+  setHeroVisible(true);
   await loadNetworks();
   const s=await api(`/api/${net}/summary`);
   if(!s.online){
-    app().innerHTML=shellSearch()+`<div class="main"><div class="card detail err">Chain <b>${esc(net)}</b> offline.<br><span class="mono">${esc(s.path||'')}</span><br>${esc(s.note||'')}</div></div>`;
+    app().innerHTML=`<div class="main"><div class="card detail err">Chain <b>${esc(net)}</b> offline.<br><span class="mono">${esc(s.path||'')}</span><br>${esc(s.note||'')}</div></div>`;
     return;
   }
   const [blocks, txs]=await Promise.all([
     api(`/api/${net}/blocks?limit=15`),
     api(`/api/${net}/txs?limit=15`),
   ]);
-  app().innerHTML = shellSearch() + `
+  // Only replace #app — hero/banner stay mounted so animation never restarts
+  app().innerHTML = `
   <div class="stats">
     <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/block/${s.height}'">
       <div class="k">Height</div><div class="v">${s.height}</div><div class="s">click → tip block</div></div>
@@ -414,6 +423,7 @@ async function loadHome(){
 }
 
 async function showBlock(id){
+  setHeroVisible(false);
   await loadNetworks();
   const d=await api(`/api/${net}/block/${encodeURIComponent(id)}`);
   const b=d.block; const txs=b.transactions||[];
@@ -463,6 +473,7 @@ async function showBlock(id){
 }
 
 async function showTx(id){
+  setHeroVisible(false);
   await loadNetworks();
   const d=await api(`/api/${net}/tx/${encodeURIComponent(id)}`);
   const t=d.tx;
@@ -496,6 +507,7 @@ async function showTx(id){
 }
 
 async function showAddr(addr){
+  setHeroVisible(false);
   await loadNetworks();
   const d=await api(`/api/${net}/address/${encodeURIComponent(addr)}`);
   app().innerHTML=`<div class="main" style="padding-top:20px">
@@ -530,6 +542,7 @@ async function showAddr(addr){
 }
 
 async function showRichlist(){
+  setHeroVisible(false);
   await loadNetworks();
   const d=await api(`/api/${net}/richlist?limit=50`);
   app().innerHTML=`<div class="main" style="padding-top:20px">
@@ -552,6 +565,7 @@ async function showRichlist(){
 }
 
 async function showMempool(){
+  setHeroVisible(false);
   await loadNetworks();
   const d=await api(`/api/${net}/mempool`);
   app().innerHTML=`<div class="main" style="padding-top:20px">
@@ -575,6 +589,7 @@ async function showMempool(){
 }
 
 async function showRunNode(){
+  setHeroVisible(false);
   await loadNetworks();
   let height='?';
   try{
@@ -665,9 +680,22 @@ async function route(){
     app().innerHTML=`<div class="main"><div class="card detail err">${esc(e.message)}</div></div>`;
   }
 }
+function isHomeHash(){
+  const h=(location.hash||'').replace(/^#\/?/,'').split('/').filter(Boolean);
+  if(!h.length) return true;
+  if(h.length===1 && networks.find(n=>n.id===h[0])) return true;
+  return false;
+}
+function refreshData(){
+  // Manual refresh of numbers only — never remounts the banner animation
+  if(isHomeHash()) loadHome().catch(()=>{});
+  else route().catch(()=>{});
+}
 window.addEventListener('hashchange', ()=>route());
+ensureBanner();
 loadNetworks().then(route);
-setInterval(()=>{ if(!(location.hash||'').includes('/block') && !(location.hash||'').includes('/tx') && !(location.hash||'').includes('/address')) loadHome().catch(()=>{}); }, 20000);
+// Background data refresh only (banner stays mounted, animation uninterrupted)
+setInterval(()=>{ if(isHomeHash()) loadHome().catch(()=>{}); }, 20000);
 </script>
 </body>
 </html>
