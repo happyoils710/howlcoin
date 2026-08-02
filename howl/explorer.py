@@ -85,6 +85,101 @@ def solana_rpc_call(method: str, params: list, timeout: int = 20) -> Any:
             continue
     raise RuntimeError(f"Solana RPC failed: {last_err}")
 
+
+# CoinGecko IDs used by the public wallet portfolio total
+_PRICE_COIN_IDS = (
+    "bitcoin,ethereum,solana,binancecoin,avalanche-2,litecoin,bitcoin-cash,"
+    "dogecoin,tether,usd-coin,dai,shiba-inu,leo-token,wrapped-bitcoin,"
+    "chainlink,uniswap,tezos,tron,ripple,stellar,hyperliquid"
+)
+_price_cache: Dict[str, Any] = {"ts": 0.0, "data": None}
+
+
+def fetch_market_prices(force: bool = False) -> Dict[str, Any]:
+    """
+    USD + BTC prices for wallet assets (CoinGecko simple/price, cached ~60s).
+    Returns { prices: { id: {usd, btc} }, updated, source }.
+    """
+    now = time.time()
+    if (
+        not force
+        and _price_cache.get("data")
+        and (now - float(_price_cache.get("ts") or 0)) < 60
+    ):
+        return _price_cache["data"]  # type: ignore[return-value]
+    url = (
+        "https://api.coingecko.com/api/v3/simple/price?"
+        + urllib.parse.urlencode(
+            {
+                "ids": _PRICE_COIN_IDS,
+                "vs_currencies": "usd,btc",
+            }
+        )
+    )
+    try:
+        raw = json.loads(
+            _http_get(
+                url,
+                headers={
+                    "User-Agent": "Howlscan/0.5 (+https://howlscan.org)",
+                    "Accept": "application/json",
+                },
+                timeout=12,
+            ).decode("utf-8", errors="ignore")
+        )
+        if not isinstance(raw, dict) or not raw:
+            raise RuntimeError("empty price response")
+        # normalize: ensure floats
+        prices: Dict[str, Dict[str, float]] = {}
+        for cid, row in raw.items():
+            if not isinstance(row, dict):
+                continue
+            usd = row.get("usd")
+            btc = row.get("btc")
+            entry: Dict[str, float] = {}
+            if usd is not None:
+                try:
+                    entry["usd"] = float(usd)
+                except (TypeError, ValueError):
+                    pass
+            if btc is not None:
+                try:
+                    entry["btc"] = float(btc)
+                except (TypeError, ValueError):
+                    pass
+            if entry:
+                prices[cid] = entry
+        # stables fallback if CG omits
+        for stable in ("tether", "usd-coin", "dai"):
+            prices.setdefault(stable, {"usd": 1.0, "btc": 0.0})
+        if "bitcoin" in prices and prices["bitcoin"].get("usd"):
+            btc_usd = prices["bitcoin"]["usd"]
+            for stable in ("tether", "usd-coin", "dai"):
+                if prices[stable].get("btc", 0) == 0 and btc_usd > 0:
+                    prices[stable]["btc"] = 1.0 / btc_usd
+            prices["bitcoin"]["btc"] = 1.0
+        out = {
+            "prices": prices,
+            "updated": int(now),
+            "source": "coingecko",
+            "cached": False,
+        }
+        _price_cache["ts"] = now
+        _price_cache["data"] = {**out, "cached": True}
+        return out
+    except Exception as e:
+        if _price_cache.get("data"):
+            stale = dict(_price_cache["data"])  # type: ignore[arg-type]
+            stale["stale"] = True
+            stale["error"] = str(e)
+            return stale
+        return {
+            "prices": {},
+            "updated": int(now),
+            "source": "none",
+            "error": str(e),
+        }
+
 # Optional wrapped-token contracts (for CMC/CoinCodex when you deploy them)
 # HOWL is a *native* Scrypt coin — it has no default EVM/SPL contract.
 HOWL_ERC20_CONTRACT = os.environ.get("HOWL_ERC20_CONTRACT", "").strip()
@@ -2313,6 +2408,11 @@ th{{color:#8b95a8;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em
                 ):
                     chain = hub.get("public")
                     return self._json(200, howl_token_info(chain))
+
+                # Market prices for portfolio total (USD / BTC)
+                if path in ("/api/public/prices", "/api/prices"):
+                    force = (qs.get("force") or ["0"])[0] in ("1", "true", "yes")
+                    return self._json(200, fetch_market_prices(force=force))
 
                 # Solana balance / history proxy (public RPCs block browser Origin: howlscan.org)
                 if path in ("/api/public/sol/balance", "/api/sol/balance"):
