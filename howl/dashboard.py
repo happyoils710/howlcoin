@@ -1,6 +1,6 @@
 """Howlcoin local wallet app + node dashboard (stdlib only).
 
-Base-style advanced wallet: send/receive, network fees to miners,
+Advanced wallet: send/receive, network fees to miners,
 BIP39 backup, PIN + WebAuthn (Touch ID / Face ID) unlock.
 """
 
@@ -371,7 +371,7 @@ function showLock(){
   document.getElementById('lockSetup').classList.toggle('hidden', !setup);
   document.getElementById('lockUnlock').classList.toggle('hidden', setup);
   document.getElementById('lockSub').textContent = setup
-    ? 'Create a PIN to protect this wallet app (like Base / Coinbase Wallet).'
+    ? 'Create a PIN to protect this wallet app on your device.'
     : 'Unlock with Face ID, Touch ID, or your PIN.';
   const bio = localStorage.getItem(LS_BIO);
   document.getElementById('bioUnlockBtn').classList.toggle('hidden', !bio);

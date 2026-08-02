@@ -87,7 +87,7 @@ python3 -m howl node --connect 147.182.223.204:42069
 
 ### Wallet app (local)
 
-The dashboard is a **Base-style wallet** for your node:
+The dashboard is the **Howlcoin wallet** for your node:
 
 - **Send / receive** HOWL with QR code  
 - **Network fee** (min **1 HOWL**, paid to the miner who confirms)  
