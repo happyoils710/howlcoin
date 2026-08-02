@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1"/>
+  <meta name="color-scheme" content="dark light"/>
+  <meta name="theme-color" content="#03010a"/>
+  <title>Howlcoin</title>
+  <style>
+    html,body{margin:0;height:100%;background:#03010a;color:#e8fff8;font-family:system-ui,sans-serif}
+    #boot{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;padding:24px;text-align:center}
+    #boot h1{font-size:1.4rem;margin:0;letter-spacing:.04em}
+    #boot p{opacity:.7;margin:0;font-size:.9rem;max-width:280px;line-height:1.4}
+    #boot button{margin-top:8px;border:0;border-radius:12px;padding:12px 18px;font-weight:700;background:#00ffc6;color:#03010a;cursor:pointer}
+    #frame{position:fixed;inset:0;border:0;width:100%;height:100%;display:none;background:#03010a}
+    #frame.on{display:block}
+    .err{color:#ff8b8b;font-size:.85rem}
+  </style>
+</head>
+<body>
+  <div id="boot">
+    <h1>Howlcoin</h1>
+    <p id="status">Starting Howl Search browser…</p>
+    <button type="button" id="btnLocal" style="display:none">Open offline wallet</button>
+    <p class="err" id="err"></p>
+  </div>
+  <iframe id="frame" title="Howl wallet" allow="clipboard-read; clipboard-write; publickey-credentials-get *"></iframe>
+  <script>
+    window.HOWL_NATIVE = {
+      liveAppUrl: "https://howlscan.org/app",
+      localAppUrl: "./assets/public-wallet.html",
+      platform: "capacitor-shell"
+    };
+  </script>
+  <script src="./howl-native-bridge.js"></script>
+  <script src="./boot.js"></script>
+</body>
+</html>

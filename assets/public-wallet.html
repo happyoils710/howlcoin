@@ -12,6 +12,7 @@
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Rajdhani:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="/assets/howl-native-bridge.js"></script>
 <style>
 /* —— Themes —— */
 html[data-theme="neo"], :root{
@@ -570,7 +571,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
             </div>
           </div>
           <div class="bookmarks" id="bookmarks"></div>
-          <p class="browser-hint">Howl Search + open tabs by the bar. News sites open in <b>Howl Reader</b> when they block frames.</p>
+          <p class="browser-hint" id="browserHint">Howl Search + open tabs. News uses <b>Howl Reader</b> on the web; the native Howl Browser app opens full sites without iframe blocks.</p>
           <div class="addr-chips">
             <button type="button" onclick="copyText(keypair&&keypair.address)">Copy HOWL</button>
             <button type="button" onclick="copyText(solInfo&&solInfo.address)">Copy SOL</button>
@@ -1370,6 +1371,30 @@ function prefersReaderUrl(url){
   const h = hostOf(url);
   return !!(h && READER_HOSTS.test(h));
 }
+/** True inside Capacitor Howl Browser shell */
+function isHowlNative(){
+  try{
+    if(typeof howlIsNative === "function" && howlIsNative()) return true;
+    if(window.Capacitor && (window.Capacitor.isNativePlatform ? window.Capacitor.isNativePlatform() : window.Capacitor.Plugins)) return true;
+    if(/[?&]native=1(?:&|$)/.test(location.search||"")) return true;
+  }catch(_){}
+  return false;
+}
+/**
+ * Open URL in native WebView / Custom Tabs when available (real browser — no iframe blocks).
+ * Returns true if native handled it.
+ */
+async function openNativeSite(url, title){
+  if(!url || !/^https?:\/\//i.test(url)) return false;
+  if(typeof howlNativeOpen !== "function") return false;
+  try{
+    const r = await howlNativeOpen(url, { title: title || hostOf(url) || "Howl" });
+    return !!(r && r.ok);
+  }catch(e){
+    console.warn("native open failed", e);
+    return false;
+  }
+}
 function syncTabGlobals(tab){
   if(!tab) return;
   browserMode = tab.mode || "home";
@@ -1539,6 +1564,10 @@ function initBrowserUI(){
     });
     bm.dataset.ready = "1";
   }
+  const hint = $("browserHint");
+  if(hint && isHowlNative()){
+    hint.innerHTML = "Native <b>Howl Browser</b> mode — sites open in a full WebView (no iframe blocks). Tabs track what you opened.";
+  }
   renderTabsUI();
   const tab = getActiveTab();
   if(tab && tab.mode !== "home") applyTabView(tab);
@@ -1583,7 +1612,7 @@ function resolveNavigation(input){
   }
   return { kind: "search", query: u, display: u };
 }
-function openDapp(url, opts){
+async function openDapp(url, opts){
   showPage("browser");
   ensureActiveTab();
   if(/^search:/i.test(url)){
@@ -1595,11 +1624,28 @@ function openDapp(url, opts){
   }
   if($("dappUrl")) $("dappUrl").value = url;
   if($("dappSearch")) $("dappSearch").value = url;
+  const title = (opts && opts.title) || url;
+  // Native Howl Browser: full engine (Custom Tabs / in-app WebView)
+  if(isHowlNative() && /^https?:\/\//i.test(url)){
+    const ok = await openNativeSite(url, title);
+    if(ok){
+      const tab = getActiveTab();
+      if(tab){
+        tab.url = url;
+        tab.title = (title || hostOf(url)).slice(0, 36);
+        tab.display = url.replace(/^https?:\/\//,"");
+        tab.mode = "browsing";
+      }
+      renderTabsUI();
+      toast("Opened in Howl Browser");
+      return;
+    }
+  }
   const preferReader = opts && opts.preferReader;
   if(preferReader || prefersReaderUrl(url)){
     openInReader(url, opts && opts.title);
   } else {
-    openUrlInApp(url, (opts && opts.title) || url);
+    openUrlInApp(url, title);
   }
 }
 function setProgress(run){
@@ -1834,10 +1880,30 @@ function tryIframeAnyway(url){
   openUrlInApp(url, url, url, { forceIframe: true });
 }
 
-/** Load a website inside the app iframe */
-function openUrlInApp(url, display, externalUrl, opts){
+/** Load a website — native browser when in Capacitor, else iframe / reader */
+async function openUrlInApp(url, display, externalUrl, opts){
   ensureActiveTab();
   const forceIframe = opts && opts.forceIframe;
+  // Prefer real native browser engine (no X-Frame blocks)
+  if(!forceIframe && isHowlNative()){
+    const ok = await openNativeSite(url, display);
+    if(ok){
+      const tab = getActiveTab();
+      if(tab){
+        tab.url = url;
+        tab.display = display || url.replace(/^https?:\/\//,"");
+        tab.title = (display || hostOf(url) || "Page").slice(0, 36);
+        tab.history = (tab.history || []).concat([{ kind:"url", url, display: tab.display, externalUrl: url }]);
+        tab.mode = "browsing";
+      }
+      browserHistory.push({ kind:"url", url, display: display || url, externalUrl: externalUrl || url });
+      if($("dappUrl")) $("dappUrl").value = display || url.replace(/^https?:\/\//,"");
+      renderTabsUI();
+      setBrowserMode("home"); // keep wallet UI; site is in overlay WebView
+      toast("Opened in Howl Browser");
+      return;
+    }
+  }
   if(!forceIframe && prefersReaderUrl(url)){
     openInReader(url, display);
     return;
@@ -1868,18 +1934,13 @@ function openUrlInApp(url, display, externalUrl, opts){
   try{
     frame.onload = ()=>{
       setProgress(false);
-      // Cross-origin blocked frames often look "loaded" but empty — probe after a beat
       frameCheckTimer = setTimeout(()=>{
         try{
-          // same-origin only; if throws, likely loaded foreign doc (or about:blank)
           const doc = frame.contentDocument;
           if(doc && (!doc.body || doc.body.innerHTML.trim().length < 20)){
             showDappFallback(nav);
           }
-        }catch(_){
-          // Many blockers still fire onload with opaque content — give user reader option
-          // Don't auto-steal control if site might work; wait for user on long load only
-        }
+        }catch(_){}
       }, 900);
     };
     frame.onerror = ()=> { setProgress(false); showDappFallback(nav); };
@@ -1889,20 +1950,17 @@ function openUrlInApp(url, display, externalUrl, opts){
     showDappFallback(nav);
   }
   wireFallbackButtons(nav);
-  // If site is a known hard blocker but force was used, still surface reader quick
-  frameCheckTimer = setTimeout(()=>{
-    setProgress(false);
-    if(prefersReaderUrl(url) && forceIframe){
-      // keep iframe attempt; fallback already has Read in Howl
-    }
-  }, 3200);
+  frameCheckTimer = setTimeout(()=> setProgress(false), 3200);
 }
 
 function wireFallbackButtons(nav){
   const n = typeof nav === "string" ? { externalUrl: nav, url: nav, embedUrl: nav } : nav;
   const url = n.externalUrl || n.embedUrl || n.url;
   if($("dappOpenExt")) $("dappOpenExt").onclick = ()=> window.open(url, "_blank", "noopener,noreferrer");
-  if($("dappReadHowl")) $("dappReadHowl").onclick = ()=> openInReader(url, n.display);
+  if($("dappReadHowl")) $("dappReadHowl").onclick = async ()=>{
+    if(isHowlNative() && await openNativeSite(url, n.display)) return;
+    openInReader(url, n.display);
+  };
 }
 
 function browseTo(){

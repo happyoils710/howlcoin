@@ -1,0 +1,21 @@
+{
+  "appId": "org.howlscan.wallet",
+  "appName": "Howlcoin",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https",
+    "iosScheme": "https",
+    "hostname": "localhost",
+    "allowNavigation": [
+      "howlscan.org",
+      "*.howlscan.org",
+      "localhost",
+      "127.0.0.1"
+    ]
+  },
+  "plugins": {
+    "StatusBar": {
+      "style": "DARK"
+    }
+  }
+}

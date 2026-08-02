@@ -1983,6 +1983,19 @@ class ExplorerServer:
                     if sw.is_file():
                         return self._bytes(200, sw.read_bytes(), "application/javascript")
 
+                if path in (
+                    "/assets/howl-native-bridge.js",
+                    "/howl-native-bridge.js",
+                    "/native-bridge.js",
+                ):
+                    br = ASSETS_DIR / "howl-native-bridge.js"
+                    if br.is_file():
+                        return self._bytes(
+                            200,
+                            br.read_bytes(),
+                            "application/javascript; charset=utf-8",
+                        )
+
                 if path.startswith("/assets/"):
                     name = path[len("/assets/") :]
                     if ".." in name:

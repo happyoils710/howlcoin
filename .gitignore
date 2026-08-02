@@ -28,3 +28,6 @@ telegram.env
 .vscode/
 *.swp
 *~
+
+node_modules/
+native/node_modules/

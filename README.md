@@ -28,6 +28,8 @@
 | **Coinbase (early)** | **500,000 HOWL** / block for the first 1,000 blocks |
 | **White paper** | [WHITEPAPER.md](WHITEPAPER.md) · [howlscan.org/whitepaper](https://howlscan.org/whitepaper) |
 | **Explorer** | [https://howlscan.org](https://howlscan.org) |
+| **Wallet app** | [https://howlscan.org/app](https://howlscan.org/app) |
+| **Native browser** | Capacitor shell — [docs/NATIVE_BROWSER.md](docs/NATIVE_BROWSER.md) |
 | **Public seed** | `147.182.223.204:42069` |
 
 This is a **real local Scrypt chain** you can mine, send, and explore — not an ERC-20 wrapper and not a Dogecoin mainnet fork binary. Think *early-Doge energy*: silly brand, serious-enough PoW, CPU-mineable while the network is young.
@@ -66,6 +68,22 @@ journalctl -u howlcoin -f
 ```
 
 Reinstall / update: [docs/VPS_SEED.md](docs/VPS_SEED.md) · `scripts/vps-install.sh`
+
+---
+
+## Native Howl Browser (optional)
+
+Search/Discover can open **real websites** (no iframe blocks) inside a Capacitor app shell (Chromium on Android, WebKit on iOS):
+
+```bash
+export PATH="/usr/local/opt/node@20/bin:$PATH"   # Node 18+ required
+cd native
+npm install
+npm run cap:sync
+npm run cap:android   # or cap:ios
+```
+
+Details: **[docs/NATIVE_BROWSER.md](docs/NATIVE_BROWSER.md)**.
 
 ---
 
