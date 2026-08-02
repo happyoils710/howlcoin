@@ -319,6 +319,7 @@ async function loadHome(){
       <button class="chipbtn" onclick="location.hash='#/${net}/block/${s.height}'">Latest #${s.height}</button>
       <button class="chipbtn" onclick="location.hash='#/${net}/richlist'">Top addresses</button>
       <button class="chipbtn" onclick="location.hash='#/${net}/mempool'">Mempool (${s.mempool})</button>
+      <button class="chipbtn" style="border-color:rgba(61,255,154,.45);color:var(--green)" onclick="location.hash='#/run'">Run a node / sync</button>
     </div>
   </div>
   <div class="main cols">
@@ -517,6 +518,66 @@ async function showMempool(){
   </div>`;
 }
 
+async function showRunNode(){
+  await loadNetworks();
+  let height='?';
+  try{
+    const s=await api('/api/public/summary');
+    if(s.online) height=s.height;
+  }catch(e){}
+  const clone = `git clone ${REPO}.git
+cd howlcoin
+python3 -m pip install -r requirements.txt`;
+  const initCmd = `python3 -m howl init`;
+  const syncCmd = `python3 -m howl node --connect ${SEED}`;
+  const mineCmd = `python3 -m howl mine
+# or continuous:
+python3 -m howl mine --continuous`;
+  const fullCmd = `git clone ${REPO}.git && cd howlcoin && python3 -m pip install -r requirements.txt && python3 -m howl init && python3 -m howl node --connect ${SEED}`;
+  app().innerHTML=`<div class="main" style="padding-top:20px">
+    ${crumbs([{label:'Home',href:'#/public'},{label:'Run a node'}])}
+    <button class="back" onclick="location.hash='#/public'">← Home</button>
+    <div class="card detail" style="margin-top:12px">
+      <div class="badge ok">Sync to Howlcoin</div>
+      <h2 style="margin:8px 0 6px">Run a node on your computer</h2>
+      <p class="muted" style="margin:0 0 12px">
+        Websites <b>cannot open your Terminal</b> (browser security). Copy these commands into
+        Terminal (Mac/Linux) or a terminal on Windows, and you will sync to the live public chain
+        (currently height <b>${esc(String(height))}</b>).
+      </p>
+      <div class="kv">
+        <div class="k">Public seed</div><div class="mono">${esc(SEED)}${copyBtn(SEED)}</div>
+        <div class="k">Explorer</div><div><a href="https://howlscan.org/">https://howlscan.org/</a></div>
+        <div class="k">Source code</div><div><a href="${REPO}" target="_blank" rel="noopener">${esc(REPO)}</a></div>
+        <div class="k">Telegram bot</div><div><a href="https://t.me/HowlMine_bot" target="_blank" rel="noopener">@HowlMine_bot</a></div>
+      </div>
+    </div>
+    <div class="card detail" style="margin-top:14px">
+      <h3 style="margin-top:0">One-line setup + sync</h3>
+      <p class="muted">Paste into Terminal, then leave the node running to stay synced.</p>
+      ${cmdBox('Clone, install, init, connect to seed', fullCmd)}
+    </div>
+    <div class="card detail" style="margin-top:14px">
+      <h3 style="margin-top:0">Step by step</h3>
+      ${cmdBox('1) Install Howlcoin', clone)}
+      ${cmdBox('2) Create wallet + genesis (first time only)', initCmd)}
+      ${cmdBox('3) Sync to the public network (run a node)', syncCmd)}
+      <p class="muted">Dashboard while node runs: <span class="mono">http://127.0.0.1:42070/</span></p>
+      ${cmdBox('4) Mine blocks (optional)', mineCmd)}
+    </div>
+    <div class="card detail" style="margin-top:14px">
+      <h3 style="margin-top:0">Useful links</h3>
+      <p>
+        <a class="chipbtn" style="display:inline-block;text-decoration:none;margin:4px" href="${REPO}" target="_blank" rel="noopener">Open GitHub repo</a>
+        <a class="chipbtn" style="display:inline-block;text-decoration:none;margin:4px" href="${REPO}/archive/refs/heads/main.zip" target="_blank" rel="noopener">Download ZIP</a>
+        <a class="chipbtn" style="display:inline-block;text-decoration:none;margin:4px" href="https://t.me/HowlMine_bot" target="_blank" rel="noopener">Open Telegram bot</a>
+        <button class="chipbtn" style="margin:4px" onclick="copyText('python3 -m howl node --connect ${SEED}', this)">Copy connect command</button>
+      </p>
+      <p class="muted" style="margin-bottom:0">After you connect, your node downloads blocks from the seed until your tip matches Howlscan.</p>
+    </div>
+  </div>`;
+}
+
 function doSearch(){
   const q=($('#q')&&$('#q').value||'').trim();
   if(!q) return loadHome();
@@ -539,6 +600,7 @@ async function route(){
     if(parts.length>=3 && parts[1]==='block') return await showBlock(decodeURIComponent(parts[2]));
     if(parts.length>=3 && parts[1]==='tx') return await showTx(decodeURIComponent(parts[2]));
     if(parts.length>=3 && parts[1]==='address') return await showAddr(decodeURIComponent(parts[2]));
+    if(parts.length>=1 && (parts[0]==='run' || parts[0]==='node' || parts[0]==='sync')) return await showRunNode();
     if(parts.length>=2 && parts[1]==='richlist') return await showRichlist();
     if(parts.length>=2 && parts[1]==='mempool') return await showMempool();
     if(parts.length>=2 && parts[0]==='block') return await showBlock(decodeURIComponent(parts[1]));
