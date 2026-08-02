@@ -309,8 +309,10 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .reader-view .r-body img{max-width:100%;height:auto;border-radius:10px;margin:10px 0}
 .reader-view .r-body a{color:var(--cyan)}
 .reader-view .r-body p{margin:0 0 12px}
-.reader-view .r-actions{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 8px}
-.reader-view .r-actions .btn{width:auto;padding:10px 14px;margin:0}
+.reader-view .r-actions{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 8px;position:relative;z-index:5}
+.reader-view .r-actions .btn{width:auto;padding:10px 14px;margin:0;cursor:pointer;pointer-events:auto;-webkit-tap-highlight-color:transparent}
+.dapp-fallback{z-index:6}
+.dapp-fallback .btn{cursor:pointer;pointer-events:auto;position:relative;z-index:7}
 .browser-home{flex:1;text-align:center;padding:max(48px,8vh) 16px 24px;display:flex;flex-direction:column;
   align-items:center;justify-content:flex-start}
 .browser-logo{font-family:var(--font-display);font-size:2rem;font-weight:800;letter-spacing:.04em;margin:0 0 8px;
@@ -2044,19 +2046,67 @@ function showLastSearchResults(){
   else browserHome();
 }
 
+/** Open URL in a real browser tab (user-gesture safe). */
+function openExternalUrl(url){
+  const u = (url || "").trim();
+  if(!u || !/^https?:\/\//i.test(u)){
+    toast("No valid link");
+    return false;
+  }
+  try{
+    const w = window.open(u, "_blank", "noopener,noreferrer");
+    if(!w){
+      // popup blocked — last-resort same-tab navigation prompt
+      if(confirm("Pop-up blocked. Open this site in this tab?\n\n" + u)){
+        location.href = u;
+        return true;
+      }
+      toast("Allow pop-ups for howlscan.org");
+      return false;
+    }
+    toast("Opened outside");
+    return true;
+  }catch(e){
+    toast(e.message || "Could not open link");
+    return false;
+  }
+}
+
+function wireReaderActions(root, url){
+  if(!root) return;
+  const openBtn = root.querySelector("[data-action='open-original']");
+  const liveBtn = root.querySelector("[data-action='try-live']");
+  if(openBtn){
+    openBtn.onclick = (e)=>{
+      e.preventDefault();
+      e.stopPropagation();
+      openExternalUrl(url || openBtn.getAttribute("data-url") || "");
+    };
+  }
+  if(liveBtn){
+    liveBtn.onclick = (e)=>{
+      e.preventDefault();
+      e.stopPropagation();
+      tryIframeAnyway(url || liveBtn.getAttribute("data-url") || "");
+    };
+  }
+}
+
 function renderReaderView(doc){
   const el = $("readerView");
   if(!el || !doc) return;
+  const u = doc.url || "";
   el.innerHTML = `
     <div class="r-kicker">Howl Reader</div>
     <h1 class="r-title">${esc(doc.title || "Article")}</h1>
-    <div class="r-url">${esc(doc.url || "")}</div>
+    <div class="r-url">${esc(u)}</div>
     <div class="r-actions">
-      <button type="button" class="btn sec" onclick="window.open(${JSON.stringify(doc.url||"")},'_blank','noopener,noreferrer')">Open original ↗</button>
-      <button type="button" class="btn sec" onclick="tryIframeAnyway(${JSON.stringify(doc.url||"")})">Try live site</button>
+      <button type="button" class="btn sec" data-action="open-original" data-url="${esc(u)}">Open original ↗</button>
+      <button type="button" class="btn sec" data-action="try-live" data-url="${esc(u)}">Try live site</button>
     </div>
     <div class="r-body">${doc.content_html || "<p>No content.</p>"}</div>
   `;
+  wireReaderActions(el, u);
 }
 
 /** Fetch article via server and show in-app reader (bypasses X-Frame blocks) */
@@ -2104,16 +2154,20 @@ async function openInReader(url, titleHint){
         <h1 class="r-title">${esc(titleHint || "Article")}</h1>
         <p class="hint">Couldn’t extract this page (${esc(e.message||e)}).</p>
         <div class="r-actions">
-          <button type="button" class="btn" onclick="window.open(${JSON.stringify(url)},'_blank','noopener,noreferrer')">Open outside</button>
-          <button type="button" class="btn sec" onclick="tryIframeAnyway(${JSON.stringify(url)})">Try live site</button>
+          <button type="button" class="btn" data-action="open-original" data-url="${esc(url)}">Open outside</button>
+          <button type="button" class="btn sec" data-action="try-live" data-url="${esc(url)}">Try live site</button>
         </div>`;
+      wireReaderActions(el, url);
     }
   }finally{
     setProgress(false);
   }
 }
 function tryIframeAnyway(url){
-  openUrlInApp(url, url, url, { forceIframe: true });
+  const u = (url || "").trim();
+  if(!u){ toast("No URL"); return; }
+  // Leave reader mode and attempt iframe (many sites still block → fallback UI)
+  openUrlInApp(u, u.replace(/^https?:\/\//,""), u, { forceIframe: true });
 }
 
 /** Detect blank / frame-blocked iframe after navigate */
@@ -2234,15 +2288,24 @@ async function openUrlInApp(url, display, externalUrl, opts){
 
 function wireFallbackButtons(nav){
   const n = typeof nav === "string" ? { externalUrl: nav, url: nav, embedUrl: nav } : nav;
-  const url = n.externalUrl || n.embedUrl || n.url;
-  if($("dappOpenExt")) $("dappOpenExt").onclick = ()=> {
-    window.open(url, "_blank", "noopener,noreferrer");
-    toast("Opened outside");
-  };
-  if($("dappReadHowl")) $("dappReadHowl").onclick = async ()=>{
-    if(isHowlNative() && await openNativeSite(url, n.display)) return;
-    openInReader(url, n.display);
-  };
+  const url = n.externalUrl || n.embedUrl || n.url || "";
+  const openBtn = $("dappOpenExt");
+  const readBtn = $("dappReadHowl");
+  if(openBtn){
+    openBtn.onclick = (e)=>{
+      e.preventDefault();
+      e.stopPropagation();
+      openExternalUrl(url);
+    };
+  }
+  if(readBtn){
+    readBtn.onclick = async (e)=>{
+      e.preventDefault();
+      e.stopPropagation();
+      if(isHowlNative() && await openNativeSite(url, n.display)) return;
+      openInReader(url, n.display || url);
+    };
+  }
 }
 
 function browseTo(){
@@ -3029,6 +3092,7 @@ window.toggleTabsSheet = toggleTabsSheet;
 window.reloadActiveTab = reloadActiveTab;
 window.openInReader = openInReader;
 window.tryIframeAnyway = tryIframeAnyway;
+window.openExternalUrl = openExternalUrl;
 window.resetToolbar = resetToolbar;
 window.saveToolbarFromEditor = saveToolbarFromEditor;
 window.setTheme = setTheme;
