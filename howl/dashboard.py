@@ -24,7 +24,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Howlcoin · HOWL</title>
-<link rel="icon" href="/assets/howlcoin-logo.jpg"/>
+<link rel="icon" href="/assets/howlcoin-logo-meme-pup-coin.jpg"/>
 <style>
   :root {
     --bg: #0b1020;
@@ -122,7 +122,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 </head>
 <body>
 <header>
-  <img src="/assets/howlcoin-logo.jpg" alt="Howlcoin logo"/>
+  <img src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt="Howlcoin logo"/>
   <div>
     <h1>Howlcoin <span style="color:var(--green)">HOWL</span></h1>
     <p>Scrypt till the moon howls · local node dashboard</p>

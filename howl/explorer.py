@@ -118,7 +118,7 @@ EXPLORER_HTML = r"""<!DOCTYPE html>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Howlscan — Howlcoin Block Explorer</title>
-<link rel="icon" href="/assets/howlcoin-logo.jpg"/>
+<link rel="icon" href="/assets/howlcoin-logo-meme-pup-coin.jpg"/>
 <style>
 :root{
   --bg:#0c0f14; --bg2:#12161e; --panel:#161b26; --panel2:#1a2130;
@@ -305,7 +305,7 @@ tbody tr:hover{background:var(--rowh)}
 </head>
 <body>
 <div class="topbar">
-  <img src="/assets/howlcoin-logo.jpg" alt="HOWL" onclick="goHome()" style="cursor:pointer"/>
+  <img src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt="HOWL" onclick="goHome()" style="cursor:pointer"/>
   <div class="brand" onclick="goHome()">Howl<span>scan</span><small>Howlcoin block explorer</small></div>
   <div class="nav" id="nav"></div>
   <div class="grow"></div>

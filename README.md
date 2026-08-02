@@ -138,7 +138,7 @@ You can also paste `host:port` into the dashboard **P2P peers** box.
 - send HOWL
 - peer connect + peer table
 - richlist + event log
-- logo at `assets/howlcoin-logo.jpg`
+- logo at `assets/howlcoin-logo-meme-pup-coin.jpg`
 
 Ports default: **P2P `42069`**, **dashboard `42070`**.
 
@@ -233,7 +233,7 @@ howlcoin/
     wallet.py        # local wallet
     cli.py           # CLI
   assets/
-    howlcoin-logo.jpg
+    howlcoin-logo-meme-pup-coin.jpg
     brand.md
   bin/howl
   requirements.txt
