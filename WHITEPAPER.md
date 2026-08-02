@@ -252,7 +252,30 @@ Implementation language: **Python 3**, MIT licensed (see `LICENSE`).
 
 ---
 
-## 11. Roadmap (non-binding)
+## 11. NFTs, multi-chain deposits, and oracle (v0.5)
+
+### 11.1 NFTs on Howlcoin
+
+Howlcoin supports simple **on-chain NFT records**:
+
+| Type | Purpose |
+|------|---------|
+| `nft_mint` | Create NFT with `nft_id`, `name`, `uri` (fee ≥ 1 HOWL) |
+| `nft_transfer` | Transfer ownership of an existing `nft_id` |
+
+NFTs are not ERC-721 contracts; they are first-class ledger entries secured by Scrypt PoW.
+
+### 11.2 Little multi-chain oracle
+
+Transactions of type `oracle` publish a key/value observation (`oracle_key`, `oracle_value`, `source_chain`) onto Howlcoin. The latest value per key is retained. This is a **lightweight notice board**, not a trust-minimized bridge: reporters are not slashed, and clients should treat data as advisory.
+
+Example keys: `eth.block_height`, `sol.slot`, `xtz.level`, `howl.height`.
+
+### 11.3 External chain deposits (wallet)
+
+The public wallet derives deposit addresses from the same BIP39 seed for **Solana**, **Tezos (tz1)**, and **Ethereum** (plus ERC-20 / SPL tokens). Those assets remain on their native networks unless a separate swap venue is used.
+
+## 12. Roadmap (non-binding)
 
 Community-driven improvements may include:
 
@@ -261,24 +284,26 @@ Community-driven improvements may include:
 - Lightweight SPV or mobile clients  
 - More explorer analytics  
 - Hardening and formal test suites  
+- Richer NFT metadata / marketplaces  
+- Stronger oracle attestation (multi-reporter, challenges)  
 
 Nothing on this list is a commitment or timeline.
 
 ---
 
-## 12. Governance
+## 13. Governance
 
 Howlcoin is **open source**. Protocol changes happen by software upgrades that operators choose to run. There is no foundation treasury in genesis and no on-chain voting module in v1.
 
 ---
 
-## 13. Disclaimer
+## 14. Disclaimer
 
 Howlcoin is provided **as is**, without warranty of any kind. Participation may involve loss of funds, software failure, or chain splits. Authors and contributors are not responsible for damages. **Nothing in this paper is an offer of securities or investment advice.**
 
 ---
 
-## 14. References (project resources)
+## 15. References (project resources)
 
 | Resource | URL / value |
 |----------|-------------|

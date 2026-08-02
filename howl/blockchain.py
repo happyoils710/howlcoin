@@ -99,12 +99,17 @@ class Blockchain:
     # ---------- state ----------
 
     def _rebuild_state(self) -> None:
-        self.balances = {}
-        self.nonces = {}
+        self.balances: Dict[str, int] = {}
+        self.nonces: Dict[str, int] = {}
+        # nft_id -> metadata + owner
+        self.nfts: Dict[str, Dict[str, Any]] = {}
+        # oracle_key -> latest observation
+        self.oracle: Dict[str, Dict[str, Any]] = {}
         for block in self.blocks:
             self._apply_block(block, mutate_only=True)
 
     def _apply_block(self, block: Dict[str, Any], mutate_only: bool = False) -> None:
+        height = block.get("height", 0)
         for tx in block["transactions"]:
             if tx.get("type") == "coinbase":
                 to = tx["to"]
@@ -112,15 +117,47 @@ class Blockchain:
                     continue
                 self.balances[to] = self.balances.get(to, 0) + int(tx["amount"])
                 continue
-            # transfer
+
             frm = tx["from"]
             to = tx["to"]
-            amount = int(tx["amount"])
+            amount = int(tx.get("amount", 0))
             fee = int(tx.get("fee", 0))
             self.balances[frm] = self.balances.get(frm, 0) - amount - fee
-            self.balances[to] = self.balances.get(to, 0) + amount
-            # Fees are paid to the miner via coinbase amount (subsidy + sum of fees).
+            if amount:
+                self.balances[to] = self.balances.get(to, 0) + amount
             self.nonces[frm] = int(tx["nonce"]) + 1
+
+            t = tx.get("type") or "transfer"
+            if t == "nft_mint":
+                nid = tx.get("nft_id") or ""
+                if nid:
+                    self.nfts[nid] = {
+                        "nft_id": nid,
+                        "owner": to,
+                        "creator": frm,
+                        "name": tx.get("name") or "Untitled",
+                        "uri": tx.get("uri") or "",
+                        "mint_txid": tx.get("txid"),
+                        "mint_height": height,
+                    }
+            elif t == "nft_transfer":
+                nid = tx.get("nft_id") or ""
+                if nid and nid in self.nfts:
+                    self.nfts[nid]["owner"] = to
+                    self.nfts[nid]["last_txid"] = tx.get("txid")
+                    self.nfts[nid]["last_height"] = height
+            elif t == "oracle":
+                key = str(tx.get("oracle_key") or "")
+                if key:
+                    self.oracle[key] = {
+                        "key": key,
+                        "value": tx.get("oracle_value"),
+                        "source_chain": tx.get("source_chain") or "unknown",
+                        "observed_at": tx.get("observed_at"),
+                        "reporter": frm,
+                        "txid": tx.get("txid"),
+                        "height": height,
+                    }
 
     def tip(self) -> Dict[str, Any]:
         return self.blocks[-1]
@@ -168,7 +205,13 @@ class Blockchain:
 
     # ---------- validation ----------
 
-    def validate_tx(self, tx: Dict[str, Any], provisional_balances: Optional[Dict[str, int]] = None, provisional_nonces: Optional[Dict[str, int]] = None) -> Tuple[bool, str]:
+    def validate_tx(
+        self,
+        tx: Dict[str, Any],
+        provisional_balances: Optional[Dict[str, int]] = None,
+        provisional_nonces: Optional[Dict[str, int]] = None,
+        provisional_nfts: Optional[Dict[str, Dict[str, Any]]] = None,
+    ) -> Tuple[bool, str]:
         if tx.get("type") == "coinbase":
             return False, "coinbase not allowed in mempool"
         for field in ("from", "to", "amount", "nonce", "public_key", "signature"):
@@ -176,10 +219,10 @@ class Blockchain:
                 return False, f"missing field {field}"
         if not is_valid_address(tx["from"]) or not is_valid_address(tx["to"]):
             return False, "bad address"
-        amount = int(tx["amount"])
+
+        t = tx.get("type") or "transfer"
+        amount = int(tx.get("amount", 0))
         fee = int(tx.get("fee", 0))
-        if amount <= 0:
-            return False, "amount must be > 0"
         if fee < 0:
             return False, "fee must be >= 0"
         if fee < MIN_TX_FEE_HOWLIES:
@@ -188,8 +231,19 @@ class Blockchain:
                 "fees pay the miner who confirms your tx)"
             )
 
+        if t == "transfer":
+            if amount <= 0:
+                return False, "amount must be > 0"
+        elif t in ("nft_mint", "nft_transfer", "oracle"):
+            if amount < 0:
+                return False, "amount must be >= 0"
+        else:
+            return False, f"unknown tx type {t}"
+
         bals = provisional_balances if provisional_balances is not None else self.balances
         nonces = provisional_nonces if provisional_nonces is not None else self.nonces
+        nfts = provisional_nfts if provisional_nfts is not None else self.nfts
+
         bal = bals.get(tx["from"], 0)
         if bal < amount + fee:
             return False, f"insufficient balance ({format_howl(bal)})"
@@ -197,27 +251,50 @@ class Blockchain:
         if int(tx["nonce"]) != expected_nonce:
             return False, f"bad nonce (want {expected_nonce})"
 
-        body = {
-            "from": tx["from"],
-            "to": tx["to"],
-            "amount": amount,
-            "fee": fee,
-            "nonce": int(tx["nonce"]),
-            "memo": tx.get("memo", ""),
-        }
-        if not verify_signature(tx["public_key"], tx_sighash(body), tx["signature"]):
+        if t == "nft_mint":
+            name = (tx.get("name") or "").strip()
+            if not name or len(name) > 80:
+                return False, "nft name required (1–80 chars)"
+            uri = (tx.get("uri") or "").strip()
+            if len(uri) > 500:
+                return False, "uri too long"
+            nid = (tx.get("nft_id") or "").strip()
+            if not nid or len(nid) > 64:
+                return False, "nft_id required"
+            if nid in nfts:
+                return False, "nft_id already exists"
+            # mint to self or specified to
+            if tx["to"] != tx["from"]:
+                # allow mint-to-other as gift mint
+                pass
+        elif t == "nft_transfer":
+            nid = (tx.get("nft_id") or "").strip()
+            if not nid or nid not in nfts:
+                return False, "unknown nft_id"
+            if nfts[nid].get("owner") != tx["from"]:
+                return False, "not nft owner"
+            if tx["to"] == tx["from"]:
+                return False, "cannot transfer to self"
+        elif t == "oracle":
+            key = str(tx.get("oracle_key") or "").strip()
+            if not key or len(key) > 120:
+                return False, "oracle_key required (1–120 chars)"
+            val = tx.get("oracle_value")
+            if val is None or str(val) == "":
+                return False, "oracle_value required"
+            if len(str(val)) > 2000:
+                return False, "oracle_value too long"
+            # oracle posts are self-targeted (no coin transfer)
+            if amount != 0:
+                return False, "oracle amount must be 0"
+
+        # Signature over canonical body (includes extended fields when present)
+        if not verify_signature(tx["public_key"], tx_sighash(tx), tx["signature"]):
             return False, "bad signature"
-        # address must match pubkey
         from .crypto import pubkey_to_address
 
         if pubkey_to_address(bytes.fromhex(tx["public_key"])) != tx["from"]:
             return False, "pubkey/address mismatch"
-        if tx.get("txid") != txid({**body, "public_key": tx["public_key"], "signature": tx["signature"]}):
-            # recompute allowing full tx
-            full = dict(tx)
-            if full.get("txid") and full["txid"] != txid({k: v for k, v in full.items() if k != "txid"}):
-                # soft check — recompute
-                pass
         return True, "ok"
 
     def add_to_mempool(self, tx: Dict[str, Any]) -> Tuple[bool, str]:
@@ -265,18 +342,40 @@ class Blockchain:
         # validate rest against rolling state copy
         bals = dict(self.balances)
         nonces = dict(self.nonces)
+        nfts = {k: dict(v) for k, v in self.nfts.items()}
         # apply coinbase
         cb = txs[0]
         bals[cb["to"]] = bals.get(cb["to"], 0) + int(cb["amount"])
         for tx in txs[1:]:
-            ok, msg = self.validate_tx(tx, provisional_balances=bals, provisional_nonces=nonces)
+            ok, msg = self.validate_tx(
+                tx,
+                provisional_balances=bals,
+                provisional_nonces=nonces,
+                provisional_nfts=nfts,
+            )
             if not ok:
                 return False, f"tx invalid: {msg}"
             frm, to = tx["from"], tx["to"]
-            amount, fee = int(tx["amount"]), int(tx.get("fee", 0))
+            amount, fee = int(tx.get("amount", 0)), int(tx.get("fee", 0))
             bals[frm] = bals.get(frm, 0) - amount - fee
-            bals[to] = bals.get(to, 0) + amount
+            if amount:
+                bals[to] = bals.get(to, 0) + amount
             nonces[frm] = int(tx["nonce"]) + 1
+            tt = tx.get("type") or "transfer"
+            if tt == "nft_mint":
+                nid = tx.get("nft_id") or ""
+                if nid:
+                    nfts[nid] = {
+                        "nft_id": nid,
+                        "owner": to,
+                        "creator": frm,
+                        "name": tx.get("name") or "",
+                        "uri": tx.get("uri") or "",
+                    }
+            elif tt == "nft_transfer":
+                nid = tx.get("nft_id") or ""
+                if nid in nfts:
+                    nfts[nid]["owner"] = to
         return True, "ok"
 
     def append_block(self, block: Dict[str, Any]) -> Tuple[bool, str]:
@@ -379,20 +478,43 @@ class Blockchain:
         selected: List[Dict[str, Any]] = []
         bals = dict(self.balances)
         nonces = dict(self.nonces)
+        nfts = {k: dict(v) for k, v in self.nfts.items()}
         bals[miner_address] = bals.get(miner_address, 0) + subsidy
         fees_total = 0
         for tx in self.mempool[: max_txs * 2]:
             if len(selected) >= max_txs:
                 break
-            ok, _ = self.validate_tx(tx, provisional_balances=bals, provisional_nonces=nonces)
+            ok, _ = self.validate_tx(
+                tx,
+                provisional_balances=bals,
+                provisional_nonces=nonces,
+                provisional_nfts=nfts,
+            )
             if not ok:
                 continue
             selected.append(tx)
-            amount, fee = int(tx["amount"]), int(tx.get("fee", 0))
+            amount, fee = int(tx.get("amount", 0)), int(tx.get("fee", 0))
             fees_total += fee
             bals[tx["from"]] = bals.get(tx["from"], 0) - amount - fee
-            bals[tx["to"]] = bals.get(tx["to"], 0) + amount
+            if amount:
+                bals[tx["to"]] = bals.get(tx["to"], 0) + amount
             nonces[tx["from"]] = int(tx["nonce"]) + 1
+            # provisional NFT ownership for multi-tx blocks
+            tt = tx.get("type") or "transfer"
+            if tt == "nft_mint":
+                nid = tx.get("nft_id") or ""
+                if nid:
+                    nfts[nid] = {
+                        "nft_id": nid,
+                        "owner": tx["to"],
+                        "creator": tx["from"],
+                        "name": tx.get("name") or "",
+                        "uri": tx.get("uri") or "",
+                    }
+            elif tt == "nft_transfer":
+                nid = tx.get("nft_id") or ""
+                if nid in nfts:
+                    nfts[nid]["owner"] = tx["to"]
 
         reward = subsidy + fees_total
         # credit fees to miner in provisional bals (already had subsidy)
@@ -565,6 +687,24 @@ class Blockchain:
             if tid == q or tid.startswith(q):
                 return {"tx": tx, "confirmed": False, "block_height": None, "block_hash": None}
         return None
+
+    def list_nfts(self, owner: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
+        items = list(self.nfts.values())
+        if owner:
+            items = [n for n in items if n.get("owner") == owner]
+        items.sort(key=lambda n: (-(n.get("mint_height") or 0), n.get("nft_id") or ""))
+        return items[:limit]
+
+    def get_nft(self, nft_id: str) -> Optional[Dict[str, Any]]:
+        return self.nfts.get(nft_id)
+
+    def oracle_feed(self, limit: int = 100) -> List[Dict[str, Any]]:
+        items = list(self.oracle.values())
+        items.sort(key=lambda o: (-(o.get("height") or 0), o.get("key") or ""))
+        return items[:limit]
+
+    def oracle_get(self, key: str) -> Optional[Dict[str, Any]]:
+        return self.oracle.get(key)
 
     def address_history(self, address: str, limit: int = 50) -> Dict[str, Any]:
         txs = []

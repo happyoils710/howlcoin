@@ -123,7 +123,7 @@ def verify_signature(public_key_hex: str, message: bytes, signature_hex: str) ->
 
 def tx_sighash(tx_body: Dict[str, Any]) -> bytes:
     """Canonical bytes that get signed for a transaction (exclude signature fields)."""
-    body = {
+    body: Dict[str, Any] = {
         "from": tx_body.get("from"),
         "to": tx_body.get("to"),
         "amount": tx_body.get("amount"),
@@ -131,6 +131,21 @@ def tx_sighash(tx_body: Dict[str, Any]) -> bytes:
         "nonce": tx_body.get("nonce"),
         "memo": tx_body.get("memo", ""),
     }
+    # Extended ops (NFT / oracle) — only included when set so legacy transfers stay valid
+    tx_type = tx_body.get("type") or "transfer"
+    if tx_type and tx_type != "transfer":
+        body["type"] = tx_type
+    for k in (
+        "nft_id",
+        "name",
+        "uri",
+        "oracle_key",
+        "oracle_value",
+        "source_chain",
+        "observed_at",
+    ):
+        if tx_body.get(k) is not None and tx_body.get(k) != "":
+            body[k] = tx_body[k]
     return sha256(json.dumps(body, sort_keys=True, separators=(",", ":")).encode())
 
 

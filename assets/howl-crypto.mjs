@@ -8,6 +8,7 @@ import { hmac } from "https://esm.sh/@noble/hashes@1.4.0/hmac";
 import { sha512 } from "https://esm.sh/@noble/hashes@1.4.0/sha512";
 import { sha1 } from "https://esm.sh/@noble/hashes@1.4.0/sha1";
 import { keccak_256 } from "https://esm.sh/@noble/hashes@1.4.0/sha3";
+import { blake2b } from "https://esm.sh/@noble/hashes@1.4.0/blake2b";
 import * as secp from "https://esm.sh/@noble/secp256k1@1.7.1";
 import { ed25519 } from "https://esm.sh/@noble/curves@1.4.2/ed25519.js";
 import { generateMnemonic, validateMnemonic, mnemonicToSeedSync } from "https://esm.sh/@scure/bip39@1.3.0";
@@ -328,6 +329,7 @@ export function totpOtpauthUrl(secret, accountName = "Howlcoin", issuer = "Howlc
 export const PRESET_ASSETS = [
   { id: "howl", symbol: "HOWL", name: "Howlcoin", network: "Howlcoin", kind: "howl" },
   { id: "sol", symbol: "SOL", name: "Solana", network: "Solana", kind: "sol" },
+  { id: "xtz", symbol: "XTZ", name: "Tezos", network: "Tezos", kind: "xtz" },
   { id: "eth", symbol: "ETH", name: "Ethereum", network: "Ethereum", kind: "eth" },
   {
     id: "usdt",
@@ -403,11 +405,22 @@ export function txSighash(txBody) {
     nonce: txBody.nonce,
     to: txBody.to,
   };
-  // Python: json.dumps(body, sort_keys=True, separators=(",", ":"))
-  const canonical = JSON.stringify(body, Object.keys(body).sort());
-  // JSON.stringify with sorted keys: need manual
+  const txType = txBody.type || "transfer";
+  if (txType && txType !== "transfer") body.type = txType;
+  for (const k of [
+    "nft_id",
+    "name",
+    "uri",
+    "oracle_key",
+    "oracle_value",
+    "source_chain",
+    "observed_at",
+  ]) {
+    if (txBody[k] != null && txBody[k] !== "") body[k] = txBody[k];
+  }
   const keys = Object.keys(body).sort();
-  const json = "{" + keys.map((k) => JSON.stringify(k) + ":" + JSON.stringify(body[k])).join(",") + "}";
+  const json =
+    "{" + keys.map((k) => JSON.stringify(k) + ":" + JSON.stringify(body[k])).join(",") + "}";
   return sha256(new TextEncoder().encode(json));
 }
 
@@ -428,9 +441,18 @@ export function txId(tx) {
   return bytesToHex(sha256(new TextEncoder().encode(json)));
 }
 
-export async function buildSignedTx({ keypair, to, amountHowlies, feeHowlies, nonce, memo = "" }) {
+export async function buildSignedTx({
+  keypair,
+  to,
+  amountHowlies,
+  feeHowlies,
+  nonce,
+  memo = "",
+  type = "transfer",
+  extra = {},
+}) {
   if (!isValidAddress(to)) throw new Error("Invalid HOWL address");
-  if (amountHowlies <= 0) throw new Error("Amount must be positive");
+  if (type === "transfer" && amountHowlies <= 0) throw new Error("Amount must be positive");
   const body = {
     from: keypair.address,
     to,
@@ -440,10 +462,53 @@ export async function buildSignedTx({ keypair, to, amountHowlies, feeHowlies, no
     memo,
     public_key: keypair.publicKeyHex,
   };
+  if (type && type !== "transfer") body.type = type;
+  for (const [k, v] of Object.entries(extra || {})) {
+    if (v != null && v !== "") body[k] = v;
+  }
   const signature = await signTxBody(keypair.privateKeyHex, body);
   const tx = { ...body, signature };
   tx.txid = txId(tx);
   return tx;
+}
+
+/** Deterministic nft id from creator + name + uri + nonce */
+export function makeNftId(creator, name, uri, nonce) {
+  const raw = `${creator}|${name}|${uri}|${nonce}`;
+  return bytesToHex(sha256(new TextEncoder().encode(raw))).slice(0, 32);
+}
+
+/** Tezos tz1 from same mnemonic (ed25519 SLIP-0010 m/44'/1729'/0'/0') */
+export function tezosPath(account = 0) {
+  return [
+    44 | 0x80000000,
+    1729 | 0x80000000,
+    account | 0x80000000,
+    0 | 0x80000000,
+  ];
+}
+
+function base58CheckEncode(payload) {
+  const checksum = doubleSha256(payload).slice(0, 4);
+  return base58Encode(concat(payload, checksum));
+}
+
+export function tezosAddressFromMnemonic(phrase, account = 0, passphrase = "") {
+  const norm = phrase.trim().toLowerCase().split(/\s+/).join(" ");
+  if (!validateMnemonic(norm, wordlist)) throw new Error("Invalid BIP39 mnemonic");
+  const seed = mnemonicToSeedSync(norm, passphrase);
+  const priv = deriveEd25519Path(seed, tezosPath(account));
+  const pub = ed25519.getPublicKey(priv);
+  // tz1 = base58check( 0x06 0xa1 0x9f || blake2b-160(pubkey) )
+  const pkh = blake2b(pub, { dkLen: 20 });
+  const payload = concat(new Uint8Array([6, 161, 159]), pkh);
+  const address = base58CheckEncode(payload);
+  return {
+    address,
+    privateKeyHex: bytesToHex(priv),
+    publicKeyHex: bytesToHex(pub),
+    path: `m/44'/1729'/${account}'/0'`,
+  };
 }
 
 export function parseHowl(text) {

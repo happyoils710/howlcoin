@@ -216,18 +216,20 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       </div>
       <div class="actions">
         <button class="action" type="button" onclick="showPage('swap')"><span class="ico">⇄</span><span class="n">Swap</span></button>
-        <button class="action" type="button" onclick="showPage('browser')"><span class="ico">◈</span><span class="n">DApps</span></button>
+        <button class="action" type="button" onclick="showPage('nft')"><span class="ico">◆</span><span class="n">NFT</span></button>
+        <button class="action" type="button" onclick="showPage('oracle')"><span class="ico">◎</span><span class="n">Oracle</span></button>
         <button class="action" type="button" onclick="showPage('recv')"><span class="ico">↓</span><span class="n">Deposit</span></button>
-        <button class="action" type="button" onclick="showPage('send')"><span class="ico">↑</span><span class="n">Send</span></button>
       </div>
       <div class="panel">
-        <h2>Other assets (deposit addresses)</h2>
-        <div id="assetPreview"><p class="hint">Open Deposit for SOL, ETH, stables, and custom tokens</p></div>
+        <h2>Multi-chain deposits</h2>
+        <div id="assetPreview"><p class="hint">SOL · XTZ · ETH · stables · custom</p></div>
       </div>
       <div class="panel">
         <h2>Network</h2>
         <div class="item"><div>Height</div><div class="r" id="height" style="color:var(--text)">—</div></div>
         <div class="item"><div>Min fee</div><div class="r" id="minFee" style="color:var(--amber)">1 HOWL</div></div>
+        <div class="item"><div>NFTs owned</div><div class="r" id="nftCount" style="color:var(--text)">—</div></div>
+        <div class="item"><div>Oracle keys</div><div class="r" id="oracleCount" style="color:var(--text)">—</div></div>
         <div class="item"><div>Security</div><div class="r" id="secStatus" style="color:var(--text);font-size:.8rem">PIN</div></div>
       </div>
       <div class="panel">
@@ -330,11 +332,66 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       </div>
     </div>
 
+    <!-- NFT MINT / GALLERY -->
+    <div class="page" id="p-nft">
+      <div class="panel">
+        <h2>Mint NFT on Howlcoin</h2>
+        <p class="hint">Creates an on-chain NFT record (name + media URI). Costs network fee (1 HOWL min) paid to miners.</p>
+        <label>Name</label>
+        <input class="field" id="nftName" placeholder="Moon Howl #1" maxlength="80"/>
+        <label>Media URI (https image / ipfs / data)</label>
+        <input class="field" id="nftUri" placeholder="https://…"/>
+        <label>Memo (optional)</label>
+        <input class="field" id="nftMemo" placeholder=""/>
+        <button class="btn" type="button" id="nftMintBtn" onclick="mintNft()">Mint NFT</button>
+        <p class="err" id="nftErr"></p>
+        <p class="hint" id="nftTx"></p>
+      </div>
+      <div class="panel">
+        <h2>Your collection</h2>
+        <div id="nftGallery"><p class="hint">Loading…</p></div>
+      </div>
+      <div class="panel">
+        <h2>Transfer NFT</h2>
+        <label>NFT id</label>
+        <input class="field" id="nftXferId" placeholder="nft id"/>
+        <label>To HOWL address</label>
+        <input class="field" id="nftXferTo" placeholder="H…"/>
+        <button class="btn sec" type="button" onclick="transferNft()">Transfer</button>
+        <p class="err" id="nftXferErr"></p>
+      </div>
+    </div>
+
+    <!-- ORACLE -->
+    <div class="page" id="p-oracle">
+      <div class="panel">
+        <h2>Little multi-chain oracle</h2>
+        <p class="hint">Post observations about other chains onto Howlcoin. Anyone can read the feed — a lightweight, on-chain notice board (not a trustless bridge).</p>
+        <button class="btn" type="button" onclick="observeChains()">Observe live chains → post</button>
+        <p class="hint" id="oracleStatus"></p>
+        <p class="err" id="oracleErr"></p>
+      </div>
+      <div class="panel">
+        <h2>Manual observation</h2>
+        <label>Source chain</label>
+        <input class="field" id="oracleChain" placeholder="ethereum / solana / tezos / custom"/>
+        <label>Key</label>
+        <input class="field" id="oracleKey" placeholder="eth.block_height"/>
+        <label>Value</label>
+        <input class="field" id="oracleVal" placeholder="…"/>
+        <button class="btn sec" type="button" onclick="postOracleManual()">Post observation</button>
+      </div>
+      <div class="panel">
+        <h2>Oracle feed (on Howlcoin)</h2>
+        <div id="oracleFeed"><p class="hint">Loading…</p></div>
+      </div>
+    </div>
+
     <!-- DEPOSIT / MULTI-ASSET -->
     <div class="page" id="p-recv">
       <div class="panel">
         <h2>Deposit asset</h2>
-        <div class="warnbox">Assets stay on their own chain (Solana / Ethereum / Howlcoin) — not auto-swapped to HOWL. Always match the network badge.</div>
+        <div class="warnbox">Assets stay on their own chain (Solana / Tezos / Ethereum / Howlcoin) — not auto-swapped to HOWL. Always match the network badge.</div>
         <div class="seg" id="assetSeg"></div>
         <div id="depositBody"></div>
       </div>
@@ -389,8 +446,8 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
   </div>
   <nav class="bottom">
     <button type="button" class="tab on" data-p="home" onclick="showPage('home')"><span>⌂</span>Home</button>
-    <button type="button" class="tab" data-p="swap" onclick="showPage('swap')"><span>⇄</span>Swap</button>
-    <button type="button" class="tab" data-p="browser" onclick="showPage('browser')"><span>◈</span>DApps</button>
+    <button type="button" class="tab" data-p="nft" onclick="showPage('nft')"><span>◆</span>NFT</button>
+    <button type="button" class="tab" data-p="oracle" onclick="showPage('oracle')"><span>◎</span>Oracle</button>
     <button type="button" class="tab" data-p="recv" onclick="showPage('recv')"><span>↓</span>Deposit</button>
     <button type="button" class="tab" data-p="sec" onclick="showPage('sec')"><span>☰</span>More</button>
   </nav>
@@ -400,8 +457,8 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 <script type="module">
 import {
   createMnemonic, checkMnemonic, keypairFromMnemonic, ethAddressFromMnemonic,
-  solAddressFromMnemonic,
-  buildSignedTx, parseHowl, formatHowl, isValidAddress, COIN,
+  solAddressFromMnemonic, tezosAddressFromMnemonic,
+  buildSignedTx, parseHowl, formatHowl, isValidAddress, COIN, makeNftId,
   PRESET_ASSETS, generateTotpSecret, totpOtpauthUrl, verifyTotp,
 } from "/assets/howl-crypto.mjs";
 import {
@@ -435,6 +492,7 @@ const LS_CREATED = "howl_public_wallet_ready_v2";
 let keypair = null;
 let ethInfo = null;
 let solInfo = null;
+let xtzInfo = null;
 let mnemonic = null;
 let walletPin = null; // session-only after unlock
 let meta = { totpEnabled: false }; // totp secret lives inside encrypted blob
@@ -651,6 +709,8 @@ function showPage(name){
   if(name==="sec") updateSecUI();
   if(name==="swap") initSwapUI();
   if(name==="browser") initBrowserUI();
+  if(name==="nft") refreshNfts();
+  if(name==="oracle") refreshOracle();
 }
 
 function initSwapUI(){
@@ -848,6 +908,20 @@ function selectAsset(id){
         ${a.mint ? `<p class="hint mono" style="font-size:.72rem">Mint: ${a.mint}</p>` : ""}
         <div class="warnbox">Send only <b>${a.symbol}</b> on <b>Solana</b> to this address. Phantom path m/44'/501'/0'/0'.</div>
       </div>`;
+  } else if(a.kind==="xtz"){
+    const addr = xtzInfo?.address || "—";
+    const bal = ethBalances.xtz != null ? ethBalances.xtz : "…";
+    body.innerHTML = `
+      <div style="text-align:center">
+        <div class="badge" style="background:rgba(45,143,255,.15);color:#7ec8ff">Tezos</div>
+        <h3 style="margin:10px 0 4px;font-family:Orbitron,sans-serif;letter-spacing:.06em">XTZ</h3>
+        <p class="hint">Tezos · tz1 deposit</p>
+        <div class="qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(addr)}" alt="QR"/></div>
+        <div class="mono">${addr}</div>
+        <button class="btn" type="button" onclick="copyText('${addr}')">Copy Tezos address</button>
+        <p class="hint">Balance: <b style="color:var(--cyan)">${bal}</b> XTZ</p>
+        <div class="warnbox">Send only <b>XTZ on Tezos</b> to this tz1 address. Path m/44'/1729'/0'/0'.</div>
+      </div>`;
   } else if(a.kind==="eth" || a.kind==="erc20"){
     const addr = ethInfo?.address || "—";
     const bal = ethBalances[a.id] != null ? ethBalances[a.id] : "…";
@@ -894,28 +968,237 @@ async function refreshEthBalances(){
       }catch{ ethBalances[a.id] = "—"; }
     }
   }
+  if(xtzInfo){
+    try{
+      const r = await fetch("https://api.tzkt.io/v1/accounts/" + encodeURIComponent(xtzInfo.address));
+      if(r.ok){
+        const j = await r.json();
+        const mutez = Number(j.balance || 0);
+        ethBalances.xtz = (mutez / 1e6).toLocaleString(undefined,{maximumFractionDigits:6});
+      } else ethBalances.xtz = "—";
+    }catch{ ethBalances.xtz = "—"; }
+  }
   // home preview
-  $("assetPreview").innerHTML = allAssets().filter(a=>a.id!=="howl").slice(0,6).map(a=>{
-    const net = a.kind==="sol"||a.kind==="spl" ? "SOL" : a.network.split(" ")[0];
-    const short = a.kind==="sol"||a.kind==="spl"
-      ? (solInfo?.address||"").slice(0,8)+"…"
-      : (ethInfo?.address||"").slice(0,10)+"…";
+  $("assetPreview").innerHTML = allAssets().filter(a=>a.id!=="howl").slice(0,7).map(a=>{
+    let net = a.network.split(" ")[0];
+    let short = "";
+    let badge = "";
+    if(a.kind==="sol"||a.kind==="spl"){ net="SOL"; short=(solInfo?.address||"").slice(0,8)+"…"; badge="sol"; }
+    else if(a.kind==="xtz"){ net="XTZ"; short=(xtzInfo?.address||"").slice(0,10)+"…"; }
+    else { short=(ethInfo?.address||"").slice(0,10)+"…"; }
     return `<div class="item click" onclick="showPage('recv');selectAsset('${a.id}')">
-      <div><div>${a.symbol} <span class="badge ${a.kind==="sol"||a.kind==="spl"?"sol":""}">${net}</span></div>
+      <div><div>${a.symbol} <span class="badge ${badge}">${net}</span></div>
       <div class="m">${short}</div></div>
-      <div class="r" style="font-size:.85rem">${ethBalances[a.id]??"…"}</div>
+      <div class="r" style="font-size:.85rem">${ethBalances[a.id]??ethBalances.xtz??"…"}</div>
     </div>`;
-  }).join("") + `<p class="hint" style="margin-top:8px">Deposit · SOL · ETH · stables · custom ERC-20</p>`;
+  }).join("") + `<p class="hint" style="margin-top:8px">Deposit · SOL · XTZ · ETH · stables · custom</p>`;
   if($("p-recv").classList.contains("on")) selectAsset(selectedAsset);
+}
+
+async function refreshNfts(){
+  if(!keypair) return;
+  try{
+    const j = await api("/api/public/nfts?owner=" + encodeURIComponent(keypair.address));
+    const list = j.nfts || [];
+    $("nftCount").textContent = String(list.length);
+    if(!list.length){
+      $("nftGallery").innerHTML = '<p class="hint">No NFTs yet — mint one above</p>';
+      return;
+    }
+    $("nftGallery").innerHTML = list.map(n=>`
+      <div class="item">
+        <div style="min-width:0">
+          <div><b>${escHtml(n.name||"NFT")}</b></div>
+          <div class="m mono">${escHtml(n.nft_id||"")}</div>
+          ${n.uri?`<div class="m"><a href="${escAttr(n.uri)}" target="_blank" rel="noopener">media</a></div>`:""}
+        </div>
+        <button class="btn sec" style="width:auto;margin:0;padding:6px 10px;min-height:0;font-size:.6rem"
+          type="button" onclick="document.getElementById('nftXferId').value='${escAttr(n.nft_id)}';showPage('nft')">Transfer</button>
+      </div>`).join("");
+  }catch(e){
+    $("nftGallery").innerHTML = `<p class="err">${escHtml(e.message)}</p>`;
+  }
+}
+function escHtml(s){ return String(s??"").replace(/[&<>"']/g,c=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c])); }
+function escAttr(s){ return String(s??"").replace(/'/g,"&#39;").replace(/"/g,"&quot;"); }
+
+async function mintNft(){
+  $("nftErr").textContent=""; $("nftTx").textContent="";
+  try{
+    const name = $("nftName").value.trim();
+    const uri = $("nftUri").value.trim();
+    if(!name) throw new Error("Name required");
+    const fee = Number(COIN); // 1 HOWL
+    const addr = await api("/api/public/address/" + encodeURIComponent(keypair.address));
+    const nonce = addr.nonce||0;
+    const nft_id = makeNftId(keypair.address, name, uri, nonce);
+    const tx = await buildSignedTx({
+      keypair,
+      to: keypair.address,
+      amountHowlies: 0,
+      feeHowlies: fee,
+      nonce,
+      memo: $("nftMemo").value||"",
+      type: "nft_mint",
+      extra: { nft_id, name, uri },
+    });
+    const res = await api("/api/public/broadcast", {
+      method:"POST", headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ tx }),
+    });
+    $("nftTx").textContent = "Mint queued " + (res.txid||"").slice(0,16) + "… — mine/wait for confirm";
+    toast("NFT mint queued");
+    $("nftName").value=""; $("nftUri").value="";
+    setTimeout(refreshNfts, 1500);
+  }catch(e){ $("nftErr").textContent = e.message; }
+}
+
+async function transferNft(){
+  $("nftXferErr").textContent="";
+  try{
+    const nft_id = $("nftXferId").value.trim();
+    const to = $("nftXferTo").value.trim();
+    if(!nft_id || !to) throw new Error("NFT id and destination required");
+    if(!isValidAddress(to)) throw new Error("Invalid HOWL address");
+    const fee = Number(COIN);
+    const addr = await api("/api/public/address/" + encodeURIComponent(keypair.address));
+    const tx = await buildSignedTx({
+      keypair, to, amountHowlies: 0, feeHowlies: fee,
+      nonce: addr.nonce||0, memo: "", type: "nft_transfer",
+      extra: { nft_id },
+    });
+    const res = await api("/api/public/broadcast", {
+      method:"POST", headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ tx }),
+    });
+    toast("Transfer queued " + (res.txid||"").slice(0,12));
+    setTimeout(refreshNfts, 1500);
+  }catch(e){ $("nftXferErr").textContent = e.message; }
+}
+
+async function refreshOracle(){
+  try{
+    const j = await api("/api/public/oracle?limit=50");
+    const feed = j.feed || [];
+    $("oracleCount").textContent = String(j.count ?? feed.length);
+    if(!feed.length){
+      $("oracleFeed").innerHTML = '<p class="hint">No observations yet — post one</p>';
+      return;
+    }
+    $("oracleFeed").innerHTML = feed.map(o=>`
+      <div class="item">
+        <div style="min-width:0">
+          <div><b>${escHtml(o.key)}</b> <span class="badge">${escHtml(o.source_chain||"?")}</span></div>
+          <div class="m mono">${escHtml(String(o.value)).slice(0,120)}</div>
+          <div class="m">#${o.height??"—"} · ${escHtml((o.reporter||"").slice(0,12))}…</div>
+        </div>
+      </div>`).join("");
+  }catch(e){
+    $("oracleFeed").innerHTML = `<p class="err">${escHtml(e.message)}</p>`;
+  }
+}
+
+async function nextLocalNonce(){
+  // confirmed nonce + pending mempool txs from us
+  const addr = await api("/api/public/address/" + encodeURIComponent(keypair.address));
+  let n = addr.nonce || 0;
+  try{
+    const mp = await api("/api/public/mempool");
+    for(const t of (mp.transactions||[])){
+      if(t.from === keypair.address) n = Math.max(n, (t.nonce||0) + 1);
+    }
+  }catch(_){}
+  return n;
+}
+
+async function postOracle({ source_chain, oracle_key, oracle_value, nonce }){
+  const fee = Number(COIN);
+  const observed_at = Math.floor(Date.now()/1000);
+  const useNonce = nonce != null ? nonce : await nextLocalNonce();
+  const tx = await buildSignedTx({
+    keypair,
+    to: keypair.address,
+    amountHowlies: 0,
+    feeHowlies: fee,
+    nonce: useNonce,
+    memo: "oracle",
+    type: "oracle",
+    extra: {
+      oracle_key,
+      oracle_value: String(oracle_value),
+      source_chain,
+      observed_at,
+    },
+  });
+  return api("/api/public/broadcast", {
+    method:"POST", headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ tx }),
+  });
+}
+
+async function observeChains(){
+  $("oracleErr").textContent=""; $("oracleStatus").textContent="Observing…";
+  try{
+    const posts = [];
+    try{
+      const s = await api("/api/public/summary");
+      posts.push(["howlcoin", "howl.height", s.height]);
+      posts.push(["howlcoin", "howl.tip", (s.tip||"").slice(0,24)]);
+    }catch(_){}
+    try{
+      const hex = await ethRpc("eth_blockNumber", []);
+      posts.push(["ethereum", "eth.block_height", parseInt(hex,16)]);
+    }catch(_){}
+    try{
+      const slot = await solRpc("getSlot", []);
+      posts.push(["solana", "sol.slot", slot]);
+    }catch(_){}
+    try{
+      const r = await fetch("https://api.tzkt.io/v1/head");
+      const j = await r.json();
+      posts.push(["tezos", "xtz.level", j.level]);
+    }catch(_){}
+
+    if(!posts.length) throw new Error("Could not fetch any external chain data");
+    let nonce = await nextLocalNonce();
+    let n = 0;
+    for(const [chain, key, val] of posts){
+      await postOracle({ source_chain: chain, oracle_key: key, oracle_value: val, nonce });
+      nonce += 1;
+      n++;
+    }
+    $("oracleStatus").textContent = `Posted ${n} observations (pending until mined) · fee ${n} HOWL`;
+    toast("Oracle posts queued");
+    setTimeout(refreshOracle, 1000);
+  }catch(e){
+    $("oracleErr").textContent = e.message;
+    $("oracleStatus").textContent = "";
+  }
+}
+
+async function postOracleManual(){
+  $("oracleErr").textContent="";
+  try{
+    const source_chain = $("oracleChain").value.trim() || "custom";
+    const oracle_key = $("oracleKey").value.trim();
+    const oracle_value = $("oracleVal").value.trim();
+    if(!oracle_key || !oracle_value) throw new Error("Key and value required");
+    await postOracle({ source_chain, oracle_key, oracle_value });
+    toast("Observation queued");
+    $("oracleKey").value=""; $("oracleVal").value="";
+    setTimeout(refreshOracle, 800);
+  }catch(e){ $("oracleErr").textContent = e.message; }
 }
 
 async function refresh(){
   if(!keypair) return;
   try{
-    const [sum, addr, fees] = await Promise.all([
+    const [sum, addr, fees, nfts, oracle] = await Promise.all([
       api("/api/public/summary"),
       api("/api/public/address/" + encodeURIComponent(keypair.address)),
       api("/api/public/fees").catch(()=>({ default_fee_howl:1, min_fee:"1 HOWL" })),
+      api("/api/public/nfts?owner=" + encodeURIComponent(keypair.address)).catch(()=>({ nfts:[] })),
+      api("/api/public/oracle?limit=5").catch(()=>({ count:0 })),
     ]);
     chainInfo.height = sum.height;
     chainInfo.balance = BigInt(addr.balance || 0);
@@ -926,16 +1209,19 @@ async function refresh(){
     $("addr").textContent = keypair.address;
     $("height").textContent = sum.height;
     $("minFee").textContent = fees.min_fee || "1 HOWL";
+    $("nftCount").textContent = String((nfts.nfts||[]).length);
+    $("oracleCount").textContent = String(oracle.count ?? (oracle.feed||[]).length);
     $("syncSub").textContent = "Public · height " + sum.height;
     $("liveChip").textContent = "● LIVE";
     $("liveChip").className = "chip ok";
-    if(!$("sendFee").dataset.init){ $("sendFee").value = String(minFeeHowl); $("sendFee").dataset.init="1"; }
+    if($("sendFee") && !$("sendFee").dataset.init){ $("sendFee").value = String(minFeeHowl); $("sendFee").dataset.init="1"; }
     const act = $("activity");
     if(!chainInfo.txs.length) act.innerHTML = '<p class="hint">No HOWL transactions yet</p>';
     else act.innerHTML = chainInfo.txs.slice(0,15).map(t=>{
-      const dir = t.direction==="in"||t.type==="coinbase"?"Received":"Sent";
-      const amt = t.amount!=null?formatHowl(t.amount):"";
-      return `<div class="item"><div><div>${dir}</div><div class="m">${t.block_height!=null?"#"+t.block_height:"…"} · ${(t.txid||"").slice(0,12)}…</div></div><div class="r">${amt.replace(" HOWL","")}</div></div>`;
+      const typ = t.type||"transfer";
+      const dir = typ==="nft_mint"?"NFT mint": typ==="oracle"?"Oracle": (t.direction==="in"||typ==="coinbase"?"Received":"Sent");
+      const amt = t.amount!=null && Number(t.amount)>0 ? formatHowl(t.amount) : (typ!=="transfer"?typ:"");
+      return `<div class="item"><div><div>${dir}</div><div class="m">${t.block_height!=null?"#"+t.block_height:"…"} · ${(t.txid||"").slice(0,12)}…</div></div><div class="r">${String(amt).replace(" HOWL","")}</div></div>`;
     }).join("");
     refreshEthBalances();
   }catch(e){
@@ -995,7 +1281,7 @@ function revealSeed(){
 function hideSeed(){ $("seedBox").classList.add("hidden"); $("seedWords").innerHTML=""; }
 
 function lockWallet(){
-  keypair=null; ethInfo=null; solInfo=null; mnemonic=null; walletPin=null; meta.totpSecret=null;
+  keypair=null; ethInfo=null; solInfo=null; xtzInfo=null; mnemonic=null; walletPin=null; meta.totpSecret=null;
   boot();
   toast("Locked");
 }
@@ -1015,6 +1301,7 @@ async function openSession(phrase, pin, vaultExtras={}){
   keypair = keypairFromMnemonic(mnemonic, 0);
   ethInfo = ethAddressFromMnemonic(mnemonic, 0);
   solInfo = solAddressFromMnemonic(mnemonic, 0);
+  try { xtzInfo = tezosAddressFromMnemonic(mnemonic, 0); } catch { xtzInfo = null; }
   walletPin = pin;
   meta.totpSecret = vaultExtras.totpSecret || null;
   meta.hasTotp = !!meta.totpSecret;
@@ -1216,10 +1503,15 @@ window.browseTo = browseTo;
 window.browserBack = browserBack;
 window.openDapp = openDapp;
 window.openCurrentExternal = openCurrentExternal;
+window.mintNft = mintNft;
+window.transferNft = transferNft;
+window.observeChains = observeChains;
+window.postOracleManual = postOracleManual;
 // expose for dapp address copy handlers
 Object.defineProperty(window, "keypair", { get: () => keypair });
 Object.defineProperty(window, "solInfo", { get: () => solInfo });
 Object.defineProperty(window, "ethInfo", { get: () => ethInfo });
+Object.defineProperty(window, "xtzInfo", { get: () => xtzInfo });
 
 boot();
 </script>

@@ -1139,6 +1139,42 @@ class ExplorerServer:
                             pass
                         return self._json(200, {"network": net, **chain.address_history(addr)})
 
+                    if rest[0] == "nfts":
+                        owner = (qs.get("owner") or [None])[0]
+                        limit = int(qs.get("limit", ["100"])[0])
+                        return self._json(
+                            200,
+                            {
+                                "network": net,
+                                "nfts": chain.list_nfts(owner=owner, limit=limit),
+                                "count": len(chain.nfts),
+                            },
+                        )
+
+                    if rest[0] == "nft" and len(rest) >= 2:
+                        nid = urllib.parse.unquote(rest[1])
+                        n = chain.get_nft(nid)
+                        if not n:
+                            return self._json(404, {"error": "nft not found"})
+                        return self._json(200, {"network": net, "nft": n})
+
+                    if rest[0] == "oracle":
+                        if len(rest) >= 2:
+                            key = urllib.parse.unquote(rest[1])
+                            row = chain.oracle_get(key)
+                            if not row:
+                                return self._json(404, {"error": "oracle key not found"})
+                            return self._json(200, {"network": net, "entry": row})
+                        limit = int(qs.get("limit", ["100"])[0])
+                        return self._json(
+                            200,
+                            {
+                                "network": net,
+                                "feed": chain.oracle_feed(limit=limit),
+                                "count": len(chain.oracle),
+                            },
+                        )
+
                 return self._json(404, {"error": "not found"})
 
             def do_OPTIONS(self):

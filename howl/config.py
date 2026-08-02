@@ -5,7 +5,7 @@ from pathlib import Path
 # --- Identity ---
 COIN_NAME = "Howlcoin"
 TICKER = "HOWL"
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 GENESIS_MESSAGE = (
     "2026-08-01 Howlcoin: the moon heard a howl and howled back. "
     "Scrypt free. Much chain. Very wow."
