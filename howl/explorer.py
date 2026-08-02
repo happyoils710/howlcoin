@@ -2148,7 +2148,17 @@ class ExplorerServer:
                     app = ASSETS_DIR / "public-wallet.html"
                     if not app.is_file():
                         return self._json(404, {"error": "public wallet not found"})
-                    return self._bytes(200, app.read_bytes(), "text/html; charset=utf-8")
+                    # no-cache so SOL balance / wallet UI fixes land immediately
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                    self.send_header("Pragma", "no-cache")
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    data = app.read_bytes()
+                    self.send_header("Content-Length", str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                    return
 
                 # Token / listing identity page (for humans + aggregators)
                 if path in ("/token", "/token/", "/contract", "/contracts"):
@@ -2244,7 +2254,15 @@ th{{color:#8b95a8;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em
                 if path == "/sw.js":
                     sw = ASSETS_DIR / "wallet-sw.js"
                     if sw.is_file():
-                        return self._bytes(200, sw.read_bytes(), "application/javascript")
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/javascript")
+                        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                        self.send_header("Access-Control-Allow-Origin", "*")
+                        data = sw.read_bytes()
+                        self.send_header("Content-Length", str(len(data)))
+                        self.end_headers()
+                        self.wfile.write(data)
+                        return
 
                 if path in (
                     "/assets/howl-native-bridge.js",

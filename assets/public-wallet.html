@@ -1225,6 +1225,22 @@ async function erc20Balance(contract, addr, decimals){
   const raw = BigInt(hex || "0x0");
   return Number(raw) / 10 ** decimals;
 }
+/** Abortable fetch — prevent hung ERC-20 RPCs from blocking SOL forever. */
+async function fetchTimeout(url, opts = {}, ms = 12000){
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try{
+    return await fetch(url, { ...opts, signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+async function apiTimeout(path, opts, ms = 12000){
+  const r = await fetchTimeout(API + path, opts, ms);
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error || r.statusText || ("HTTP " + r.status));
+  return j;
+}
 /**
  * Solana RPC via Howlscan proxy first (public Solana endpoints 403 browser
  * Origin: howlscan.org). Falls back to direct RPCs if proxy is down.
@@ -1232,11 +1248,11 @@ async function erc20Balance(contract, addr, decimals){
 async function solRpc(method, params){
   // 1) Howlscan server proxy
   try{
-    const r = await fetch(API + "/api/public/sol/rpc", {
+    const r = await fetchTimeout(API + "/api/public/sol/rpc", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ method, params: params || [] }),
-    });
+    }, 15000);
     const j = await r.json().catch(()=>({}));
     if(r.ok && j.result !== undefined) return j.result;
     if(r.ok && !j.error) return j.result;
@@ -1246,11 +1262,11 @@ async function solRpc(method, params){
   let lastErr = null;
   for(const endpoint of SOL_RPC_LIST){
     try{
-      const r = await fetch(endpoint, {
+      const r = await fetchTimeout(endpoint, {
         method:"POST",
         headers:{ "Content-Type":"application/json" },
         body: JSON.stringify({ jsonrpc:"2.0", id:1, method, params }),
-      });
+      }, 10000);
       if(!r.ok){ lastErr = new Error("HTTP " + r.status); continue; }
       const j = await r.json();
       if(j.error){
@@ -1269,19 +1285,92 @@ function formatSolAmount(solNum){
   if(n === 0) return "0";
   // keep dust visible (lamports → up to 9 decimals)
   if(Math.abs(n) < 1e-6) return n.toFixed(9).replace(/0+$/,"").replace(/\.$/,"");
+  if(Math.abs(n) < 0.01) return n.toFixed(9).replace(/0+$/,"").replace(/\.$/,"");
   return n.toLocaleString(undefined, { maximumFractionDigits: 9, minimumFractionDigits: 0 });
 }
-async function solBalance(addr){
+/**
+ * Native SOL balance in SOL units. Prefer Howlscan proxy (works from browser).
+ * Returns { sol, lamports, source }.
+ */
+async function solBalanceDetail(addr){
   if(!addr) throw new Error("No Solana address");
-  // Prefer dedicated balance proxy (simple GET, cached less aggressively)
+  let proxyErr = null;
   try{
-    const j = await api("/api/public/sol/balance?address=" + encodeURIComponent(addr));
-    if(j.sol != null) return Number(j.sol);
-    if(j.lamports != null) return Number(j.lamports) / 1e9;
-  }catch(_){}
-  const res = await solRpc("getBalance", [addr, { commitment: "confirmed" }]);
-  const lamports = Number(res?.value ?? res ?? 0);
-  return lamports / 1e9;
+    const j = await apiTimeout(
+      "/api/public/sol/balance?address=" + encodeURIComponent(addr),
+      undefined,
+      15000
+    );
+    const lamports = j.lamports != null
+      ? Number(j.lamports)
+      : (j.sol != null ? Math.round(Number(j.sol) * 1e9) : NaN);
+    if(Number.isFinite(lamports)){
+      return {
+        sol: lamports / 1e9,
+        lamports,
+        source: j.source || "howlscan-proxy",
+      };
+    }
+    if(j.sol != null && Number.isFinite(Number(j.sol))){
+      return { sol: Number(j.sol), lamports: Math.round(Number(j.sol) * 1e9), source: j.source || "howlscan-proxy" };
+    }
+    proxyErr = new Error(j.error || "empty balance response");
+  }catch(e){
+    proxyErr = e;
+  }
+  try{
+    const res = await solRpc("getBalance", [addr, { commitment: "confirmed" }]);
+    const lamports = Number(res?.value ?? res ?? 0);
+    return { sol: lamports / 1e9, lamports, source: "direct-rpc" };
+  }catch(e2){
+    const msg = (proxyErr && proxyErr.message) ? proxyErr.message : (e2.message || "RPC error");
+    throw new Error("SOL balance: " + msg);
+  }
+}
+async function solBalance(addr){
+  const d = await solBalanceDetail(addr);
+  return d.sol;
+}
+/** Fast path: only SOL + SPL (does not wait on ETH/ERC-20). Paints UI when done. */
+async function refreshSolBalances(paint = true){
+  if(!solInfo?.address){
+    ethBalances.sol = "—";
+    ethBalances._solErr = "No Solana address derived";
+    return;
+  }
+  try{
+    const d = await solBalanceDetail(solInfo.address);
+    ethBalances.sol = formatSolAmount(d.sol);
+    ethBalances._solRaw = d.sol;
+    ethBalances._solLamports = d.lamports;
+    ethBalances._solSource = d.source;
+    ethBalances._solErr = "";
+  }catch(e){
+    ethBalances.sol = "—";
+    ethBalances._solErr = e.message || "RPC error";
+    ethBalances._solSource = "";
+    console.warn("SOL balance failed", e);
+  }
+  for(const a of allAssets()){
+    if(a.kind !== "spl") continue;
+    try{
+      const b = await splBalance(a.mint, solInfo.address);
+      ethBalances[a.id] = formatSolAmount(b);
+    }catch(e){
+      ethBalances[a.id] = "—";
+      console.warn("SPL balance failed", a.symbol, e);
+    }
+  }
+  if(paint) paintBalances();
+}
+function paintBalances(){
+  if($("p-recv")?.classList.contains("on")) selectAsset(selectedAsset);
+  if($("p-home")?.classList.contains("on")) renderHomeAssets(false);
+  if($("p-assets")?.classList.contains("on")) renderAssetsList(false);
+  if($("p-asset")?.classList.contains("on")) renderAssetDetail();
+  if(typeof updateSwapBalances === "function" && $("p-swap")?.classList.contains("on")){
+    try{ updateSwapBalances(); }catch(_){}
+  }
 }
 async function splBalance(mint, owner){
   try{
@@ -1579,13 +1668,28 @@ function renderAssetDetail(){
   const addr = assetAddress(a);
   if($("assetDetailAddr")) $("assetDetailAddr").textContent = addr || (a.kind==="external" ? "(use external wallet)" : "—");
   let actions = assetActions(a);
-  // Always allow manual refresh on asset page
+  // Always allow manual refresh on asset page (SOL uses fast path)
   actions = [
     { label: "↻ Refresh balance", fn: async ()=>{
       toast("Refreshing…");
-      await refreshEthBalances();
-      renderAssetDetail();
-      toast("Balance updated");
+      try{
+        if(a.kind === "sol" || a.kind === "spl"){
+          await refreshSolBalances(true);
+        } else {
+          await refreshEthBalances();
+        }
+        renderAssetDetail();
+        if((a.kind === "sol" || a.kind === "spl") && ethBalances._solErr){
+          toast(ethBalances._solErr);
+        } else {
+          const now = a.kind === "sol" ? ethBalances.sol : ethBalances[a.id];
+          toast((now == null || now === "—" || now === "…")
+            ? "Balance empty — open Solscan to verify"
+            : ("Balance: " + now + " " + assetDisplaySymbol(a)));
+        }
+      }catch(e){
+        toast(e.message || "Refresh failed");
+      }
     } },
     ...actions,
   ];
@@ -1597,18 +1701,25 @@ function renderAssetDetail(){
       btn.onclick = ()=> actions[Number(btn.dataset.i)]?.fn();
     });
   }
-  // SOL helper status
-  if((a.kind === "sol" || a.kind === "spl") && ethBalances._solErr){
-    toast("Solana RPC: " + ethBalances._solErr);
-  }
   // mini deposit / receive
   const mini = $("assetDepositMini");
   if(mini){
+    let solHint = "";
+    if(a.kind === "sol" || a.kind === "spl"){
+      if(ethBalances._solErr){
+        solHint = `<p class="hint" style="color:var(--danger,#f66);margin-top:8px">⚠ ${escHtml(ethBalances._solErr)}</p>`;
+      } else if(a.kind === "sol" && ethBalances._solLamports != null){
+        solHint = `<p class="hint" style="margin-top:8px">On-chain: <b>${escHtml(String(ethBalances._solLamports))}</b> lamports · via ${escHtml(ethBalances._solSource || "proxy")}</p>`;
+      } else if(a.kind === "sol" && ethBalances.sol === "…"){
+        solHint = `<p class="hint" style="margin-top:8px">Loading SOL balance…</p>`;
+      }
+    }
     mini.innerHTML = `
       <div style="text-align:center">
         <div class="qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(addr||"")}" alt="QR"/></div>
         ${addr?`<button class="btn sec" type="button" onclick="copyAssetAddress()">Copy ${escHtml(assetDisplaySymbol(a))} address</button>`:`<p class="hint">No in-app deposit address for this asset yet.</p>`}
         <p class="hint" style="margin-top:8px">Only send <b>${escHtml(assetDisplaySymbol(a))}</b> on <b>${escHtml(a.network||"")}</b>.</p>
+        ${solHint}
         ${a.note?`<p class="hint">${escHtml(a.note)}</p>`:""}
         ${a.contract?`<p class="hint mono" style="font-size:.7rem">Contract: ${escHtml(a.contract)}</p>`:""}
         ${a.mint?`<p class="hint mono" style="font-size:.7rem">Mint: ${escHtml(a.mint)}</p>`:""}
@@ -1858,8 +1969,20 @@ function showPage(name){
   if(name!=="browser" && app) app.classList.remove("browser-focus");
   if(name==="recv") selectAsset(selectedAsset);
   if(name==="home"){ renderHomeAssets(); }
-  if(name==="assets"){ renderAssetsList(); refreshEthBalances().then(()=>renderAssetsList()); }
-  if(name==="asset"){ renderAssetDetail(); refreshEthBalances().then(()=>renderAssetDetail()); }
+  if(name==="assets"){
+    renderAssetsList();
+    // SOL first so deposits appear immediately, then full multi-chain
+    refreshSolBalances(true).then(()=> refreshEthBalances());
+  }
+  if(name==="asset"){
+    renderAssetDetail();
+    const a = allAssets().find(x=>x.id===detailAssetId);
+    if(a && (a.kind === "sol" || a.kind === "spl")){
+      refreshSolBalances(true).then(()=> renderAssetDetail());
+    } else {
+      refreshEthBalances().then(()=> renderAssetDetail());
+    }
+  }
   if(name==="sec" || name==="more") updateSecUI();
   if(name==="swap"){ initSwapUI(); if(swapMode==="howl") initBridgeUI(); }
   if(name==="browser") initBrowserUI();
@@ -1957,10 +2080,16 @@ async function refreshCurrentPage(){
       if(page === "home") renderHomeAssets();
       if(page === "more") updateSecUI();
     } else if(page === "assets"){
-      await refreshEthBalances();
+      await refreshSolBalances(true);
+      refreshEthBalances(); // background full refresh
       renderAssetsList();
     } else if(page === "asset"){
-      await refreshEthBalances();
+      const a = allAssets().find(x=>x.id===detailAssetId);
+      if(a && (a.kind === "sol" || a.kind === "spl")){
+        await refreshSolBalances(true);
+      } else {
+        await refreshEthBalances();
+      }
       renderAssetDetail();
     } else if(page === "swap"){
       await refresh();
@@ -3277,116 +3406,120 @@ async function evmNativeBalance(rpc, address){
 }
 
 async function refreshEthBalances(){
-  // Multi-chain balances (stored in ethBalances map by asset id)
+  // SOL first (deposits must show without waiting on slow ERC-20 RPCs)
+  await refreshSolBalances(true);
+
+  // Everything else in parallel groups — best-effort
+  const jobs = [];
+
   if(ethInfo){
-    try{
-      const eth = await ethBalance(ethInfo.address);
-      ethBalances.eth = eth.toLocaleString(undefined,{maximumFractionDigits:6});
-    }catch{ ethBalances.eth = "—"; }
-    for(const a of allAssets()){
-      if(a.kind === "evm" && a.evmId){
-        const rpc = (EVM_CHAINS[a.evmId]||{}).rpc;
-        if(!rpc){ ethBalances[a.id] = ethBalances.eth || "—"; continue; }
-        try{
-          const b = await evmNativeBalance(rpc, ethInfo.address);
-          ethBalances[a.id] = b==null ? "—" : b.toLocaleString(undefined,{maximumFractionDigits:6});
-        }catch{ ethBalances[a.id] = "—"; }
-      }
-      if(a.kind!=="erc20") continue;
+    jobs.push((async ()=>{
       try{
-        const b = await erc20Balance(a.contract, ethInfo.address, a.decimals||18);
-        ethBalances[a.id] = b.toLocaleString(undefined,{maximumFractionDigits:6});
-      }catch{ ethBalances[a.id] = "—"; }
-    }
-  }
-  if(solInfo?.address){
-    try{
-      const sol = await solBalance(solInfo.address);
-      ethBalances.sol = formatSolAmount(sol);
-      ethBalances._solErr = "";
-    }catch(e){
-      ethBalances.sol = "—";
-      ethBalances._solErr = e.message || "RPC error";
-      console.warn("SOL balance failed", e);
-    }
-    for(const a of allAssets()){
-      if(a.kind!=="spl") continue;
-      try{
-        const b = await splBalance(a.mint, solInfo.address);
-        ethBalances[a.id] = formatSolAmount(b);
-      }catch(e){
-        ethBalances[a.id] = "—";
-        console.warn("SPL balance failed", a.symbol, e);
+        const eth = await ethBalance(ethInfo.address);
+        ethBalances.eth = eth.toLocaleString(undefined,{maximumFractionDigits:6});
+      }catch{ ethBalances.eth = "—"; }
+      const evmJobs = [];
+      for(const a of allAssets()){
+        if(a.kind === "evm" && a.evmId){
+          const rpc = (EVM_CHAINS[a.evmId]||{}).rpc;
+          if(!rpc){ ethBalances[a.id] = ethBalances.eth || "—"; continue; }
+          evmJobs.push((async ()=>{
+            try{
+              const b = await evmNativeBalance(rpc, ethInfo.address);
+              ethBalances[a.id] = b==null ? "—" : b.toLocaleString(undefined,{maximumFractionDigits:6});
+            }catch{ ethBalances[a.id] = "—"; }
+          })());
+        }
+        if(a.kind === "erc20"){
+          evmJobs.push((async ()=>{
+            try{
+              const b = await erc20Balance(a.contract, ethInfo.address, a.decimals||18);
+              ethBalances[a.id] = b.toLocaleString(undefined,{maximumFractionDigits:6});
+            }catch{ ethBalances[a.id] = "—"; }
+          })());
+        }
       }
-    }
+      await Promise.allSettled(evmJobs);
+    })());
   }
+
   if(xtzInfo){
-    try{
-      const r = await fetch("https://api.tzkt.io/v1/accounts/" + encodeURIComponent(xtzInfo.address));
-      if(r.ok){
-        const j = await r.json();
-        const mutez = Number(j.balance || 0);
-        ethBalances.xtz = (mutez / 1e6).toLocaleString(undefined,{maximumFractionDigits:6});
-      } else ethBalances.xtz = "—";
-    }catch{ ethBalances.xtz = "—"; }
+    jobs.push((async ()=>{
+      try{
+        const r = await fetchTimeout("https://api.tzkt.io/v1/accounts/" + encodeURIComponent(xtzInfo.address), {}, 10000);
+        if(r.ok){
+          const j = await r.json();
+          const mutez = Number(j.balance || 0);
+          ethBalances.xtz = (mutez / 1e6).toLocaleString(undefined,{maximumFractionDigits:6});
+        } else ethBalances.xtz = "—";
+      }catch{ ethBalances.xtz = "—"; }
+    })());
   }
+
   // UTXO balances via Blockstream/public APIs (best-effort)
   for(const a of allAssets()){
     if(a.kind !== "utxo") continue;
     const addr = multiInfo[a.coinId]?.address;
     if(!addr){ ethBalances[a.id] = "—"; continue; }
-    try{
-      if(a.coinId === "btc"){
-        const r = await fetch("https://blockstream.info/api/address/" + encodeURIComponent(addr));
+    jobs.push((async ()=>{
+      try{
+        if(a.coinId === "btc"){
+          const r = await fetchTimeout("https://blockstream.info/api/address/" + encodeURIComponent(addr), {}, 10000);
+          if(r.ok){
+            const j = await r.json();
+            const sats = (j.chain_stats?.funded_txo_sum||0) - (j.chain_stats?.spent_txo_sum||0);
+            ethBalances[a.id] = (sats/1e8).toLocaleString(undefined,{maximumFractionDigits:8});
+          } else ethBalances[a.id] = "—";
+        } else {
+          ethBalances[a.id] = "—"; // explorer for LTC/DOGE/BCH
+        }
+      }catch{ ethBalances[a.id] = "—"; }
+    })());
+  }
+
+  if(multiInfo.trx?.address){
+    jobs.push((async ()=>{
+      try{
+        const r = await fetchTimeout("https://api.trongrid.io/v1/accounts/" + encodeURIComponent(multiInfo.trx.address), {}, 10000);
         if(r.ok){
           const j = await r.json();
-          const sats = (j.chain_stats?.funded_txo_sum||0) - (j.chain_stats?.spent_txo_sum||0);
-          ethBalances[a.id] = (sats/1e8).toLocaleString(undefined,{maximumFractionDigits:8});
-        } else ethBalances[a.id] = "—";
-      } else {
-        ethBalances[a.id] = "—"; // explorer for LTC/DOGE/BCH
-      }
-    }catch{ ethBalances[a.id] = "—"; }
-  }
-  // TRX / XRP / XLM — show dash unless APIs succeed
-  if(multiInfo.trx?.address){
-    try{
-      const r = await fetch("https://api.trongrid.io/v1/accounts/" + encodeURIComponent(multiInfo.trx.address));
-      if(r.ok){
-        const j = await r.json();
-        const sun = Number(j.data?.[0]?.balance || 0);
-        ethBalances.trx = (sun/1e6).toLocaleString(undefined,{maximumFractionDigits:6});
-      } else ethBalances.trx = "—";
-    }catch{ ethBalances.trx = "—"; }
+          const sun = Number(j.data?.[0]?.balance || 0);
+          ethBalances.trx = (sun/1e6).toLocaleString(undefined,{maximumFractionDigits:6});
+        } else ethBalances.trx = "—";
+      }catch{ ethBalances.trx = "—"; }
+    })());
   }
   if(multiInfo.xrp?.address){
-    try{
-      const r = await fetch("https://xrplcluster.com", {
-        method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ method:"account_info", params:[{ account: multiInfo.xrp.address, ledger_index:"validated" }] }),
-      });
-      const j = await r.json();
-      const drops = Number(j.result?.account_data?.Balance || 0);
-      ethBalances.xrp = drops ? (drops/1e6).toLocaleString(undefined,{maximumFractionDigits:6}) : "0";
-    }catch{ ethBalances.xrp = "—"; }
+    jobs.push((async ()=>{
+      try{
+        const r = await fetchTimeout("https://xrplcluster.com", {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ method:"account_info", params:[{ account: multiInfo.xrp.address, ledger_index:"validated" }] }),
+        }, 10000);
+        const j = await r.json();
+        const drops = Number(j.result?.account_data?.Balance || 0);
+        ethBalances.xrp = drops ? (drops/1e6).toLocaleString(undefined,{maximumFractionDigits:6}) : "0";
+      }catch{ ethBalances.xrp = "—"; }
+    })());
   }
   if(multiInfo.xlm?.address){
-    try{
-      const r = await fetch("https://horizon.stellar.org/accounts/" + encodeURIComponent(multiInfo.xlm.address));
-      if(r.ok){
-        const j = await r.json();
-        const native = (j.balances||[]).find(b=>b.asset_type==="native");
-        ethBalances.xlm = native ? Number(native.balance).toLocaleString(undefined,{maximumFractionDigits:6}) : "0";
-      } else ethBalances.xlm = "—";
-    }catch{ ethBalances.xlm = "—"; }
+    jobs.push((async ()=>{
+      try{
+        const r = await fetchTimeout("https://horizon.stellar.org/accounts/" + encodeURIComponent(multiInfo.xlm.address), {}, 10000);
+        if(r.ok){
+          const j = await r.json();
+          const native = (j.balances||[]).find(b=>b.asset_type==="native");
+          ethBalances.xlm = native ? Number(native.balance).toLocaleString(undefined,{maximumFractionDigits:6}) : "0";
+        } else ethBalances.xlm = "—";
+      }catch{ ethBalances.xlm = "—"; }
+    })());
   }
   for(const a of allAssets()){
     if(a.kind === "external") ethBalances[a.id] = "—";
   }
-  if($("p-recv")?.classList.contains("on")) selectAsset(selectedAsset);
-  if($("p-home")?.classList.contains("on")) renderHomeAssets();
-  if($("p-assets")?.classList.contains("on")) renderAssetsList();
-  if($("p-asset")?.classList.contains("on")) renderAssetDetail();
+
+  await Promise.allSettled(jobs);
+  paintBalances();
 }
 
 async function refreshNfts(){
@@ -3618,7 +3751,8 @@ async function refresh(){
       const amt = t.amount!=null && Number(t.amount)>0 ? formatHowl(t.amount) : (typ!=="transfer"?typ:"");
       return `<div class="item"><div><div>${dir}</div><div class="m">${t.block_height!=null?"#"+t.block_height:"…"} · ${(t.txid||"").slice(0,12)}…</div></div><div class="r">${String(amt).replace(" HOWL","")}</div></div>`;
     }).join("");
-    refreshEthBalances();
+    // SOL deposits first, then other chains (do not block home on ERC-20)
+    refreshSolBalances(true).then(()=> refreshEthBalances());
   }catch(e){
     $("liveChip").textContent = "● ERR";
     $("syncSub").textContent = e.message;
