@@ -96,6 +96,7 @@ class Node:
         self._seen_txs: Set[str] = set()
         self._fail_counts: Dict[str, int] = {}
         self._next_try: Dict[str, float] = {}
+        self._blacklist: Set[str] = set()  # unreachable this session — no dial / no gossip re-add
         self.peer_file = chain.data_dir / PEER_FILE
         self._load_peers_file()
 
@@ -124,13 +125,20 @@ class Node:
     def _save_peers_file(self) -> None:
         seeds = self._seed_keys()
         with self.peers_lock:
-            active = [p.key for p in self.peers.values() if p.alive]
-        # Never persist peers that have failed repeatedly (keeps dead IPs out of peers.json)
-        keep = set(active) | seeds
+            # Only persist seeds + currently alive outbound peers (not flaky NAT inbounds)
+            active_out = [
+                p.key
+                for p in self.peers.values()
+                if p.alive and not p.inbound and p.key not in self._blacklist
+            ]
+        keep = set(seeds) | set(active_out)
+        # Keep manual seeds always; drop blacklisted / failed gossip peers from disk
         for p in list(self.known_peers):
-            if p in seeds or p in active:
+            if p in seeds:
                 keep.add(p)
-            elif self._fail_counts.get(p, 0) < 3:
+            elif p in self._blacklist or self._fail_counts.get(p, 0) >= 3:
+                continue
+            elif p in active_out:
                 keep.add(p)
         self.known_peers = keep
         self.peer_file.parent.mkdir(parents=True, exist_ok=True)
@@ -225,6 +233,9 @@ class Node:
                     if host in ("127.0.0.1", "localhost") and port == self.port:
                         continue
                 key = _addr_key(host, port)
+                if key in self._blacklist:
+                    self.known_peers.discard(key)
+                    continue
                 with self.peers_lock:
                     if key in self.peers and self.peers[key].alive:
                         continue
@@ -237,6 +248,8 @@ class Node:
 
     def connect(self, host: str, port: int) -> bool:
         key = _addr_key(host, port)
+        if key in self._blacklist:
+            return False
         seeds = self._seed_keys()
         try:
             sock = socket.create_connection((host, port), timeout=5)
@@ -247,16 +260,17 @@ class Node:
             # 30s, 60s, 2m … up to 1h
             delay = min(3600.0, 30.0 * (2 ** min(fails - 1, 6)))
             self._next_try[key] = time.time() + delay
-            if key not in seeds and fails >= 3:
+            if key not in seeds and fails >= 2:
+                self._blacklist.add(key)
                 self.known_peers.discard(key)
                 self._save_peers_file()
-                self.log(f"dropped unreachable peer {key} after {fails} fails")
-            elif fails <= 2 or fails % 5 == 0:
-                # reduce log spam — first two fails + every 5th
+                self.log(f"dropped unreachable peer {key} (won't retry this session)")
+            elif fails <= 1:
                 self.log(f"dial {key} failed: {e} (retry in {int(delay)}s)")
             return False
         self._fail_counts[key] = 0
         self._next_try.pop(key, None)
+        self._blacklist.discard(key)
         peer = PeerConnection(sock, host, port, inbound=False)
         with self.peers_lock:
             self.peers[key] = peer
@@ -345,7 +359,11 @@ class Node:
             key = _addr_key(peer.host, peer.port)
             with self.peers_lock:
                 self.peers[key] = peer
-            self.known_peers.add(key)
+            # Inbound peers are often behind NAT — do NOT add to dial list
+            # (that was re-adding dead 35.x.x.x addresses forever).
+            if not peer.inbound and key not in self._blacklist:
+                self.known_peers.add(key)
+                self._save_peers_file()
             # sync if they are ahead
             if peer.remote_height > self.chain.height():
                 peer.send({"type": "get_blocks", "from_height": 0})
@@ -424,13 +442,32 @@ class Node:
 
         if mtype == "get_peers":
             with self.peers_lock:
-                plist = [p.key for p in self.peers.values() if p.alive]
+                # Only advertise reachable outbound peers + our seeds (not NAT inbounds)
+                plist = [
+                    p.key
+                    for p in self.peers.values()
+                    if p.alive and not p.inbound and p.key not in self._blacklist
+                ]
+            for s in self._seed_keys():
+                if s not in plist:
+                    plist.append(s)
             peer.send({"type": "peers", "peers": plist})
             return
 
         if mtype == "peers":
             for p in msg.get("peers") or []:
-                self.known_peers.add(p)
+                if not isinstance(p, str) or ":" not in p:
+                    continue
+                if p in self._blacklist or self._fail_counts.get(p, 0) >= 2:
+                    continue
+                # don't learn our own public seed as a "peer to dial" messily — seeds already handled
+                try:
+                    h, port = parse_peer(p)
+                except ValueError:
+                    continue
+                if h in ("127.0.0.1", "localhost", "0.0.0.0"):
+                    continue
+                self.known_peers.add(_addr_key(h, port))
             self._save_peers_file()
             return
 
@@ -545,8 +582,12 @@ class Node:
                     "tip": self.chain.tip()["hash"],
                 }
             self.broadcast(inv)
-            # gossip peers
+            # gossip only stable outbound peers (avoid spreading NAT IPs)
             with self.peers_lock:
-                plist = [p.key for p in self.peers.values() if p.alive]
+                plist = [
+                    p.key
+                    for p in self.peers.values()
+                    if p.alive and not p.inbound and p.key not in self._blacklist
+                ]
             if plist:
                 self.broadcast({"type": "peers", "peers": plist})
