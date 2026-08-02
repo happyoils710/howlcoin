@@ -480,7 +480,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
           <button type="button" class="chip" style="cursor:pointer" onclick="showPage('assets')">All chains ›</button>
         </div>
         <label style="margin-bottom:6px">Chain</label>
-        <select class="chain-select" id="homeChainSelect" onchange="selectedChain=this.value;renderHomeAssets()"></select>
+        <select class="chain-select" id="homeChainSelect"></select>
         <div id="homeAssetList"><p class="hint">Loading assets…</p></div>
       </div>
       <div class="panel">
@@ -494,7 +494,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       <div class="page-head"><button type="button" class="back" onclick="showPage('home')">‹ Home</button><h1>Assets</h1></div>
       <div class="panel">
         <h2>Select chain</h2>
-        <select class="chain-select" id="assetsChainSelect" onchange="selectedChain=this.value;renderAssetsList()"></select>
+        <select class="chain-select" id="assetsChainSelect"></select>
         <p class="hint">Tap an asset for deposit, swap, send, and transaction history.</p>
       </div>
       <div class="panel">
@@ -1277,13 +1277,41 @@ function assetAddress(a){
   if(a.kind === "xtz") return xtzInfo?.address || "";
   return ethInfo?.address || "";
 }
+function setSelectedChain(chainId, source){
+  const id = (chainId || "howl").toString();
+  if(!ASSET_CHAINS.some(c => c.id === id)) return;
+  selectedChain = id;
+  // keep both dropdowns in sync without wiping options if already filled
+  ["homeChainSelect", "assetsChainSelect"].forEach(sid=>{
+    const el = $(sid);
+    if(el && el.value !== selectedChain) el.value = selectedChain;
+  });
+  if(source === "assets" || ($("p-assets") && $("p-assets").classList.contains("on"))){
+    renderAssetsList(false);
+  } else {
+    renderHomeAssets(false);
+  }
+  // if assets page open, always refresh list
+  if($("p-assets")?.classList.contains("on")) renderAssetsList(false);
+  if($("p-home")?.classList.contains("on")) renderHomeAssets(false);
+}
+
 function fillChainSelects(){
   ["homeChainSelect", "assetsChainSelect"].forEach(id=>{
     const el = $(id);
     if(!el) return;
+    const prev = selectedChain;
     el.innerHTML = ASSET_CHAINS.map(c=>
-      `<option value="${c.id}" ${c.id===selectedChain?"selected":""}>${c.label}</option>`
+      `<option value="${c.id}">${c.label}</option>`
     ).join("");
+    el.value = prev;
+    // wire once (module scope — inline onchange cannot set `let selectedChain`)
+    if(!el.dataset.wired){
+      el.dataset.wired = "1";
+      el.addEventListener("change", ()=>{
+        setSelectedChain(el.value, id === "assetsChainSelect" ? "assets" : "home");
+      });
+    }
   });
 }
 function renderAssetRows(containerId){
@@ -1307,16 +1335,18 @@ function renderAssetRows(containerId){
     btn.onclick = ()=> openAssetDetail(btn.dataset.id);
   });
 }
-function renderHomeAssets(){
-  fillChainSelects();
-  if($("assetsListTitle")){
-    const ch = ASSET_CHAINS.find(c=>c.id===selectedChain);
-    $("assetsListTitle").textContent = (ch?.label || "Assets") + " assets";
+function renderHomeAssets(refill){
+  if(refill !== false) fillChainSelects();
+  if($("homeChainSelect") && $("homeChainSelect").value !== selectedChain){
+    $("homeChainSelect").value = selectedChain;
   }
   renderAssetRows("homeAssetList");
 }
-function renderAssetsList(){
-  fillChainSelects();
+function renderAssetsList(refill){
+  if(refill !== false) fillChainSelects();
+  if($("assetsChainSelect") && $("assetsChainSelect").value !== selectedChain){
+    $("assetsChainSelect").value = selectedChain;
+  }
   if($("assetsListTitle")){
     const ch = ASSET_CHAINS.find(c=>c.id===selectedChain);
     $("assetsListTitle").textContent = (ch?.label || "Assets") + " assets";
