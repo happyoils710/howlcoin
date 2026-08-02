@@ -170,25 +170,25 @@ label{display:block;font-size:.78rem;color:var(--muted);font-weight:650;margin:0
 </style>
 </head>
 <body>
-<!-- Must add to Home Screen first -->
+<!-- Optional install hint (can skip — local mining wallet works in browser) -->
 <div id="installGate" class="hidden">
   <img src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt="HOWL"/>
   <h1>Howlcoin Wallet</h1>
-  <p>Add this app to your <strong style="color:var(--text)">Home Screen</strong> to open it. It will not launch in a normal browser tab.</p>
+  <p>This is your <strong style="color:var(--text)">local mining node wallet</strong> (keys in <span class="mono">~/.howlcoin</span>).</p>
   <div class="steps">
     <ol id="installSteps">
-      <li>Open this page in <strong>Safari</strong> (iPhone) or <strong>Chrome</strong> (Android)</li>
-      <li>Tap <strong>Share</strong> (iOS) or the menu ⋮ (Android)</li>
-      <li>Choose <strong>Add to Home Screen</strong></li>
-      <li>Open <strong>Howlcoin</strong> from your home screen</li>
+      <li>On phone: optional — Add to Home Screen for an app icon</li>
+      <li>On desktop: use <strong>Continue in browser</strong> below</li>
+      <li>Open the wallet to see balance, receive, send, and backup phrase</li>
     </ol>
-    <p class="muted">Desktop: install as an app from the browser’s install / “Create shortcut” option, then open that app.</p>
+    <p class="muted">Mining rewards go to this local wallet address — not the public howlscan.org/app wallet unless you imported the same seed.</p>
   </div>
+  <button class="btn" type="button" onclick="continueInBrowser()">Continue in browser</button>
   <button class="btn secondary" type="button" onclick="checkInstallAgain()">I’ve added it — check again</button>
   <p class="hint" id="installHint" style="text-align:center;max-width:340px"></p>
 </div>
 
-<!-- CREATE WALLET / UNLOCK (only when installed) -->
+<!-- CREATE WALLET / UNLOCK -->
 <div id="lock" class="hidden">
   <img src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt="HOWL"/>
   <h1>Howlcoin Wallet</h1>
@@ -196,8 +196,8 @@ label{display:block;font-size:.78rem;color:var(--muted);font-weight:650;margin:0
   <div class="lock-card" id="lockCard">
     <div class="err" id="lockErr"></div>
     <div id="lockSetup" class="hidden">
-      <button class="btn" type="button" onclick="createWallet()">Create wallet</button>
-      <p class="hint" style="margin:0;text-align:center">Uses your local node wallet. Back up your recovery phrase under Security after you open the app.</p>
+      <button class="btn" type="button" onclick="createWallet()">Open local mining wallet</button>
+      <p class="hint" style="margin:0;text-align:center">Uses your node wallet at <span class="mono">~/.howlcoin/wallet.json</span>. Back up the recovery phrase under Security.</p>
     </div>
     <div id="lockUnlock" class="hidden">
       <button class="btn" type="button" onclick="openWallet()">Open wallet</button>
@@ -324,12 +324,16 @@ label{display:block;font-size:.78rem;color:var(--muted);font-weight:650;margin:0
     <div class="page" id="page-more">
       <div class="card">
         <h2>Mine</h2>
-        <p class="hint">Earn block rewards + claim fees from transfers you include.</p>
-        <div class="row" style="margin-bottom:12px">
-          <button class="btn" type="button" id="mineBtn" onclick="mine(1)" style="margin:0">Mine 1 block</button>
-          <button class="btn secondary" type="button" onclick="mine(3)" style="margin:0">Mine 3</button>
+        <p class="hint">Earn block rewards + claim fees from transfers you include. Connect to the public seed so your blocks sync.</p>
+        <div class="row" style="margin-bottom:12px;flex-wrap:wrap;gap:8px">
+          <button class="btn" type="button" id="mineBtn" onclick="mine(1)" style="margin:0;flex:1">Mine 1 block</button>
+          <button class="btn secondary" type="button" id="mine3Btn" onclick="mine(3)" style="margin:0;flex:1">Mine 3</button>
         </div>
-        <p class="hint" id="mineStatus"></p>
+        <div class="row" style="margin-bottom:12px;flex-wrap:wrap;gap:8px">
+          <button class="btn" type="button" id="mineForeverBtn" onclick="mineForever()" style="margin:0;flex:1;border-color:var(--green)">⛏ Mine forever</button>
+          <button class="btn secondary" type="button" id="mineStopBtn" onclick="stopMining()" style="margin:0;flex:1" disabled>Stop mining</button>
+        </div>
+        <p class="hint" id="mineStatus">Idle</p>
       </div>
       <div class="card">
         <h2>Connect peer</h2>
@@ -494,20 +498,47 @@ function checkInstallAgain(){
     boot();
   } else {
     document.getElementById('installHint').textContent =
-      'Still running in the browser. Open Howlcoin from your Home Screen after adding it.';
+      'Still in the browser — that is fine. Tap “Continue in browser” above.';
   }
 }
-function boot(){
-  if(!isStandalone()){
+function continueInBrowser(){
+  sessionStorage.setItem('howl_skip_install','1');
+  boot(true);
+}
+async function linkNodeWallet(){
+  // Local node already has wallet.json — treat as "created" so user can open mining wallet
+  try{
+    const s = await api('/api/status');
+    if(s && s.wallet && s.wallet.address){
+      localStorage.setItem(LS_CREATED, '1');
+      return true;
+    }
+  }catch(e){}
+  return false;
+}
+async function boot(skipInstall){
+  // Allow browser on localhost / when user skips install (mining wallet on desktop)
+  const allowBrowser = skipInstall
+    || sessionStorage.getItem('howl_skip_install') === '1'
+    || location.hostname === '127.0.0.1'
+    || location.hostname === 'localhost'
+    || isStandalone();
+  if(!allowBrowser){
     showInstallGate();
     return;
   }
+  await linkNodeWallet();
   if(isSession() && hasWallet()){
-    // session open: if security enabled, still allow session for this app open
     showApp();
     return;
   }
   if(hasWallet() && !hasPin() && !localStorage.getItem(LS_BIO)){
+    setSession(true);
+    showApp();
+    return;
+  }
+  // Always show open path for local mining wallet
+  if(hasWallet()){
     setSession(true);
     showApp();
     return;
@@ -634,6 +665,7 @@ async function refresh(){
     updatePeers(s.peers||[]);
     updateAddrList(s.wallet.addresses||[]);
     updateSendPreview();
+    if(s.mining) paintMiningStatus(s.mining);
   }catch(e){
     document.getElementById('liveChip').textContent = '● ERR';
   }
@@ -737,19 +769,95 @@ function copySeed(){
   const words = [...document.querySelectorAll('#seedWords .word')].map(el=>el.textContent.replace(/^\d+\.\s*/,'').trim());
   navigator.clipboard.writeText(words.join(' ')).then(()=>toast('Phrase copied — clear clipboard after backup'));
 }
+function setMineButtons(running){
+  const forever = document.getElementById('mineForeverBtn');
+  const stop = document.getElementById('mineStopBtn');
+  const one = document.getElementById('mineBtn');
+  const three = document.getElementById('mine3Btn');
+  if(forever) forever.disabled = !!running;
+  if(stop) stop.disabled = !running;
+  if(one) one.disabled = !!running;
+  if(three) three.disabled = !!running;
+}
+function paintMiningStatus(m){
+  const st = document.getElementById('mineStatus');
+  if(!st || !m) return;
+  if(m.running || m.continuous){
+    setMineButtons(true);
+    const n = m.blocks_this_run || 0;
+    const h = m.last_height != null ? m.last_height : m.height;
+    st.textContent = '⛏ Mining forever… blocks this run: ' + n + (h!=null ? ' · height ' + h : '') + (m.last_error ? ' · ' + m.last_error : '');
+  } else {
+    setMineButtons(false);
+    if(m.blocks_this_run){
+      st.textContent = 'Stopped · mined ' + m.blocks_this_run + ' block(s) this run · height ' + (m.last_height ?? m.height ?? '—');
+    }
+  }
+}
 async function mine(n){
   const btn = document.getElementById('mineBtn');
   const st = document.getElementById('mineStatus');
-  btn.disabled = true;
-  st.textContent = 'Mining… can take hours at higher difficulty. Leave node running — watch the Terminal for H/s and ETA.';
-  toast('Mining started — check Terminal for live ETA');
+  if(btn) btn.disabled = true;
+  st.textContent = 'Mining… can take a while at higher difficulty. Leave the node running.';
+  toast('Mining started');
   try{
     const j = await api('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({blocks:n})});
     st.textContent = 'Mined to height ' + j.height + ' · ' + j.balance;
     toast('Block mined');
     refresh();
   }catch(e){ st.textContent = e.message; }
-  finally{ btn.disabled = false; }
+  finally{ if(btn) btn.disabled = false; }
+}
+async function mineForever(){
+  const st = document.getElementById('mineStatus');
+  try{
+    st.textContent = 'Starting continuous miner…';
+    const j = await api('/api/mine', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ continuous: true }),
+    });
+    paintMiningStatus(j.mining || { running: true, continuous: true, blocks_this_run: 0 });
+    toast('Mine forever ON');
+    // poll status while running
+    if(window.__minePoll) clearInterval(window.__minePoll);
+    window.__minePoll = setInterval(async ()=>{
+      try{
+        const s = await api('/api/status');
+        if(s.mining) paintMiningStatus(s.mining);
+        if(s.mining && !s.mining.running){
+          clearInterval(window.__minePoll);
+          window.__minePoll = null;
+          refresh();
+        }
+        // light balance refresh
+        if(s.wallet && document.getElementById('bal')){
+          /* status refresh handled by refresh() periodically */
+        }
+      }catch(_){}
+    }, 3000);
+    refresh();
+  }catch(e){
+    st.textContent = e.message || String(e);
+    setMineButtons(false);
+  }
+}
+async function stopMining(){
+  const st = document.getElementById('mineStatus');
+  try{
+    st.textContent = 'Stopping miner… (finishes current block attempt)';
+    const j = await api('/api/mine/stop', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: '{}',
+    });
+    if(window.__minePoll){ clearInterval(window.__minePoll); window.__minePoll = null; }
+    paintMiningStatus(j.mining || { running: false });
+    toast('Mining stopped');
+    refresh();
+  }catch(e){
+    st.textContent = e.message || String(e);
+  }
 }
 async function connectPeer(){
   const peer = document.getElementById('peer').value.trim() || '147.182.223.204:42069';
@@ -795,25 +903,88 @@ a.secondary{background:#151e32;color:var(--text);border-color:var(--border)}
 <body>
 <img src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt="HOWL"/>
 <h1>Howl<span>coin</span> Node</h1>
-<p>Local node dashboard. Use the wallet as a home-screen app.</p>
+<p>Local mining node. Rewards go to the address below.</p>
 <div class="card" id="stats">
   <div class="stat"><span>Status</span><span id="st">…</span></div>
   <div class="stat"><span>Height</span><span id="h">—</span></div>
-  <div class="stat"><span>Wallet</span><span class="mono" id="a">—</span></div>
+  <div class="stat"><span>Miner wallet</span><span class="mono" id="a">—</span></div>
   <div class="stat"><span>Balance</span><span id="b" style="color:var(--green)">—</span></div>
+  <div class="stat"><span>Mining</span><span id="m">Idle</span></div>
 </div>
-<a class="btn" href="/app">Open Howlcoin Wallet</a>
-<p style="font-size:.85rem">Wallet requires <b style="color:var(--text)">Add to Home Screen</b> before it launches.</p>
+<div class="card">
+  <button class="btn" type="button" id="mineForeverBtn" onclick="mineForever()">⛏ Mine forever</button>
+  <button class="btn secondary" type="button" id="mineStopBtn" onclick="stopMining()" disabled>Stop mining</button>
+  <p class="mono" id="mineMsg" style="margin:8px 0 0;color:var(--muted)">Rewards go to the miner wallet above.</p>
+</div>
+<a class="btn secondary" href="/app">Open mining wallet</a>
+<p style="font-size:.85rem">Works in this browser on desktop. This is <b style="color:var(--text)">not</b> the public howlscan.org/app wallet unless you use the same recovery phrase.</p>
 <a class="btn secondary" href="https://howlscan.org/" target="_blank" rel="noopener">Howlscan explorer</a>
-<a class="btn secondary" href="https://howlscan.org/wallet" target="_blank" rel="noopener">Wallet guide on Howlscan</a>
+<a class="btn secondary" href="https://howlscan.org/app" target="_blank" rel="noopener">Public web wallet</a>
 <script>
-fetch('/api/status').then(r=>r.json()).then(s=>{
-  document.getElementById('st').textContent = s.node_running ? '● LIVE' : '○ OFF';
-  document.getElementById('st').style.color = s.node_running ? 'var(--green)' : 'var(--amber,#ffb020)';
-  document.getElementById('h').textContent = s.height;
-  document.getElementById('a').textContent = s.wallet.address;
-  document.getElementById('b').textContent = s.wallet.balance;
-}).catch(()=>{ document.getElementById('st').textContent = 'offline'; });
+async function api(path, opts){
+  const r = await fetch(path, opts);
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+function paintMine(m){
+  const el = document.getElementById('m');
+  const forever = document.getElementById('mineForeverBtn');
+  const stop = document.getElementById('mineStopBtn');
+  const msg = document.getElementById('mineMsg');
+  if(!m){ el.textContent = 'Idle'; return; }
+  if(m.running){
+    el.textContent = '⛏ ON · ' + (m.blocks_this_run||0) + ' blocks';
+    el.style.color = 'var(--green)';
+    forever.disabled = true;
+    stop.disabled = false;
+    msg.textContent = 'Mining forever… height ' + (m.last_height ?? '—') + (m.last_error ? ' · ' + m.last_error : '');
+  } else {
+    el.textContent = 'Idle';
+    el.style.color = 'var(--muted)';
+    forever.disabled = false;
+    stop.disabled = true;
+    if(m.blocks_this_run) msg.textContent = 'Stopped after ' + m.blocks_this_run + ' block(s)';
+  }
+}
+async function refreshPortal(){
+  try{
+    const s = await api('/api/status');
+    document.getElementById('st').textContent = s.node_running ? '● LIVE' : '○ OFF';
+    document.getElementById('st').style.color = s.node_running ? 'var(--green)' : 'var(--amber,#ffb020)';
+    document.getElementById('h').textContent = s.height;
+    document.getElementById('a').textContent = s.wallet.address;
+    document.getElementById('b').textContent = s.wallet.balance;
+    paintMine(s.mining);
+  }catch(e){
+    document.getElementById('st').textContent = 'offline';
+  }
+}
+async function mineForever(){
+  try{
+    document.getElementById('mineMsg').textContent = 'Starting…';
+    await api('/api/mine', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ continuous: true }),
+    });
+    refreshPortal();
+  }catch(e){
+    document.getElementById('mineMsg').textContent = e.message || String(e);
+  }
+}
+async function stopMining(){
+  try{
+    document.getElementById('mineMsg').textContent = 'Stopping…';
+    await api('/api/mine/stop', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:'{}',
+    });
+    refreshPortal();
+  }catch(e){
+    document.getElementById('mineMsg').textContent = e.message || String(e);
+  }
+}
+refreshPortal();
+setInterval(refreshPortal, 4000);
 </script>
 </body>
 </html>
@@ -873,7 +1044,85 @@ class Dashboard:
         self.port = port
         self.p2p_port = p2p_port
         self._mine_lock = threading.Lock()
+        self._mine_stop = threading.Event()
+        self._mine_thread: Optional[threading.Thread] = None
+        self._mine_stats: Dict[str, Any] = {
+            "running": False,
+            "continuous": False,
+            "blocks_this_run": 0,
+            "started_at": None,
+            "last_height": None,
+            "last_error": "",
+            "address": "",
+        }
         self._httpd: Optional[ThreadingHTTPServer] = None
+
+    def mining_status(self) -> Dict[str, Any]:
+        st = dict(self._mine_stats)
+        st["running"] = bool(
+            self._mine_thread and self._mine_thread.is_alive()
+        ) or bool(self._mine_stats.get("running"))
+        st["height"] = self.chain.height()
+        return st
+
+    def stop_mining(self) -> Dict[str, Any]:
+        self._mine_stop.set()
+        t = self._mine_thread
+        if t and t.is_alive() and t is not threading.current_thread():
+            t.join(timeout=2.0)
+        self._mine_stats["running"] = False
+        self._mine_stats["continuous"] = False
+        return self.mining_status()
+
+    def start_continuous_mining(self, address: Optional[str] = None) -> Dict[str, Any]:
+        """Mine forever in a background thread until stop_mining()."""
+        if self._mine_thread and self._mine_thread.is_alive():
+            return {
+                "ok": False,
+                "error": "mining already in progress",
+                "mining": self.mining_status(),
+            }
+        payout = (address or "").strip() or self.wallet.address
+        self._mine_stop.clear()
+        self._mine_stats = {
+            "running": True,
+            "continuous": True,
+            "blocks_this_run": 0,
+            "started_at": time.time(),
+            "last_height": self.chain.height(),
+            "last_error": "",
+            "address": payout,
+        }
+
+        def _loop() -> None:
+            try:
+                while not self._mine_stop.is_set():
+                    try:
+                        if self.node:
+                            with self.node.chain_lock:
+                                block = self.chain.mine_one(payout)
+                            self.node.announce_block(block)
+                        else:
+                            block = self.chain.mine_one(payout)
+                        self._mine_stats["blocks_this_run"] = (
+                            int(self._mine_stats.get("blocks_this_run") or 0) + 1
+                        )
+                        self._mine_stats["last_height"] = self.chain.height()
+                        self._mine_stats["last_error"] = ""
+                    except Exception as e:
+                        self._mine_stats["last_error"] = str(e)
+                        # brief pause so a hard error doesn't spin
+                        if self._mine_stop.wait(1.0):
+                            break
+            finally:
+                self._mine_stats["running"] = False
+                self._mine_stats["continuous"] = False
+
+        self._mine_thread = threading.Thread(
+            target=_loop, name="howl-mine-forever", daemon=True
+        )
+        self._mine_thread.start()
+        return {"ok": True, "mining": self.mining_status()}
 
     def _wallet_activity(self, limit: int = 30) -> List[Dict[str, Any]]:
         """Recent txs involving any address in this wallet."""
@@ -976,6 +1225,7 @@ class Dashboard:
         s["name"] = COIN_NAME
         s["ticker"] = TICKER
         s["richlist"] = [{"address": a, "balance": format_howl(b)} for a, b in rich]
+        s["mining"] = self.mining_status()
         return s
 
     def make_handler(self):
@@ -1063,10 +1313,49 @@ class Dashboard:
                 except json.JSONDecodeError:
                     return self._json(400, {"error": "invalid json"})
 
+                if path in ("/api/mine/stop", "/api/mine-stop"):
+                    st = dash.stop_mining()
+                    return self._json(200, {"ok": True, "mining": st})
+
                 if path == "/api/mine":
+                    continuous = bool(
+                        body.get("continuous")
+                        or body.get("forever")
+                        or body.get("loop")
+                    )
+                    if continuous:
+                        # optional payout address (default node wallet)
+                        addr = (body.get("address") or body.get("payout") or "").strip()
+                        result = dash.start_continuous_mining(addr or None)
+                        if not result.get("ok"):
+                            return self._json(409, result)
+                        return self._json(
+                            200,
+                            {
+                                "ok": True,
+                                "continuous": True,
+                                "message": "Mining forever in background — stop from the node UI",
+                                "mining": result.get("mining"),
+                                "height": dash.chain.height(),
+                                "balance": format_howl(
+                                    dash.chain.balance(dash.wallet.address)
+                                ),
+                            },
+                        )
+
                     n = max(1, min(20, int(body.get("blocks", 1))))
                     if not dash._mine_lock.acquire(blocking=False):
                         return self._json(409, {"error": "mining already in progress"})
+                    # also block if continuous miner is running
+                    if dash._mine_thread and dash._mine_thread.is_alive():
+                        dash._mine_lock.release()
+                        return self._json(
+                            409,
+                            {
+                                "error": "continuous mining is running — stop it first",
+                                "mining": dash.mining_status(),
+                            },
+                        )
                     try:
                         for _ in range(n):
                             if dash.node:
@@ -1083,6 +1372,7 @@ class Dashboard:
                                 "balance": format_howl(
                                     dash.chain.balance(dash.wallet.address)
                                 ),
+                                "mining": dash.mining_status(),
                             },
                         )
                     except Exception as e:
