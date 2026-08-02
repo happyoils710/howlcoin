@@ -491,7 +491,7 @@ class Blockchain:
         return out
 
     def recent_transactions(self, limit: int = 25) -> List[Dict[str, Any]]:
-        """Newest transactions across tip blocks + mempool (Blockchair-style feed)."""
+        """Newest transactions across tip blocks + mempool."""
         limit = max(1, min(200, limit))
         out: List[Dict[str, Any]] = []
         for tx in reversed(self.mempool):

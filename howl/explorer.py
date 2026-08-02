@@ -238,7 +238,7 @@ async function loadNetworks(){
 function shellSearch(extra=''){
   return `<div class="hero">
       <h2>Blockchain explorer for <span style="color:var(--green)">Howlcoin</span></h2>
-      <p class="muted">Search blocks, transactions, and addresses · multi-chain like a mini Blockchair</p>
+      <p class="muted">Search blocks, transactions, and addresses across Howlcoin networks</p>
     </div>
     <div class="searchwrap">
       <div class="searchbox">
