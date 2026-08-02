@@ -80,10 +80,20 @@ python3 -m pip install --user -r requirements.txt
 # birth the chain + wallet
 python3 -m howl init
 
-# full node: P2P + web dashboard (recommended)
-python3 -m howl node
-# open http://127.0.0.1:42070/
+# full node: P2P + advanced wallet app (recommended)
+python3 -m howl node --connect 147.182.223.204:42069
+# open http://127.0.0.1:42070/  → Howlcoin Wallet (send/receive, PIN, Face ID / Touch ID, backup)
 ```
+
+### Wallet app (local)
+
+The dashboard is a **Base-style wallet** for your node:
+
+- **Send / receive** HOWL with QR code  
+- **Network fee** (min **1 HOWL**, paid to the miner who confirms)  
+- **BIP39 backup phrase** (reveal under Security)  
+- **PIN + Face ID / Touch ID** app lock (WebAuthn on supported devices)  
+- Mine, peers, activity  
 
 ### Solo CLI mining
 
@@ -92,7 +102,8 @@ python3 -m howl mine
 python3 -m howl mine -n 5
 python3 -m howl wallet
 python3 -m howl status
-python3 -m howl send <ADDRESS> 1000
+python3 -m howl send <ADDRESS> 1000          # default fee 1 HOWL
+python3 -m howl send <ADDRESS> 1000 --fee 5  # higher fee to miners
 ```
 
 Wallet + chain live in `~/.howlcoin/` by default. Override with `--data-dir`.
