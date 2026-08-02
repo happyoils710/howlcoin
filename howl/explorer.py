@@ -198,12 +198,14 @@ tbody tr:hover{background:var(--rowh)}
   <button class="chipbtn" onclick="location.hash='#/'+net+'/richlist'">Richlist</button>
   <button class="chipbtn" onclick="location.hash='#/'+net+'/mempool'">Mempool</button>
   <button class="chipbtn" onclick="location.hash='#/'+net+'/block/0'">Genesis</button>
+  <button class="chipbtn" style="border-color:rgba(61,255,154,.45);color:var(--green)" onclick="location.hash='#/run'">Run a node</button>
   <button class="chipbtn" onclick="loadHome()">Refresh</button>
 </div>
 <div id="app"></div>
 <div class="footer">
   <div>Howlscan · Scrypt PoW · not financial advice ·
     <a href="#/public">Home</a> ·
+    <a href="#/run">Run a node</a> ·
     <a href="#/public/richlist">Richlist</a> ·
     <a href="#/public/mempool">Mempool</a> ·
     <a href="#/public/block/0">Genesis</a>
@@ -215,6 +217,8 @@ tbody tr:hover{background:var(--rowh)}
 </div>
 <script>
 let net='public', networks=[];
+const SEED = '147.182.223.204:42069';
+const REPO = 'https://github.com/happyoils710/howlcoin';
 const $ = s => document.querySelector(s);
 const app = () => $('#app');
 async function api(p){const r=await fetch(p); const j=await r.json(); if(!r.ok) throw new Error(j.error||r.statusText); return j}
@@ -244,9 +248,23 @@ function fmtTime(ts){if(!ts)return '—'; try{return new Date(ts*1000).toLocaleS
 function ago(ts){if(!ts)return ''; const s=Math.max(0,Math.floor(Date.now()/1000-ts));
   if(s<60)return s+'s ago'; if(s<3600)return Math.floor(s/60)+'m ago'; if(s<86400)return Math.floor(s/3600)+'h ago'; return Math.floor(s/86400)+'d ago'}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function copyText(text, btn){
+  navigator.clipboard.writeText(text).then(()=>{
+    if(btn){ const t=btn.textContent; btn.textContent='Copied!'; setTimeout(()=>btn.textContent=t,1200); }
+  }).catch(()=>{ prompt('Copy this:', text); });
+}
 function copyBtn(text){
-  const id='c'+Math.random().toString(36).slice(2,9);
-  return `<button class="chipbtn" style="padding:2px 8px;font-size:.72rem;margin-left:6px" onclick="event.stopPropagation();navigator.clipboard.writeText('${esc(text).replace(/'/g,"\\'")}');this.textContent='Copied';setTimeout(()=>this.textContent='Copy',1200)">Copy</button>`;
+  const safe = String(text).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  return `<button class="chipbtn" style="padding:2px 8px;font-size:.72rem;margin-left:6px" onclick="event.stopPropagation();copyText('${safe}', this)">Copy</button>`;
+}
+function cmdBox(title, cmd){
+  return `<div style="margin:12px 0;padding:12px 14px;background:var(--bg);border:1px solid var(--border);border-radius:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
+      <b style="font-size:.9rem">${esc(title)}</b>
+      <button class="chipbtn" onclick='copyText(${JSON.stringify(cmd)}, this)'>Copy</button>
+    </div>
+    <pre class="mono" style="margin:0;white-space:pre-wrap;color:var(--green);font-size:.82rem">${esc(cmd)}</pre>
+  </div>`;
 }
 function crumbs(parts){
   // parts: [{label, href?}]
