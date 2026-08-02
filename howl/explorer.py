@@ -147,28 +147,30 @@ a:hover{text-decoration:underline}
 .grow{flex:1}
 .hero{padding:28px 20px 10px;max-width:1200px;margin:0 auto}
 .hero h2{margin:0 0 6px;font-size:1.55rem;font-weight:750}
-.ascii-banner{margin:14px 0 10px;padding:0;border-radius:12px;border:1px solid var(--border);
+.ascii-banner{margin:14px 0 10px;padding:16px 0;border-radius:12px;border:1px solid var(--border);
   background:linear-gradient(135deg,rgba(61,255,154,.07),rgba(12,15,20,.95) 40%,rgba(77,163,255,.06));
-  overflow:hidden;position:relative}
-.ascii-banner::before,.ascii-banner::after{content:"";position:absolute;top:0;bottom:0;width:48px;z-index:2;pointer-events:none}
-.ascii-banner::before{left:0;background:linear-gradient(90deg,var(--bg),transparent)}
-.ascii-banner::after{right:0;background:linear-gradient(270deg,var(--bg),transparent)}
-.ascii-track{display:inline-block;padding:16px 40px;will-change:transform;
-  animation:howl-pan 18s ease-in-out infinite}
-.ascii-track pre{margin:0;font-family:"SF Mono","Menlo","Consolas","DejaVu Sans Mono",ui-monospace,monospace;
+  overflow:hidden;position:relative;display:flex;justify-content:center;align-items:center}
+.ascii-banner::before,.ascii-banner::after{content:"";position:absolute;top:0;bottom:0;width:56px;z-index:2;pointer-events:none}
+.ascii-banner::before{left:0;background:linear-gradient(90deg,rgba(12,15,20,.95),transparent)}
+.ascii-banner::after{right:0;background:linear-gradient(270deg,rgba(12,15,20,.95),transparent)}
+.ascii-track{flex:0 0 auto;will-change:transform;
+  animation:howl-pan 16s ease-in-out infinite}
+.ascii-track pre{margin:0;padding:0 24px;font-family:"SF Mono","Menlo","Consolas","DejaVu Sans Mono",ui-monospace,monospace;
   font-size:clamp(.58rem,1.05vw,.82rem);line-height:1.22;letter-spacing:.04em;color:var(--green);
   white-space:pre;text-shadow:0 0 20px rgba(61,255,154,.18)}
+/* center → full left → jump to right → slide back to center */
 @keyframes howl-pan{
-  0%{transform:translateX(8%)}
-  50%{transform:translateX(-42%)}
-  100%{transform:translateX(8%)}
+  0%, 8%{transform:translateX(0)}
+  42%{transform:translateX(calc(-50vw - 50%))}
+  42.01%{transform:translateX(calc(50vw + 50%))}
+  92%, 100%{transform:translateX(0)}
 }
 @media(max-width:700px){
   .ascii-track pre{font-size:.5rem;letter-spacing:.02em}
   .ascii-track{animation-duration:14s}
 }
 @media(prefers-reduced-motion:reduce){
-  .ascii-track{animation:none;transform:none;padding:16px}
+  .ascii-track{animation:none;transform:none}
 }
 .searchwrap{max-width:1200px;margin:0 auto;padding:8px 20px 18px}
 .searchbox{display:flex;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px}
@@ -315,7 +317,7 @@ async function loadNetworks(){
 }
 
 function howlBanner(){
-  // Clean fixed-width mark: dog + evenly spaced Howlcoin (duplicated for smooth pan)
+  // Single clean mark: dog + Howlcoin (pans left, then re-enters from the right to center)
   const art = [
     '      __      __                                                    ',
     '     /  \\____/  \\      _   _                 _           _         ',
@@ -325,9 +327,7 @@ function howlBanner(){
     '      /|      |\\      |_| |_|\\___/ \\_/\\_/   |_|\\___/\\___/|_|_| |_|  ',
     '     (_|  ▬▬  |_)            Scrypt · HOWL · awoo                   ',
   ].join('\n');
-  // two copies side-by-side so the screensaver loop feels continuous
-  const twin = art + '          ' + art;
-  return `<div class="ascii-banner" aria-hidden="true"><div class="ascii-track"><pre>${twin}</pre></div></div>`;
+  return `<div class="ascii-banner" aria-hidden="true"><div class="ascii-track"><pre>${art}</pre></div></div>`;
 }
 function shellSearch(extra=''){
   return `<div class="hero">
