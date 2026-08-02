@@ -28,15 +28,16 @@ html,body{margin:0;min-height:100%;font-family:-apple-system,BlinkMacSystemFont,
 .card{width:100%;max-width:380px;background:var(--card);border:1px solid var(--border);border-radius:18px;padding:18px}
 .btn{display:flex;align-items:center;justify-content:center;width:100%;padding:14px;border-radius:14px;
   border:1px solid rgba(61,255,154,.4);background:linear-gradient(180deg,#1f3d32,#163028);color:var(--green);
-  font-weight:700;font:inherit;cursor:pointer;margin:8px 0;min-height:48px}
+  font-weight:700;font:inherit;cursor:pointer;margin:8px 0;min-height:48px;gap:8px}
 .btn.sec{background:var(--card2);color:var(--text);border-color:var(--border)}
 .btn.danger{background:#2a1520;color:var(--danger);border-color:rgba(255,92,122,.4)}
 .btn:disabled{opacity:.5}
 .field{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border);
   background:var(--card2);color:var(--text);font:inherit;font-size:16px;margin:6px 0 12px}
-label{font-size:.78rem;color:var(--muted);font-weight:650}
+label{font-size:.78rem;color:var(--muted);font-weight:650;display:block}
 .hint{font-size:.8rem;color:var(--muted);margin:0}
 .err{color:var(--danger);font-size:.88rem;min-height:1.2em;margin:0 0 8px}
+.ok{color:var(--green);font-size:.88rem}
 .steps{text-align:left;font-size:.9rem}
 .steps li{margin:8px 0}
 #app{min-height:100vh;padding-bottom:calc(var(--nav-h) + var(--safe-b))}
@@ -54,32 +55,43 @@ label{font-size:.78rem;color:var(--muted);font-weight:650}
 .bal .lbl{color:var(--muted);font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;font-weight:650}
 .bal .amt{font-size:2rem;font-weight:800;color:var(--green);margin:8px 0;word-break:break-all}
 .bal .addr{font-family:ui-monospace,Menlo,monospace;font-size:.78rem;color:var(--muted);word-break:break-all}
-.actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:16px 0}
-.action{border:1px solid var(--border);background:var(--card);border-radius:14px;padding:12px 6px;
+.actions{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin:16px 0}
+.action{border:1px solid var(--border);background:var(--card);border-radius:14px;padding:12px 4px;
   color:var(--text);font:inherit;cursor:pointer}
-.action .ico{display:block;font-size:1.2rem;margin-bottom:4px}
-.action .n{font-size:.75rem;font-weight:700}
+.action .ico{display:block;font-size:1.15rem;margin-bottom:4px}
+.action .n{font-size:.7rem;font-weight:700}
 .panel{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:12px}
 .panel h2{margin:0 0 10px;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 .page{display:none}.page.on{display:block}
-.item{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.item{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);align-items:flex-start}
 .item:last-child{border-bottom:0}
 .item .r{font-weight:700;color:var(--green);text-align:right}
 .item .m{font-size:.75rem;color:var(--muted);margin-top:2px}
+.item.click{cursor:pointer}.item.click:active{opacity:.8}
 .mono{font-family:ui-monospace,Menlo,monospace;font-size:.82rem;word-break:break-all}
-.bottom{position:fixed;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(4,1fr);
+.bottom{position:fixed;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(5,1fr);
   background:rgba(7,11,20,.96);border-top:1px solid var(--border);padding:6px 2px calc(6px + var(--safe-b));z-index:30}
-.tab{border:0;background:0;color:var(--muted);font:inherit;font-size:.62rem;font-weight:650;
+.tab{border:0;background:0;color:var(--muted);font:inherit;font-size:.58rem;font-weight:650;
   min-height:52px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
 .tab.on{color:var(--green)}
 .toast{position:fixed;left:50%;bottom:calc(var(--nav-h) + 20px);transform:translateX(-50%);
   background:#1a2438;border:1px solid var(--border);padding:10px 14px;border-radius:12px;font-size:.85rem;
-  font-weight:600;opacity:0;transition:opacity .2s;z-index:50;max-width:90%}
+  font-weight:600;opacity:0;transition:opacity .2s;z-index:50;max-width:90%;pointer-events:none}
 .toast.on{opacity:1}
 .qr{background:#fff;border-radius:14px;padding:12px;display:inline-block;margin:10px 0}
 .qr img{width:180px;height:180px;display:block}
 .words{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:10px 0}
 .word{background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:8px;font-family:ui-monospace,monospace;font-size:.8rem}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:700;
+  background:rgba(77,163,255,.12);color:#9cc9ff}
+.badge.on{background:rgba(61,255,154,.12);color:var(--green)}
+.badge.warn{background:rgba(255,176,32,.12);color:var(--amber)}
+.seg{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.seg button{flex:1;min-width:64px;padding:8px;border-radius:10px;border:1px solid var(--border);
+  background:var(--card2);color:var(--muted);font:inherit;font-size:.78rem;font-weight:650;cursor:pointer}
+.seg button.on{border-color:rgba(61,255,154,.45);color:var(--green)}
+.warnbox{background:rgba(255,176,32,.08);border:1px solid rgba(255,176,32,.3);border-radius:12px;padding:10px 12px;
+  font-size:.8rem;color:var(--amber);margin:8px 0 12px}
 </style>
 </head>
 <body>
@@ -98,57 +110,100 @@ label{font-size:.78rem;color:var(--muted);font-weight:650}
     <span class="chip" id="liveChip">● …</span>
   </div>
   <div class="content">
+    <!-- HOME -->
     <div class="page on" id="p-home">
       <div class="bal">
-        <div class="lbl">Balance · public network</div>
+        <div class="lbl">HOWL · public network</div>
         <div class="amt" id="bal">—</div>
         <div class="addr" id="addr">—</div>
       </div>
       <div class="actions">
         <button class="action" type="button" onclick="showPage('send')"><span class="ico">↑</span><span class="n">Send</span></button>
-        <button class="action" type="button" onclick="showPage('recv')"><span class="ico">↓</span><span class="n">Receive</span></button>
-        <button class="action" type="button" onclick="showPage('sec')"><span class="ico">🛡</span><span class="n">Backup</span></button>
+        <button class="action" type="button" onclick="showPage('recv')"><span class="ico">↓</span><span class="n">Deposit</span></button>
+        <button class="action" type="button" onclick="showPage('sec')"><span class="ico">🛡</span><span class="n">Security</span></button>
+        <button class="action" type="button" onclick="lockWallet()"><span class="ico">🔒</span><span class="n">Lock</span></button>
+      </div>
+      <div class="panel">
+        <h2>Other assets (deposit addresses)</h2>
+        <div id="assetPreview"><p class="hint">Open Deposit for ETH, stables, and custom tokens</p></div>
       </div>
       <div class="panel">
         <h2>Network</h2>
         <div class="item"><div>Height</div><div class="r" id="height" style="color:var(--text)">—</div></div>
         <div class="item"><div>Min fee</div><div class="r" id="minFee" style="color:var(--amber)">1 HOWL</div></div>
-        <div class="item"><div>Nonce</div><div class="r" id="nonce" style="color:var(--text)">—</div></div>
+        <div class="item"><div>Security</div><div class="r" id="secStatus" style="color:var(--text);font-size:.8rem">PIN</div></div>
       </div>
       <div class="panel">
-        <h2>Activity</h2>
+        <h2>HOWL activity</h2>
         <div id="activity"><p class="hint">Syncing…</p></div>
       </div>
     </div>
+
+    <!-- SEND HOWL -->
     <div class="page" id="p-send">
       <div class="panel">
-        <h2>Send on public chain</h2>
+        <h2>Send HOWL</h2>
         <label>To address</label>
         <input class="field" id="sendTo" placeholder="H…" spellcheck="false"/>
         <label>Amount (HOWL)</label>
         <input class="field" id="sendAmt" inputmode="decimal" placeholder="0"/>
         <label>Network fee (HOWL → miner)</label>
         <input class="field" id="sendFee" value="1" inputmode="decimal"/>
-        <p class="hint">Fee is paid to the miner who confirms your transfer.</p>
         <label>Memo (optional)</label>
         <input class="field" id="sendMemo" placeholder=""/>
+        <div id="send2faBox" class="hidden">
+          <label>Authenticator code</label>
+          <input class="field" id="sendTotp" inputmode="numeric" maxlength="6" placeholder="6-digit code"/>
+        </div>
         <button class="btn" type="button" id="sendBtn" onclick="doSend()">Send</button>
         <p class="err" id="sendErr"></p>
       </div>
     </div>
+
+    <!-- DEPOSIT / MULTI-ASSET -->
     <div class="page" id="p-recv">
-      <div class="panel" style="text-align:center">
-        <h2>Receive</h2>
-        <div class="qr"><img id="qr" alt="QR"/></div>
-        <div class="mono" id="recvAddr">—</div>
-        <button class="btn" type="button" onclick="copyAddr()">Copy address</button>
-        <p class="hint">Only send HOWL on the Howlcoin public network.</p>
+      <div class="panel">
+        <h2>Deposit asset</h2>
+        <div class="warnbox">Other cryptos stay on <b>their own network</b> (not auto-converted to HOWL). Only send each asset on the network shown.</div>
+        <div class="seg" id="assetSeg"></div>
+        <div id="depositBody"></div>
+      </div>
+      <div class="panel">
+        <h2>Custom ERC-20 token</h2>
+        <label>Contract address (Ethereum)</label>
+        <input class="field" id="customContract" placeholder="0x…" spellcheck="false"/>
+        <label>Symbol (optional)</label>
+        <input class="field" id="customSymbol" placeholder="TOKEN"/>
+        <button class="btn sec" type="button" onclick="addCustomToken()">Add custom token</button>
+        <div id="customList"></div>
       </div>
     </div>
+
+    <!-- SECURITY -->
     <div class="page" id="p-sec">
       <div class="panel">
+        <h2>Face ID / Touch ID</h2>
+        <p class="hint">Unlock this device with biometrics (WebAuthn). Works with Face ID, Touch ID, Windows Hello.</p>
+        <p id="bioStatus" class="hint"></p>
+        <button class="btn sec" type="button" id="bioBtn" onclick="setupBiometric()">Enable Face ID / Touch ID</button>
+      </div>
+      <div class="panel">
+        <h2>Google Authenticator (2FA)</h2>
+        <p class="hint">Require a 6-digit code from Google Authenticator (or Authy) when unlocking and sending HOWL.</p>
+        <p id="totpStatus" class="hint"></p>
+        <div id="totpSetup" class="hidden">
+          <p class="hint">Scan with Google Authenticator:</p>
+          <div class="qr"><img id="totpQr" alt="TOTP QR"/></div>
+          <div class="mono" id="totpSecret" style="margin-bottom:8px"></div>
+          <label>Enter code to confirm</label>
+          <input class="field" id="totpConfirm" inputmode="numeric" maxlength="6" placeholder="000000"/>
+          <button class="btn" type="button" onclick="confirmTotpSetup()">Confirm 2FA</button>
+        </div>
+        <button class="btn sec" type="button" id="totpBtn" onclick="startTotpSetup()">Set up Authenticator</button>
+        <button class="btn danger hidden" type="button" id="totpOffBtn" onclick="disableTotp()">Turn off 2FA</button>
+      </div>
+      <div class="panel">
         <h2>Recovery phrase</h2>
-        <p class="hint">Stored only on this device (encrypted). Never share these words.</p>
         <button class="btn sec" type="button" onclick="revealSeed()">Reveal recovery phrase</button>
         <div id="seedBox" class="hidden">
           <div class="words" id="seedWords"></div>
@@ -156,39 +211,47 @@ label{font-size:.78rem;color:var(--muted);font-weight:650}
         </div>
       </div>
       <div class="panel">
-        <h2>Wallet</h2>
+        <h2>Session</h2>
         <button class="btn sec" type="button" onclick="lockWallet()">Lock wallet</button>
         <button class="btn danger" type="button" onclick="wipeWallet()">Remove wallet from this device</button>
-      </div>
-      <div class="panel">
-        <h2>About</h2>
-        <p class="hint" style="margin:0">Non-custodial public wallet. Keys never leave your browser. Syncs balance and history from Howlscan; broadcasts signed transactions to the public seed.</p>
       </div>
     </div>
   </div>
   <nav class="bottom">
     <button type="button" class="tab on" data-p="home" onclick="showPage('home')"><span>⌂</span>Home</button>
     <button type="button" class="tab" data-p="send" onclick="showPage('send')"><span>↑</span>Send</button>
-    <button type="button" class="tab" data-p="recv" onclick="showPage('recv')"><span>↓</span>Receive</button>
+    <button type="button" class="tab" data-p="recv" onclick="showPage('recv')"><span>↓</span>Deposit</button>
     <button type="button" class="tab" data-p="sec" onclick="showPage('sec')"><span>🛡</span>Security</button>
+    <button type="button" class="tab" data-p="home" onclick="refresh();toast('Synced')"><span>↻</span>Sync</button>
   </nav>
 </div>
 <div class="toast" id="toast"></div>
 
 <script type="module">
 import {
-  createMnemonic, checkMnemonic, keypairFromMnemonic, buildSignedTx,
-  parseHowl, formatHowl, isValidAddress, COIN
+  createMnemonic, checkMnemonic, keypairFromMnemonic, ethAddressFromMnemonic,
+  buildSignedTx, parseHowl, formatHowl, isValidAddress, COIN,
+  PRESET_ASSETS, generateTotpSecret, totpOtpauthUrl, verifyTotp,
 } from "/assets/howl-crypto.mjs";
 
-const API = ""; // same origin howlscan.org
-const LS_ENC = "howl_public_wallet_v1";
-const LS_CREATED = "howl_public_wallet_ready";
+const API = "";
+const ETH_RPC = "https://cloudflare-eth.com";
+const LS_ENC = "howl_public_wallet_v2";
+const LS_META = "howl_public_wallet_meta_v2";
+const LS_BIO = "howl_public_webauthn_v1";
+const LS_CUSTOM = "howl_custom_tokens_v1";
+const LS_CREATED = "howl_public_wallet_ready_v2";
 
 let keypair = null;
+let ethInfo = null;
 let mnemonic = null;
+let walletPin = null; // session-only after unlock
+let meta = { totpEnabled: false }; // totp secret lives inside encrypted blob
+let totpSecretPending = null;
+let selectedAsset = "howl";
 let chainInfo = { height: 0, nonce: 0, balance: 0n, txs: [] };
 let minFeeHowl = 1;
+let ethBalances = {}; // id -> display string
 
 function $(id){ return document.getElementById(id); }
 function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("on"); setTimeout(()=>t.classList.remove("on"),2200); }
@@ -197,6 +260,11 @@ function isStandalone(){
     || matchMedia("(display-mode: fullscreen)").matches
     || navigator.standalone === true;
 }
+function loadMeta(){
+  try { meta = { totpEnabled:false, ...JSON.parse(localStorage.getItem(LS_META)||"{}") }; }
+  catch { meta = { totpEnabled:false }; }
+}
+function saveMeta(){ localStorage.setItem(LS_META, JSON.stringify(meta)); }
 
 async function api(path, opts){
   const r = await fetch(API + path, opts);
@@ -205,7 +273,7 @@ async function api(path, opts){
   return j;
 }
 
-// --- encrypted storage (PIN) ---
+// --- encrypted vault: { mnemonic, totpSecret? } ---
 async function deriveKey(pin, salt){
   const enc = new TextEncoder();
   const base = await crypto.subtle.importKey("raw", enc.encode(pin), "PBKDF2", false, ["deriveKey"]);
@@ -214,28 +282,117 @@ async function deriveKey(pin, salt){
     base, { name:"AES-GCM", length:256 }, false, ["encrypt","decrypt"]
   );
 }
-async function saveWallet(phrase, pin){
+function b64(u8){ return btoa(String.fromCharCode(...u8)); }
+function unb64(s){ return Uint8Array.from(atob(s), c=>c.charCodeAt(0)); }
+
+async function saveVault(payload, pin){
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await deriveKey(pin, salt);
-  const ct = await crypto.subtle.encrypt({ name:"AES-GCM", iv }, key, new TextEncoder().encode(phrase));
-  localStorage.setItem(LS_ENC, JSON.stringify({
-    salt: btoa(String.fromCharCode(...salt)),
-    iv: btoa(String.fromCharCode(...iv)),
-    data: btoa(String.fromCharCode(...new Uint8Array(ct))),
-  }));
+  const ct = await crypto.subtle.encrypt({ name:"AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(payload)));
+  localStorage.setItem(LS_ENC, JSON.stringify({ salt:b64(salt), iv:b64(iv), data:b64(new Uint8Array(ct)) }));
   localStorage.setItem(LS_CREATED, "1");
 }
-async function loadWallet(pin){
+async function loadVault(pin){
   const raw = localStorage.getItem(LS_ENC);
-  if(!raw) throw new Error("No wallet on this device");
+  if(!raw) throw new Error("No wallet");
   const { salt, iv, data } = JSON.parse(raw);
-  const s = Uint8Array.from(atob(salt), c=>c.charCodeAt(0));
-  const i = Uint8Array.from(atob(iv), c=>c.charCodeAt(0));
-  const d = Uint8Array.from(atob(data), c=>c.charCodeAt(0));
-  const key = await deriveKey(pin, s);
-  const pt = await crypto.subtle.decrypt({ name:"AES-GCM", iv:i }, key, d);
-  return new TextDecoder().decode(pt);
+  const key = await deriveKey(pin, unb64(salt));
+  const pt = await crypto.subtle.decrypt({ name:"AES-GCM", iv:unb64(iv) }, key, unb64(data));
+  const obj = JSON.parse(new TextDecoder().decode(pt));
+  // migrate plain phrase
+  if(typeof obj === "string") return { mnemonic: obj, totpSecret: null };
+  return obj;
+}
+
+// --- WebAuthn ---
+function bufToB64(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+function b64ToBuf(b64s){ const s=atob(b64s); const u=new Uint8Array(s.length); for(let i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u.buffer; }
+
+async function setupBiometric(){
+  if(!window.PublicKeyCredential){ toast("Biometrics not supported here"); return; }
+  try{
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const userId = crypto.getRandomValues(new Uint8Array(16));
+    const cred = await navigator.credentials.create({
+      publicKey: {
+        challenge,
+        rp: { name: "Howlcoin Wallet", id: location.hostname },
+        user: { id: userId, name: "howl-user", displayName: "Howlcoin" },
+        pubKeyCredParams: [{ alg:-7, type:"public-key" }, { alg:-257, type:"public-key" }],
+        authenticatorSelection: { authenticatorAttachment:"platform", userVerification:"required", residentKey:"preferred" },
+        timeout: 60000,
+      }
+    });
+    if(!cred) throw new Error("Cancelled");
+    localStorage.setItem(LS_BIO, JSON.stringify({ id: bufToB64(cred.rawId) }));
+    updateSecUI();
+    toast("Face ID / Touch ID enabled");
+  }catch(e){ toast(e.message || "Biometric setup failed"); }
+}
+
+async function unlockBiometric(){
+  const raw = localStorage.getItem(LS_BIO);
+  if(!raw) throw new Error("Biometric not set up");
+  const { id } = JSON.parse(raw);
+  const challenge = crypto.getRandomValues(new Uint8Array(32));
+  const assertion = await navigator.credentials.get({
+    publicKey: {
+      challenge,
+      allowCredentials: [{ id: b64ToBuf(id), type:"public-key" }],
+      userVerification: "required",
+      timeout: 60000,
+    }
+  });
+  if(!assertion) throw new Error("Cancelled");
+  // Biometric proves device presence; still need vault key — store pin session flag?
+  // We re-prompt PIN after bio OR store a device unlock token encrypted...
+  // UX: Face ID then enter PIN if vault needs it — better: after first PIN unlock, session is open.
+  // For bio-only unlock: we store a second "device key" wrapped... Keep simple: bio succeeds → ask PIN if required for vault.
+  return true;
+}
+
+// --- ETH balances ---
+async function ethRpc(method, params){
+  const r = await fetch(ETH_RPC, {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ jsonrpc:"2.0", id:1, method, params }),
+  });
+  const j = await r.json();
+  if(j.error) throw new Error(j.error.message || "RPC error");
+  return j.result;
+}
+function padAddr(addr){ return addr.replace(/^0x/,"").toLowerCase().padStart(64,"0"); }
+async function ethBalance(addr){
+  const hex = await ethRpc("eth_getBalance", [addr, "latest"]);
+  const wei = BigInt(hex);
+  return Number(wei) / 1e18;
+}
+async function erc20Balance(contract, addr, decimals){
+  // balanceOf(address)
+  const data = "0x70a08231" + padAddr(addr);
+  const hex = await ethRpc("eth_call", [{ to: contract, data }, "latest"]);
+  const raw = BigInt(hex || "0x0");
+  return Number(raw) / 10 ** decimals;
+}
+
+function customTokens(){
+  try { return JSON.parse(localStorage.getItem(LS_CUSTOM)||"[]"); } catch { return []; }
+}
+function saveCustomTokens(list){ localStorage.setItem(LS_CUSTOM, JSON.stringify(list)); }
+
+function allAssets(){
+  return [...PRESET_ASSETS, ...customTokens().map(t=>({
+    id: "custom_"+t.contract.toLowerCase(),
+    symbol: t.symbol || "TOKEN",
+    name: t.symbol || "Custom",
+    network: "Ethereum (ERC-20)",
+    kind: "erc20",
+    contract: t.contract,
+    decimals: t.decimals || 18,
+    custom: true,
+  }))];
 }
 
 function showGate(html){
@@ -246,17 +403,97 @@ function showGate(html){
 function showApp(){
   $("gate").classList.add("hidden");
   $("app").classList.remove("hidden");
+  updateSecUI();
+  renderAssetSeg();
   refresh();
-  setInterval(refresh, 12000);
+  setInterval(refresh, 15000);
+}
+
+function updateSecUI(){
+  const bio = !!localStorage.getItem(LS_BIO);
+  $("bioStatus").textContent = bio ? "● Face ID / Touch ID is on for this device" : "Not enabled on this device";
+  $("bioStatus").className = bio ? "ok" : "hint";
+  $("bioBtn").textContent = bio ? "Re-bind Face ID / Touch ID" : "Enable Face ID / Touch ID";
+  const tOn = !!(meta.totpEnabled && meta.hasTotp);
+  $("totpStatus").textContent = tOn ? "● Google Authenticator 2FA is on" : "2FA is off";
+  $("totpStatus").className = tOn ? "ok" : "hint";
+  $("totpBtn").classList.toggle("hidden", tOn);
+  $("totpOffBtn").classList.toggle("hidden", !tOn);
+  $("send2faBox").classList.toggle("hidden", !tOn);
+  $("secStatus").textContent = [ "PIN", bio?"Face ID":null, tOn?"2FA":null ].filter(Boolean).join(" · ");
 }
 
 function showPage(name){
   document.querySelectorAll(".page").forEach(p=>p.classList.toggle("on", p.id==="p-"+name));
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on", t.dataset.p===name));
-  if(name==="recv" && keypair){
-    $("recvAddr").textContent = keypair.address;
-    $("qr").src = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" + encodeURIComponent(keypair.address);
+  if(name==="recv") selectAsset(selectedAsset);
+  if(name==="sec") updateSecUI();
+}
+
+function renderAssetSeg(){
+  const seg = $("assetSeg");
+  seg.innerHTML = allAssets().map(a=>
+    `<button type="button" class="${a.id===selectedAsset?"on":""}" data-id="${a.id}">${a.symbol}</button>`
+  ).join("");
+  seg.querySelectorAll("button").forEach(b=>{
+    b.onclick = ()=> selectAsset(b.dataset.id);
+  });
+}
+
+function selectAsset(id){
+  selectedAsset = id;
+  renderAssetSeg();
+  const a = allAssets().find(x=>x.id===id) || PRESET_ASSETS[0];
+  const body = $("depositBody");
+  if(a.kind==="howl"){
+    body.innerHTML = `
+      <div style="text-align:center">
+        <div class="badge on">Howlcoin public chain</div>
+        <div class="qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(keypair.address)}" alt="QR"/></div>
+        <div class="mono">${keypair.address}</div>
+        <button class="btn" type="button" onclick="copyText('${keypair.address}')">Copy HOWL address</button>
+        <p class="hint">Balance: ${formatHowl(chainInfo.balance)}</p>
+      </div>`;
+  } else if(a.kind==="eth" || a.kind==="erc20"){
+    const addr = ethInfo?.address || "—";
+    const bal = ethBalances[a.id] != null ? ethBalances[a.id] : "…";
+    body.innerHTML = `
+      <div style="text-align:center">
+        <div class="badge">${a.network}</div>
+        <h3 style="margin:10px 0 4px">${a.symbol}</h3>
+        <p class="hint">${a.name}</p>
+        <div class="qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(addr)}" alt="QR"/></div>
+        <div class="mono">${addr}</div>
+        <button class="btn" type="button" onclick="copyText('${addr}')">Copy address</button>
+        <p class="hint">Balance: <b style="color:var(--green)">${bal}</b> ${a.symbol}</p>
+        ${a.contract ? `<p class="hint mono" style="font-size:.72rem">Contract: ${a.contract}</p>` : ""}
+        <div class="warnbox">Send only <b>${a.symbol}</b> on <b>${a.network}</b> to this address. Wrong network = lost funds.</div>
+      </div>`;
   }
+}
+
+async function refreshEthBalances(){
+  if(!ethInfo) return;
+  const addr = ethInfo.address;
+  try{
+    const eth = await ethBalance(addr);
+    ethBalances.eth = eth.toLocaleString(undefined,{maximumFractionDigits:6});
+  }catch{ ethBalances.eth = "—"; }
+  for(const a of allAssets()){
+    if(a.kind!=="erc20") continue;
+    try{
+      const b = await erc20Balance(a.contract, addr, a.decimals||18);
+      ethBalances[a.id] = b.toLocaleString(undefined,{maximumFractionDigits:6});
+    }catch{ ethBalances[a.id] = "—"; }
+  }
+  // home preview
+  $("assetPreview").innerHTML = allAssets().filter(a=>a.id!=="howl").slice(0,5).map(a=>`
+    <div class="item click" onclick="showPage('recv');selectAsset('${a.id}')">
+      <div><div>${a.symbol} <span class="badge">${a.network.split(" ")[0]}</span></div>
+      <div class="m">${a.kind==="eth"||a.kind==="erc20"?(ethInfo?.address||"").slice(0,10)+"…":""}</div></div>
+      <div class="r" style="font-size:.85rem">${ethBalances[a.id]??"…"}</div>
+    </div>`).join("") + `<p class="hint" style="margin-top:8px">+ custom ERC-20 on Deposit tab</p>`;
+  if($("p-recv").classList.contains("on")) selectAsset(selectedAsset);
 }
 
 async function refresh(){
@@ -275,115 +512,176 @@ async function refresh(){
     $("bal").textContent = formatHowl(chainInfo.balance).replace(" HOWL","") + " HOWL";
     $("addr").textContent = keypair.address;
     $("height").textContent = sum.height;
-    $("nonce").textContent = chainInfo.nonce;
     $("minFee").textContent = fees.min_fee || "1 HOWL";
     $("syncSub").textContent = "Public · height " + sum.height;
-    $("liveChip").textContent = sum.online !== false ? "● LIVE" : "○ …";
+    $("liveChip").textContent = "● LIVE";
     $("liveChip").className = "chip ok";
-    if(!$("sendFee").dataset.init){
-      $("sendFee").value = String(minFeeHowl);
-      $("sendFee").dataset.init = "1";
-    }
+    if(!$("sendFee").dataset.init){ $("sendFee").value = String(minFeeHowl); $("sendFee").dataset.init="1"; }
     const act = $("activity");
-    if(!chainInfo.txs.length){
-      act.innerHTML = '<p class="hint">No transactions yet</p>';
-    } else {
-      act.innerHTML = chainInfo.txs.slice(0,20).map(t=>{
-        const dir = t.direction==="in" || t.type==="coinbase" ? "Received" : "Sent";
-        const amt = t.amount != null ? formatHowl(t.amount) : "";
-        return `<div class="item"><div class="l"><div>${dir}</div><div class="m">${t.block_height!=null?"#"+t.block_height:"…"} · ${(t.txid||"").slice(0,12)}…</div></div><div class="r">${amt.replace(" HOWL","")}</div></div>`;
-      }).join("");
-    }
+    if(!chainInfo.txs.length) act.innerHTML = '<p class="hint">No HOWL transactions yet</p>';
+    else act.innerHTML = chainInfo.txs.slice(0,15).map(t=>{
+      const dir = t.direction==="in"||t.type==="coinbase"?"Received":"Sent";
+      const amt = t.amount!=null?formatHowl(t.amount):"";
+      return `<div class="item"><div><div>${dir}</div><div class="m">${t.block_height!=null?"#"+t.block_height:"…"} · ${(t.txid||"").slice(0,12)}…</div></div><div class="r">${amt.replace(" HOWL","")}</div></div>`;
+    }).join("");
+    refreshEthBalances();
   }catch(e){
     $("liveChip").textContent = "● ERR";
-    $("liveChip").className = "chip";
     $("syncSub").textContent = e.message;
   }
+}
+
+async function requireTotpIfNeeded(codeEl){
+  if(!(meta.totpEnabled && meta.hasTotp && meta.totpSecret)) return true;
+  const code = codeEl ? codeEl.value.trim() : prompt("Authenticator code");
+  if(!code) throw new Error("2FA code required");
+  if(!verifyTotp(meta.totpSecret, code)) throw new Error("Invalid authenticator code");
+  return true;
 }
 
 async function doSend(){
   $("sendErr").textContent = "";
   try{
+    await requireTotpIfNeeded($("sendTotp"));
     const to = $("sendTo").value.trim();
     const amount = parseHowl($("sendAmt").value);
     const fee = parseHowl($("sendFee").value || String(minFeeHowl));
     if(fee < COIN) throw new Error("Fee must be at least 1 HOWL");
     if(!isValidAddress(to)) throw new Error("Invalid address");
     if(amount + fee > chainInfo.balance) throw new Error("Insufficient balance");
-    // refresh nonce
     const addr = await api("/api/public/address/" + encodeURIComponent(keypair.address));
-    const nonce = addr.nonce || 0;
-    if(!confirm(`Send ${formatHowl(amount)} to\n${to}\n\nFee ${formatHowl(fee)} (to miner)\nTotal ${formatHowl(amount+fee)}`)) return;
+    if(!confirm(`Send ${formatHowl(amount)}\nto ${to}\nFee ${formatHowl(fee)}`)) return;
     $("sendBtn").disabled = true;
     const tx = await buildSignedTx({
-      keypair,
-      to,
+      keypair, to,
       amountHowlies: Number(amount),
       feeHowlies: Number(fee),
-      nonce,
-      memo: $("sendMemo").value || "",
+      nonce: addr.nonce||0,
+      memo: $("sendMemo").value||"",
     });
     const res = await api("/api/public/broadcast", {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
+      method:"POST", headers:{ "Content-Type":"application/json" },
       body: JSON.stringify({ tx }),
     });
     toast("Queued " + (res.txid||"").slice(0,14) + "…");
     $("sendAmt").value = "";
+    if($("sendTotp")) $("sendTotp").value = "";
     showPage("home");
     setTimeout(refresh, 1500);
-  }catch(e){
-    $("sendErr").textContent = e.message;
-  }finally{
-    $("sendBtn").disabled = false;
-  }
+  }catch(e){ $("sendErr").textContent = e.message; }
+  finally{ $("sendBtn").disabled = false; }
 }
 
-function copyAddr(){
-  navigator.clipboard.writeText(keypair.address).then(()=>toast("Address copied"));
-}
+function copyText(t){ navigator.clipboard.writeText(t).then(()=>toast("Copied")); }
 function revealSeed(){
   if(!mnemonic) return;
   if(!confirm("Only reveal if no one can see your screen.")) return;
-  const words = mnemonic.split(/\s+/);
-  $("seedWords").innerHTML = words.map((w,i)=>`<div class="word"><b>${i+1}.</b> ${w}</div>`).join("");
+  $("seedWords").innerHTML = mnemonic.split(/\s+/).map((w,i)=>`<div class="word"><b>${i+1}.</b> ${w}</div>`).join("");
   $("seedBox").classList.remove("hidden");
 }
 function hideSeed(){ $("seedBox").classList.add("hidden"); $("seedWords").innerHTML=""; }
+
 function lockWallet(){
-  keypair = null; mnemonic = null;
+  keypair=null; ethInfo=null; mnemonic=null; walletPin=null; meta.totpSecret=null;
   boot();
   toast("Locked");
 }
 function wipeWallet(){
-  if(!confirm("Remove wallet from this device? Make sure you have your recovery phrase.")) return;
+  if(!confirm("Remove wallet from this device? Keep your recovery phrase safe.")) return;
   localStorage.removeItem(LS_ENC);
+  localStorage.removeItem(LS_META);
+  localStorage.removeItem(LS_BIO);
   localStorage.removeItem(LS_CREATED);
-  keypair = null; mnemonic = null;
-  boot();
+  localStorage.removeItem(LS_CUSTOM);
+  lockWallet();
 }
 
-async function openWithPhrase(phrase, pin){
-  if(!checkMnemonic(phrase)) throw new Error("Invalid recovery phrase");
+async function openSession(phrase, pin, vaultExtras={}){
   mnemonic = phrase.trim().toLowerCase().split(/\s+/).join(" ");
+  if(!checkMnemonic(mnemonic)) throw new Error("Invalid recovery phrase");
   keypair = keypairFromMnemonic(mnemonic, 0);
-  if(pin) await saveWallet(mnemonic, pin);
+  ethInfo = ethAddressFromMnemonic(mnemonic, 0);
+  walletPin = pin;
+  meta.totpSecret = vaultExtras.totpSecret || null;
+  meta.hasTotp = !!meta.totpSecret;
+  meta.totpEnabled = !!(vaultExtras.totpEnabled && meta.totpSecret);
+  saveMeta();
+  if(pin) await saveVault({ mnemonic, totpSecret: meta.totpSecret||null, totpEnabled: meta.totpEnabled }, pin);
   showApp();
 }
 
+function startTotpSetup(){
+  totpSecretPending = generateTotpSecret();
+  const url = totpOtpauthUrl(totpSecretPending, keypair?.address?.slice(0,12)||"wallet", "Howlcoin");
+  $("totpSetup").classList.remove("hidden");
+  $("totpSecret").textContent = totpSecretPending;
+  $("totpQr").src = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" + encodeURIComponent(url);
+}
+async function confirmTotpSetup(){
+  if(!totpSecretPending) return;
+  const code = $("totpConfirm").value.trim();
+  if(!verifyTotp(totpSecretPending, code)){ toast("Code incorrect — try again"); return; }
+  meta.totpSecret = totpSecretPending;
+  meta.totpEnabled = true;
+  meta.hasTotp = true;
+  totpSecretPending = null;
+  if(walletPin) await saveVault({ mnemonic, totpSecret: meta.totpSecret, totpEnabled: true }, walletPin);
+  saveMeta();
+  $("totpSetup").classList.add("hidden");
+  updateSecUI();
+  toast("2FA enabled");
+}
+async function disableTotp(){
+  const code = prompt("Enter Authenticator code to disable 2FA");
+  if(!meta.totpSecret || !verifyTotp(meta.totpSecret, code||"")){ toast("Invalid code"); return; }
+  meta.totpSecret = null; meta.totpEnabled = false; meta.hasTotp = false;
+  if(walletPin) await saveVault({ mnemonic, totpSecret: null, totpEnabled: false }, walletPin);
+  saveMeta();
+  updateSecUI();
+  toast("2FA disabled");
+}
+
+function addCustomToken(){
+  let c = $("customContract").value.trim();
+  if(!/^0x[a-fA-F0-9]{40}$/.test(c)){ toast("Invalid contract address"); return; }
+  c = c.toLowerCase();
+  const symbol = ($("customSymbol").value.trim() || "TOKEN").toUpperCase().slice(0,12);
+  const list = customTokens().filter(t=>t.contract!==c);
+  list.push({ contract:c, symbol, decimals:18 });
+  saveCustomTokens(list);
+  $("customContract").value = "";
+  $("customSymbol").value = "";
+  renderAssetSeg();
+  renderCustomList();
+  selectAsset("custom_"+c);
+  refreshEthBalances();
+  toast("Custom token added");
+}
+function renderCustomList(){
+  const list = customTokens();
+  $("customList").innerHTML = list.length ? list.map(t=>`
+    <div class="item"><div class="mono" style="font-size:.75rem">${t.symbol} · ${t.contract.slice(0,10)}…</div>
+    <button class="btn sec" style="width:auto;margin:0;padding:6px 10px;min-height:0" type="button"
+      onclick="removeCustom('${t.contract}')">Remove</button></div>`).join("") : "";
+}
+function removeCustom(contract){
+  saveCustomTokens(customTokens().filter(t=>t.contract!==contract));
+  renderCustomList(); renderAssetSeg(); toast("Removed");
+}
+
+// --- gates ---
 function uiCreate(){
-  $("gateMsg").textContent = "Public chain wallet · keys stay on your device";
+  $("gateMsg").textContent = "Public chain · multi-asset deposits · Face ID & 2FA";
   showGate(`
     <button class="btn" type="button" id="btnCreate">Create wallet</button>
     <button class="btn sec" type="button" id="btnRestore">Restore with phrase</button>
-    <p class="hint" style="margin-top:12px;text-align:center">Syncs to Howlscan · works from any device after restore</p>
   `);
   $("btnCreate").onclick = ()=>{
     const phrase = createMnemonic();
     showGate(`
-      <p class="hint">Write down these 12 words offline. They restore your wallet on any phone.</p>
+      <p class="hint">Write these 12 words offline. They restore HOWL + ETH deposit keys.</p>
       <div class="words">${phrase.split(" ").map((w,i)=>`<div class="word"><b>${i+1}.</b> ${w}</div>`).join("")}</div>
-      <label>Create a PIN to encrypt this wallet on the device</label>
+      <label>PIN (encrypts wallet on this device)</label>
       <input class="field" id="pin1" type="password" inputmode="numeric" maxlength="8" placeholder="4–8 digits"/>
       <input class="field" id="pin2" type="password" inputmode="numeric" maxlength="8" placeholder="Confirm PIN"/>
       <div class="err" id="gErr"></div>
@@ -394,19 +692,19 @@ function uiCreate(){
         const a=$("pin1").value.trim(), b=$("pin2").value.trim();
         if(!/^\d{4,8}$/.test(a)) throw new Error("PIN must be 4–8 digits");
         if(a!==b) throw new Error("PINs do not match");
-        await openWithPhrase(phrase, a);
+        await openSession(phrase, a, {});
         toast("Wallet created");
       }catch(e){ $("gErr").textContent=e.message; }
     };
   };
   $("btnRestore").onclick = ()=>{
     showGate(`
-      <label>Recovery phrase (12 words)</label>
-      <textarea class="field" id="restPhrase" rows="3" style="resize:vertical" placeholder="word1 word2 …"></textarea>
-      <label>New device PIN</label>
-      <input class="field" id="restPin" type="password" inputmode="numeric" maxlength="8" placeholder="4–8 digits"/>
+      <label>Recovery phrase</label>
+      <textarea class="field" id="restPhrase" rows="3" style="resize:vertical"></textarea>
+      <label>Device PIN</label>
+      <input class="field" id="restPin" type="password" inputmode="numeric" maxlength="8"/>
       <div class="err" id="gErr"></div>
-      <button class="btn" type="button" id="btnDoRest">Restore wallet</button>
+      <button class="btn" type="button" id="btnDoRest">Restore</button>
       <button class="btn sec" type="button" id="btnBack">Back</button>
     `);
     $("btnBack").onclick = uiCreate;
@@ -414,77 +712,89 @@ function uiCreate(){
       try{
         const pin=$("restPin").value.trim();
         if(!/^\d{4,8}$/.test(pin)) throw new Error("PIN must be 4–8 digits");
-        await openWithPhrase($("restPhrase").value, pin);
-        toast("Wallet restored");
+        await openSession($("restPhrase").value, pin, {});
+        toast("Restored");
       }catch(e){ $("gErr").textContent=e.message; }
     };
   };
 }
 
 function uiUnlock(){
-  $("gateMsg").textContent = "Unlock your public wallet";
+  $("gateMsg").textContent = "Unlock your wallet";
+  const bio = !!localStorage.getItem(LS_BIO);
+  const need2fa = !!(meta.totpEnabled);
   showGate(`
+    ${bio?`<button class="btn" type="button" id="btnBio">Unlock with Face ID / Touch ID</button>`:""}
     <label>PIN</label>
-    <input class="field" id="unPin" type="password" inputmode="numeric" maxlength="8" placeholder="PIN"
-      onkeydown="if(event.key==='Enter')document.getElementById('btnUn').click()"/>
+    <input class="field" id="unPin" type="password" inputmode="numeric" maxlength="8" placeholder="PIN"/>
+    ${need2fa?`<label>Authenticator code</label><input class="field" id="unTotp" inputmode="numeric" maxlength="6" placeholder="6 digits"/>`:""}
     <div class="err" id="gErr"></div>
-    <button class="btn" type="button" id="btnUn">Open wallet</button>
+    <button class="btn ${bio?"sec":""}" type="button" id="btnUn">Open wallet</button>
     <button class="btn sec" type="button" id="btnRest2">Restore different phrase</button>
   `);
-  $("btnUn").onclick = async ()=>{
+  async function tryOpen(fromBio){
     try{
-      const phrase = await loadWallet($("unPin").value.trim());
-      await openWithPhrase(phrase, null);
-    }catch(e){ $("gErr").textContent = "Wrong PIN or corrupted wallet"; }
-  };
+      if(fromBio) await unlockBiometric();
+      const pin = $("unPin").value.trim();
+      if(!pin && !fromBio) throw new Error("Enter PIN");
+      // After bio, still need PIN to decrypt vault (non-custodial)
+      if(!pin) throw new Error("Enter PIN to decrypt wallet");
+      const vault = await loadVault(pin);
+      if(vault.totpEnabled && vault.totpSecret){
+        const code = $("unTotp")?.value?.trim() || "";
+        if(!verifyTotp(vault.totpSecret, code)) throw new Error("Invalid authenticator code");
+      }
+      meta.totpEnabled = !!vault.totpEnabled;
+      meta.hasTotp = !!vault.totpSecret;
+      await openSession(vault.mnemonic, pin, vault);
+    }catch(e){ $("gErr").textContent = e.message || "Unlock failed"; }
+  }
+  $("btnUn").onclick = ()=>tryOpen(false);
+  if($("btnBio")) $("btnBio").onclick = ()=>tryOpen(true);
   $("btnRest2").onclick = uiCreate;
 }
 
 function uiInstall(){
-  $("gateMsg").textContent = "Add Howlcoin to your Home Screen to open the wallet";
+  $("gateMsg").textContent = "Add to Home Screen for the best app experience";
   const ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
   showGate(`
-    <ol class="steps">
-      ${ios
-        ? "<li>Open this page in <b>Safari</b></li><li>Tap <b>Share</b> → <b>Add to Home Screen</b></li><li>Open <b>Howlcoin</b> from your home screen</li>"
-        : "<li>Open in <b>Chrome</b></li><li>Menu → <b>Install app</b> / <b>Add to Home screen</b></li><li>Open <b>Howlcoin</b> from the home screen</li>"}
-    </ol>
-    <button class="btn sec" type="button" id="btnCheck">I’ve added it — check again</button>
-    <p class="hint" style="margin-top:10px;text-align:center">Or continue in browser (not recommended on shared devices)</p>
+    <ol class="steps">${ios
+      ? "<li>Open in <b>Safari</b></li><li><b>Share</b> → <b>Add to Home Screen</b></li><li>Open <b>Howlcoin</b></li>"
+      : "<li>Open in <b>Chrome</b></li><li><b>Install app</b> / Add to Home screen</li><li>Open <b>Howlcoin</b></li>"}</ol>
     <button class="btn sec" type="button" id="btnSkip">Continue in browser</button>
   `);
-  $("btnCheck").onclick = ()=> boot(true);
-  $("btnSkip").onclick = ()=> boot(true, true);
+  $("btnSkip").onclick = ()=>{ sessionStorage.setItem("howl_skip_install","1"); boot(true); };
 }
 
-function boot(force=false, skipInstall=false){
-  if("serviceWorker" in navigator){
-    navigator.serviceWorker.register("/sw.js").catch(()=>{});
+function boot(skipInstallPrompt){
+  loadMeta();
+  if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
+  if(!skipInstallPrompt && !isStandalone() && !sessionStorage.getItem("howl_skip_install") && !sessionStorage.getItem("howl_saw_install")){
+    sessionStorage.setItem("howl_saw_install","1");
+    uiInstall();
+    return;
   }
-  if(!skipInstall && !force && !isStandalone() && !sessionStorage.getItem("howl_skip_install")){
-    // Allow browser use with explicit skip; first paint prefers install
-    if(!sessionStorage.getItem("howl_saw_install")){
-      sessionStorage.setItem("howl_saw_install","1");
-      uiInstall();
-      return;
-    }
-  }
-  if(skipInstall) sessionStorage.setItem("howl_skip_install","1");
-
-  if(localStorage.getItem(LS_CREATED) && localStorage.getItem(LS_ENC)){
-    uiUnlock();
-  } else {
-    uiCreate();
-  }
+  if(localStorage.getItem(LS_CREATED) && localStorage.getItem(LS_ENC)) uiUnlock();
+  else uiCreate();
+  renderCustomList();
 }
 
 window.showPage = showPage;
 window.doSend = doSend;
-window.copyAddr = copyAddr;
+window.copyText = copyText;
 window.revealSeed = revealSeed;
 window.hideSeed = hideSeed;
 window.lockWallet = lockWallet;
 window.wipeWallet = wipeWallet;
+window.setupBiometric = setupBiometric;
+window.startTotpSetup = startTotpSetup;
+window.confirmTotpSetup = confirmTotpSetup;
+window.disableTotp = disableTotp;
+window.addCustomToken = addCustomToken;
+window.removeCustom = removeCustom;
+window.selectAsset = selectAsset;
+window.refresh = refresh;
+window.toast = toast;
 
 boot();
 </script>

@@ -6,6 +6,8 @@ import { sha256 } from "https://esm.sh/@noble/hashes@1.4.0/sha256";
 import { ripemd160 } from "https://esm.sh/@noble/hashes@1.4.0/ripemd160";
 import { hmac } from "https://esm.sh/@noble/hashes@1.4.0/hmac";
 import { sha512 } from "https://esm.sh/@noble/hashes@1.4.0/sha512";
+import { sha1 } from "https://esm.sh/@noble/hashes@1.4.0/sha1";
+import { keccak_256 } from "https://esm.sh/@noble/hashes@1.4.0/sha3";
 import * as secp from "https://esm.sh/@noble/secp256k1@1.7.1";
 import { generateMnemonic, validateMnemonic, mnemonicToSeedSync } from "https://esm.sh/@scure/bip39@1.3.0";
 import { wordlist } from "https://esm.sh/@scure/bip39@1.3.0/wordlists/english";
@@ -167,6 +169,11 @@ export function checkMnemonic(phrase) {
   return validateMnemonic(phrase.trim().toLowerCase().split(/\s+/).join(" "), wordlist);
 }
 
+export function ethPath(index = 0) {
+  // BIP44 Ethereum: m/44'/60'/0'/0/index
+  return [44 | 0x80000000, 60 | 0x80000000, 0 | 0x80000000, 0, index];
+}
+
 export function keypairFromMnemonic(phrase, index = 0, passphrase = "") {
   const norm = phrase.trim().toLowerCase().split(/\s+/).join(" ");
   if (!validateMnemonic(norm, wordlist)) throw new Error("Invalid BIP39 mnemonic");
@@ -177,8 +184,146 @@ export function keypairFromMnemonic(phrase, index = 0, passphrase = "") {
   const pubUncompressed = secp.getPublicKey(priv, false);
   const pubHex = bytesToHex(pubUncompressed);
   const address = pubkeyToAddress(pubUncompressed);
-  return { privateKeyHex: privHex, publicKeyHex: pubHex, address, index };
+  return { privateKeyHex: privHex, publicKeyHex: pubHex, address, index, seedHex: bytesToHex(seed) };
 }
+
+/** Ethereum address from same mnemonic (for ETH + ERC-20 stables / custom tokens). */
+export function ethAddressFromMnemonic(phrase, index = 0, passphrase = "") {
+  const norm = phrase.trim().toLowerCase().split(/\s+/).join(" ");
+  if (!validateMnemonic(norm, wordlist)) throw new Error("Invalid BIP39 mnemonic");
+  const seed = mnemonicToSeedSync(norm, passphrase);
+  const priv = derivePath(seed, ethPath(index));
+  const pubUncompressed = secp.getPublicKey(priv, false); // 65 bytes 04||x||y
+  const hash = keccak_256(pubUncompressed.slice(1));
+  const addr = "0x" + bytesToHex(hash.slice(-20));
+  return {
+    address: addr,
+    privateKeyHex: bytesToHex(priv),
+    path: `m/44'/60'/0'/0/${index}`,
+  };
+}
+
+// --- Google Authenticator TOTP (RFC 6238) ---
+const B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+export function generateTotpSecret(bytes = 20) {
+  const raw = crypto.getRandomValues(new Uint8Array(bytes));
+  let bits = "";
+  for (const b of raw) bits += b.toString(2).padStart(8, "0");
+  let out = "";
+  for (let i = 0; i + 5 <= bits.length; i += 5) {
+    out += B32[parseInt(bits.slice(i, i + 5), 2)];
+  }
+  return out;
+}
+
+function base32Decode(s) {
+  const clean = s.replace(/=+$/, "").toUpperCase().replace(/[^A-Z2-7]/g, "");
+  let bits = "";
+  for (const c of clean) {
+    const v = B32.indexOf(c);
+    if (v < 0) continue;
+    bits += v.toString(2).padStart(5, "0");
+  }
+  const out = [];
+  for (let i = 0; i + 8 <= bits.length; i += 8) {
+    out.push(parseInt(bits.slice(i, i + 8), 2));
+  }
+  return new Uint8Array(out);
+}
+
+export function totpCode(secretBase32, timeMs = Date.now(), step = 30, digits = 6) {
+  const key = base32Decode(secretBase32);
+  const counter = Math.floor(timeMs / 1000 / step);
+  const buf = new Uint8Array(8);
+  let c = counter;
+  for (let i = 7; i >= 0; i--) {
+    buf[i] = c & 0xff;
+    c = Math.floor(c / 256);
+  }
+  const mac = hmac(sha1, key, buf);
+  const offset = mac[mac.length - 1] & 0xf;
+  const bin =
+    ((mac[offset] & 0x7f) << 24) |
+    ((mac[offset + 1] & 0xff) << 16) |
+    ((mac[offset + 2] & 0xff) << 8) |
+    (mac[offset + 3] & 0xff);
+  const otp = (bin % 10 ** digits).toString().padStart(digits, "0");
+  return otp;
+}
+
+export function verifyTotp(secretBase32, code, window = 1) {
+  const clean = String(code || "").replace(/\s/g, "");
+  if (!/^\d{6}$/.test(clean)) return false;
+  const now = Date.now();
+  for (let w = -window; w <= window; w++) {
+    if (totpCode(secretBase32, now + w * 30000) === clean) return true;
+  }
+  return false;
+}
+
+export function totpOtpauthUrl(secret, accountName = "Howlcoin", issuer = "Howlcoin") {
+  const label = encodeURIComponent(`${issuer}:${accountName}`);
+  const q = new URLSearchParams({
+    secret,
+    issuer,
+    algorithm: "SHA1",
+    digits: "6",
+    period: "30",
+  });
+  return `otpauth://totp/${label}?${q.toString()}`;
+}
+
+/** Well-known ERC-20 tokens (Ethereum mainnet) for deposit UI */
+export const PRESET_ASSETS = [
+  { id: "howl", symbol: "HOWL", name: "Howlcoin", network: "Howlcoin", kind: "howl" },
+  { id: "eth", symbol: "ETH", name: "Ethereum", network: "Ethereum", kind: "eth" },
+  {
+    id: "usdt",
+    symbol: "USDT",
+    name: "Tether",
+    network: "Ethereum (ERC-20)",
+    kind: "erc20",
+    contract: "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    decimals: 6,
+  },
+  {
+    id: "usdc",
+    symbol: "USDC",
+    name: "USD Coin",
+    network: "Ethereum (ERC-20)",
+    kind: "erc20",
+    contract: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    decimals: 6,
+  },
+  {
+    id: "wbtc",
+    symbol: "WBTC",
+    name: "Wrapped Bitcoin",
+    network: "Ethereum (ERC-20)",
+    kind: "erc20",
+    contract: "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+    decimals: 8,
+  },
+  {
+    id: "link",
+    symbol: "LINK",
+    name: "Chainlink",
+    network: "Ethereum (ERC-20)",
+    kind: "erc20",
+    contract: "0x514910771af9ca656af840dff83e8264ecf986ca",
+    decimals: 18,
+  },
+  {
+    id: "uni",
+    symbol: "UNI",
+    name: "Uniswap",
+    network: "Ethereum (ERC-20)",
+    kind: "erc20",
+    contract: "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+    decimals: 18,
+  },
+];
 
 export function txSighash(txBody) {
   const body = {
