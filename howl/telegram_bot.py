@@ -26,8 +26,9 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Set
 
 from .blockchain import Blockchain
-from .config import DEFAULT_DATA_DIR, WALLET_FILE
-from .wallet import Wallet, format_howl
+from .config import WALLET_FILE
+from .crypto import is_valid_address
+from .wallet import Wallet, format_howl, parse_howl
 
 log = logging.getLogger("howl.telegram")
 
@@ -81,6 +82,8 @@ class HowlBot:
         self.admins = _admin_ids()
         self._meta_path = data_dir / "tg_meta.json"
         self.meta = self._load_meta()
+        # user_id -> pending send {to, amount_howlies, fee}
+        self.pending_sends: Dict[int, Dict[str, Any]] = {}
 
     def _load_meta(self) -> Dict[str, Any]:
         if self._meta_path.exists():
@@ -137,24 +140,22 @@ class HowlBot:
             f"*Balance* {bal}\n"
             f"*Chain height* {height}\n\n"
             f"*Commands*\n"
-            f"/wallet — address + balance\n"
-            f"/mnemonic — 12-word phrase *(DM only, once carefully)*\n"
-            f"/mine — mine 1 Scrypt block (rate limited)\n"
-            f"/status — network height\n"
-            f"/seed — public P2P seed\n"
-            f"/newwallet — rotate to a new wallet\n"
-            f"/help — full help\n\n"
+            f"/wallet /receive — address + balance\n"
+            f"/send `H…addr` `amount` — send HOWL\n"
+            f"/mnemonic — 12-word phrase *(DM only)*\n"
+            f"/mine — mine 1 block (confirms pending sends)\n"
+            f"/status /seed /help\n\n"
             f"⚠ Save /mnemonic offline. Never share it in the group."
         )
         kb = InlineKeyboardMarkup(
             [
                 [
                     InlineKeyboardButton("💼 Wallet", callback_data="wallet"),
-                    InlineKeyboardButton("⛏ Mine 1", callback_data="mine"),
+                    InlineKeyboardButton("📥 Receive", callback_data="receive"),
                 ],
                 [
+                    InlineKeyboardButton("⛏ Mine 1", callback_data="mine"),
                     InlineKeyboardButton("📡 Status", callback_data="status"),
-                    InlineKeyboardButton("🌱 Seed", callback_data="seed"),
                 ],
             ]
         )
@@ -175,13 +176,15 @@ class HowlBot:
             return
         msg = (
             "*Howlcoin bot*\n\n"
-            "*Private chat (wallet + mine)*\n"
-            "/start /wallet /mnemonic /mine /newwallet\n\n"
+            "*Private chat*\n"
+            "/start /wallet /receive — your address\n"
+            "/send `ADDRESS` `AMOUNT` — e.g. `/send Hxxx… 1000`\n"
+            "/mnemonic /mine /newwallet\n\n"
             "*Anywhere*\n"
             "/status /seed /help\n\n"
+            "Sends sit in the mempool until someone `/mine`s a block.\n\n"
             f"*Public seed*\n`{self.seed}`\n"
-            "Desktop miner: github.com/happyoils710/howlcoin\n\n"
-            "Group spam protection: use @MissRose\\_bot / Combot — see docs/TELEGRAM.md"
+            "Desktop: github.com/happyoils710/howlcoin"
         )
         await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
 
@@ -216,16 +219,163 @@ class HowlBot:
         if not self.is_private(update):
             await update.message.reply_text("🔒 Open a *private chat* with me for /wallet.", parse_mode=ParseMode.MARKDOWN)
             return
-        uid = update.effective_user.id
+        await self._reply_wallet(update.effective_user.id, update.message.reply_text)
+
+    async def cmd_receive(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Show deposit address — others /send to this address."""
+        if not update.message or not update.effective_user:
+            return
+        if not self.is_private(update):
+            await update.message.reply_text(
+                "📥 DM me for your receive address (keeps it out of the group).",
+            )
+            return
+        await self._reply_receive(update.effective_user.id, update.message.reply_text)
+
+    async def _reply_wallet(self, uid: int, reply) -> None:
         w = self.get_wallet(uid, create=True)
         assert w
         with self.chain_lock:
             bal = format_howl(self.chain.balance(w.address))
-        await update.message.reply_text(
-            f"💼 *Your wallet*\nAddress:\n`{w.address}`\n\nBalance: *{bal}*\n"
-            f"Mnemonic: {'yes — /mnemonic' if w.has_mnemonic else 'legacy key only'}",
+            pending = sum(
+                1
+                for t in self.chain.mempool
+                if t.get("from") == w.address or t.get("to") == w.address
+            )
+        await reply(
+            f"💼 *Your wallet*\n"
+            f"Address:\n`{w.address}`\n\n"
+            f"Balance: *{bal}*\n"
+            f"Mempool txs touching you: {pending}\n"
+            f"Receive: /receive · Send: /send",
             parse_mode=ParseMode.MARKDOWN,
         )
+
+    async def _reply_receive(self, uid: int, reply) -> None:
+        w = self.get_wallet(uid, create=True)
+        assert w
+        with self.chain_lock:
+            bal = format_howl(self.chain.balance(w.address))
+        # QR via public image API (address only — safe)
+        qr = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={w.address}"
+        await reply(
+            f"📥 *Receive HOWL*\n\n"
+            f"Share this address:\n`{w.address}`\n\n"
+            f"Balance: *{bal}*\n\n"
+            f"Someone can send with:\n"
+            f"`/send {w.address} 1000`\n\n"
+            f"[QR code]({qr})",
+            parse_mode=ParseMode.MARKDOWN,
+            disable_web_page_preview=False,
+        )
+
+    async def cmd_send(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        /send <address> <amount> [fee]
+        Queues a signed tx; mine a block to confirm.
+        """
+        if not update.message or not update.effective_user:
+            return
+        if not self.is_private(update):
+            await update.message.reply_text("🔒 /send only works in *private chat* with me.", parse_mode=ParseMode.MARKDOWN)
+            return
+        uid = update.effective_user.id
+        args = context.args or []
+        if len(args) < 2:
+            await update.message.reply_text(
+                "Usage:\n`/send ADDRESS AMOUNT`\n"
+                "Example:\n`/send HJt1gm6PvAu5mcvkan9fsSbQtVVdBg9bQ6 500`\n"
+                "Optional fee: `/send ADDR 500 1`",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
+        to_addr = args[0].strip()
+        try:
+            amount = parse_howl(args[1])
+            fee = parse_howl(args[2]) if len(args) >= 3 else 0
+        except ValueError as e:
+            await update.message.reply_text(f"Bad amount: {e}")
+            return
+        if not is_valid_address(to_addr):
+            await update.message.reply_text("❌ Invalid Howlcoin address (should start with H…).")
+            return
+        if amount <= 0:
+            await update.message.reply_text("Amount must be positive.")
+            return
+
+        w = self.get_wallet(uid, create=True)
+        assert w
+        if to_addr == w.address:
+            await update.message.reply_text("That's your own address.")
+            return
+        with self.chain_lock:
+            bal = self.chain.balance(w.address)
+        if bal < amount + fee:
+            await update.message.reply_text(
+                f"Insufficient balance.\nHave *{format_howl(bal)}*, need *{format_howl(amount + fee)}*.\n"
+                f"Mine first with /mine if you're new.",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
+
+        self.pending_sends[uid] = {
+            "to": to_addr,
+            "amount": amount,
+            "fee": fee,
+            "ts": time.time(),
+        }
+        kb = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton("✅ Confirm send", callback_data="send_yes"),
+                    InlineKeyboardButton("❌ Cancel", callback_data="send_no"),
+                ]
+            ]
+        )
+        await update.message.reply_text(
+            f"📤 *Confirm send*\n\n"
+            f"To:\n`{to_addr}`\n"
+            f"Amount: *{format_howl(amount)}*\n"
+            f"Fee: *{format_howl(fee)}*\n"
+            f"From:\n`{w.address}`\n\n"
+            f"After confirm, run /mine (or wait for a miner) to *confirm* on-chain.",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=kb,
+        )
+
+    async def _execute_send(self, uid: int, reply) -> None:
+        pending = self.pending_sends.pop(uid, None)
+        if not pending:
+            await reply("No pending send. Use `/send ADDRESS AMOUNT` first.")
+            return
+        if time.time() - pending.get("ts", 0) > 600:
+            await reply("Pending send expired (10 min). Start again with /send.")
+            return
+        w = self.get_wallet(uid, create=False)
+        if not w:
+            await reply("No wallet — /start first.")
+            return
+        to_addr = pending["to"]
+        amount = int(pending["amount"])
+        fee = int(pending["fee"])
+        try:
+            with self.chain_lock:
+                nonce = self.chain.next_nonce(w.address)
+                tx = w.build_tx(to_addr, amount, nonce, fee=fee, memo="tg-send")
+                ok, msg = self.chain.add_to_mempool(tx)
+            if not ok:
+                await reply(f"❌ Rejected: {msg}")
+                return
+            await reply(
+                f"✅ *Queued transfer*\n"
+                f"txid: `{msg[:20]}…`\n"
+                f"{format_howl(amount)} → `{to_addr[:14]}…`\n\n"
+                f"Still in *mempool* until a block is mined.\n"
+                f"Tap /mine to confirm now (or wait for another miner).",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+        except Exception as e:
+            await reply(f"❌ Send failed: {e}")
 
     async def cmd_mnemonic(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not update.message or not update.effective_user:
@@ -319,32 +469,35 @@ class HowlBot:
 
     async def on_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         q = update.callback_query
-        if not q or not update.effective_user:
+        if not q or not update.effective_user or not q.message:
             return
         await q.answer()
         data = q.data or ""
-        # synthesize a fake path via editing
-        class R:
-            pass
+        uid = update.effective_user.id
+        private = q.message.chat.type == ChatType.PRIVATE
 
         if data == "wallet":
-            if q.message and q.message.chat.type != ChatType.PRIVATE:
+            if not private:
                 await q.message.reply_text("🔒 Wallet only in private chat.")
                 return
-            uid = update.effective_user.id
-            w = self.get_wallet(uid, create=True)
-            assert w
-            with self.chain_lock:
-                bal = format_howl(self.chain.balance(w.address))
-            await q.message.reply_text(
-                f"💼 `{w.address}`\nBalance: *{bal}*",
-                parse_mode=ParseMode.MARKDOWN,
-            )
+            await self._reply_wallet(uid, q.message.reply_text)
+        elif data == "receive":
+            if not private:
+                await q.message.reply_text("🔒 Receive address only in private chat.")
+                return
+            await self._reply_receive(uid, q.message.reply_text)
         elif data == "mine":
-            if q.message and q.message.chat.type != ChatType.PRIVATE:
+            if not private:
                 await q.message.reply_text("⛏ Mine only in private chat.")
                 return
-            await self._do_mine(update, update.effective_user.id, q.message.reply_text)
+            await self._do_mine(update, uid, q.message.reply_text)
+        elif data == "send_yes":
+            if not private:
+                return
+            await self._execute_send(uid, q.message.reply_text)
+        elif data == "send_no":
+            self.pending_sends.pop(uid, None)
+            await q.message.reply_text("Cancelled. Nothing sent.")
         elif data == "status":
             with self.chain_lock:
                 s = self.chain.summary()
@@ -377,6 +530,8 @@ def build_app(token: str, bot: HowlBot) -> Application:
     app.add_handler(CommandHandler("seed", bot.cmd_seed))
     app.add_handler(CommandHandler("status", bot.cmd_status))
     app.add_handler(CommandHandler("wallet", bot.cmd_wallet))
+    app.add_handler(CommandHandler(["receive", "deposit", "address"], bot.cmd_receive))
+    app.add_handler(CommandHandler("send", bot.cmd_send))
     app.add_handler(CommandHandler("mnemonic", bot.cmd_mnemonic))
     app.add_handler(CommandHandler("newwallet", bot.cmd_newwallet))
     app.add_handler(CommandHandler("mine", bot.cmd_mine))

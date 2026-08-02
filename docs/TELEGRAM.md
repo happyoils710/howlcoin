@@ -28,6 +28,8 @@ Wallet secrets and mining buttons stay in **DMs**. The group stays clean.
 ```
 start - Open wallet
 wallet - Address & balance
+receive - Show deposit address + QR
+send - Send HOWL to an address
 mine - Mine 1 Scrypt block
 mnemonic - Show 12-word phrase (DM only)
 status - Chain height
@@ -168,9 +170,20 @@ systemctl status howlcoin-telegram
 
 | Command | Private DM | Public group |
 |---------|------------|--------------|
-| `/start` `/wallet` `/mine` `/mnemonic` `/newwallet` | ✅ | ❌ (redirect to DM) |
+| `/start` `/wallet` `/receive` `/send` `/mine` `/mnemonic` `/newwallet` | ✅ | ❌ (redirect to DM) |
 | `/status` `/seed` `/help` | ✅ | ✅ |
 | Seed-phrase looking spam | — | ⚠️ warning |
+
+### Send & receive
+
+```
+/receive
+→ shows your H… address + QR (share this to get paid)
+
+/send HRecipientAddressHere 1000
+→ confirm button → tx enters mempool
+→ /mine  (confirms the transfer in a block)
+```
 
 - `/mine` is **rate limited** (default 120s/user) — shared server CPU  
 - For serious hashrate: desktop miner → public seed  
