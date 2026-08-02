@@ -444,7 +444,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
           <button type="button" class="menu-row" onclick="showPage('browser')"><span class="mi">◈</span><div><div class="mt">Howl Search</div><div class="ms">Search the open web · open any site or dapp</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('discover')"><span class="mi">✦</span><div><div class="mt">Discover</div><div class="ms">New crypto tech · scout agents</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('nft')"><span class="mi">◆</span><div><div class="mt">NFTs</div><div class="ms">Mint &amp; transfer on Howlcoin</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="showPage('oracle')"><span class="mi">◎</span><div><div class="mt">Oracle</div><div class="ms">Multi-chain observations</div></div><span class="chev">›</span></button>
+          <button type="button" class="menu-row" onclick="showPage('oracle')"><span class="mi">◎</span><div><div class="mt">Oracle</div><div class="ms">Observe chains · post tips on HOWL</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('recv')"><span class="mi">↓</span><div><div class="mt">Deposits</div><div class="ms">HOWL · SOL · XTZ · ETH · tokens</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('send')"><span class="mi">↑</span><div><div class="mt">Send HOWL</div><div class="ms">Transfer on public chain</div></div><span class="chev">›</span></button>
         </div>
@@ -689,15 +689,31 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>Oracle</h1></div>
       <div class="panel">
         <h2>Little multi-chain oracle</h2>
-        <p class="hint">Post observations about other chains onto Howlcoin. Anyone can read the feed — a lightweight, on-chain notice board (not a trustless bridge).</p>
+        <p class="hint">Post observations about other chains onto Howlcoin. Anyone can read the feed — a lightweight on-chain notice board <b>not</b> a trustless bridge.</p>
+      </div>
+      <div class="panel">
+        <h2>How to run an observation</h2>
+        <ol class="steps" style="margin:0;padding-left:1.2rem;color:var(--muted);font-size:.9rem;line-height:1.5">
+          <li style="margin-bottom:8px"><b style="color:var(--text)">Unlock this wallet</b> with HOWL for fees (about <b style="color:var(--amber)">1 HOWL per observation</b> paid to miners).</li>
+          <li style="margin-bottom:8px"><b style="color:var(--text)">Quick path:</b> tap <b style="color:var(--green)">Observe live chains</b> below. The app reads Howl height, Ethereum block, Solana slot, and Tezos level, then posts each key on-chain.</li>
+          <li style="margin-bottom:8px"><b style="color:var(--text)">Manual path:</b> fill Source chain + Key + Value (e.g. <span class="mono">ethereum</span> / <span class="mono">eth.block_height</span> / <span class="mono">21000000</span>) and tap Post.</li>
+          <li style="margin-bottom:8px"><b style="color:var(--text)">Wait for a miner</b> to include your tx (mempool → confirmed). Local node: mine from the node dashboard; public chain: wait for the network.</li>
+          <li><b style="color:var(--text)">Read results</b> in the Oracle feed on this page (also on Howlscan via API <span class="mono">/api/public/oracle</span>).</li>
+        </ol>
+        <p class="hint" style="margin-top:12px">Example keys: <span class="mono">howl.height</span>, <span class="mono">eth.block_height</span>, <span class="mono">sol.slot</span>, <span class="mono">xtz.level</span>. Latest value wins per key.</p>
+      </div>
+      <div class="panel">
+        <h2>Observe live chains</h2>
+        <p class="hint">Fetches current tips from public RPCs and queues oracle txs from your address. Needs network access + enough HOWL for fees.</p>
         <button class="btn" type="button" onclick="observeChains()">Observe live chains → post</button>
         <p class="hint" id="oracleStatus"></p>
         <p class="err" id="oracleErr"></p>
       </div>
       <div class="panel">
         <h2>Manual observation</h2>
+        <p class="hint">Post any key/value you want tagged by source chain. Still costs the min network fee per post.</p>
         <label>Source chain</label>
-        <input class="field" id="oracleChain" placeholder="ethereum / solana / tezos / custom"/>
+        <input class="field" id="oracleChain" placeholder="ethereum / solana / tezos / howlcoin / custom"/>
         <label>Key</label>
         <input class="field" id="oracleKey" placeholder="eth.block_height"/>
         <label>Value</label>
@@ -706,6 +722,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       </div>
       <div class="panel">
         <h2>Oracle feed (on Howlcoin)</h2>
+        <p class="hint">Latest observation per key. Empty until posts are mined.</p>
         <div id="oracleFeed"><p class="hint">Loading…</p></div>
       </div>
     </div>
