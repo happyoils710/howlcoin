@@ -1036,6 +1036,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <input class="field" id="wcUri" placeholder="wc:…" spellcheck="false" autocomplete="off"/>
         <button class="btn" type="button" onclick="wcPairFromInput()">Connect</button>
         <button class="btn sec" type="button" onclick="wcPasteAndPair()">Paste &amp; connect</button>
+        <button class="btn sec" type="button" onclick="ensureWalletConnect(true).then(ok=>toast(ok?'WalletConnect ready':'Still not ready — see error'))">Retry WalletConnect</button>
         <p class="err" id="wcErr"></p>
         <p class="hint" id="wcHint">Tip: On mobile, many dApps open <span class="mono">howlscan.org/app#wc=…</span> automatically.</p>
       </div>
@@ -4881,26 +4882,54 @@ function installHowlProvider(){
   return howlProvider;
 }
 
-async function ensureWalletConnect(){
+// Fallback if API fails (public client id — same as HOWL_WC_PROJECT_ID on VPS)
+const WC_PROJECT_ID_FALLBACK = "6a285b913917f779e351257f61cabd15";
+
+async function ensureWalletConnect(force = false){
   if(!ethInfo){
     if($("wcStatus")) $("wcStatus").textContent = "Unlock wallet first";
     return false;
   }
   installHowlProvider();
-  if(wcInitPromise) return wcInitPromise;
+  const st0 = getWcStatus();
+  if(!force && st0.ready) return true;
+
+  if(force){
+    try{ resetWalletConnect(); }catch(_){}
+    wcInitPromise = null;
+  }
+  // Don't permanently cache a failed init
+  if(wcInitPromise){
+    try{
+      const prev = await wcInitPromise;
+      if(prev) return true;
+    }catch(_){}
+    wcInitPromise = null;
+  }
+
   wcInitPromise = (async ()=>{
     try{
       if(!wcProjectId){
-        const cfg = await api("/api/public/walletconnect").catch(()=>({}));
-        wcProjectId = cfg.projectId || window.HOWL_WC_PROJECT_ID || "";
+        try{
+          const cfg = await api("/api/public/walletconnect");
+          wcProjectId = (cfg && cfg.projectId) || "";
+        }catch(e){
+          console.warn("wc config fetch failed", e);
+        }
+        wcProjectId = wcProjectId
+          || window.HOWL_WC_PROJECT_ID
+          || WC_PROJECT_ID_FALLBACK
+          || "";
       }
       if(!wcProjectId){
         if($("wcStatus")) $("wcStatus").textContent = "Needs project ID";
-        if($("wcHint")) $("wcHint").textContent = "Server: set HOWL_WC_PROJECT_ID from https://cloud.reown.com (free). Then restart Howlscan.";
+        if($("wcHint")) $("wcHint").textContent = "Server: set HOWL_WC_PROJECT_ID (Reown free project id).";
         if($("moreWcHint")) $("moreWcHint").textContent = "Setup project ID";
+        if($("wcErr")) $("wcErr").textContent = "No project ID from server or fallback";
         return false;
       }
       if($("wcStatus")) $("wcStatus").textContent = "Connecting relay…";
+      if($("wcHint")) $("wcHint").textContent = "Loading WalletConnect (project " + wcProjectId.slice(0, 8) + "…)";
       const res = await initWalletConnect({
         projectId: wcProjectId,
         getAddress: ()=> ethInfo?.address,
@@ -4931,22 +4960,30 @@ async function ensureWalletConnect(){
           wcRefreshSessions();
         },
       });
-      if(!res.ok){
-        if($("wcStatus")) $("wcStatus").textContent = "Failed: " + (res.error || "");
-        if($("wcHint")) $("wcHint").textContent = res.error || "WalletConnect failed to load";
+      if(!res || !res.ok){
+        const err = (res && res.error) || getWcStatus().error || "init failed";
+        if($("wcStatus")) $("wcStatus").textContent = "Failed";
+        if($("wcHint")) $("wcHint").textContent = String(err);
+        if($("wcErr")) $("wcErr").textContent = String(err);
+        if($("moreWcHint")) $("moreWcHint").textContent = "WC error";
         return false;
       }
       if($("wcStatus")) $("wcStatus").textContent = "Ready · listening";
+      if($("wcHint")) $("wcHint").textContent = "Paste a wc: link from any dApp, or open a deep link into this wallet.";
+      if($("wcErr")) $("wcErr").textContent = "";
       if($("moreWcHint")) $("moreWcHint").textContent = "Ready for dApps";
       wcRefreshSessions();
-      // deep link after init
       tryConsumeWcDeepLink();
       return true;
     }catch(e){
       if($("wcStatus")) $("wcStatus").textContent = "Error";
       if($("wcErr")) $("wcErr").textContent = e.message || String(e);
-      wcInitPromise = null;
+      if($("wcHint")) $("wcHint").textContent = e.message || String(e);
       return false;
+    }finally{
+      // allow retry after failure
+      const st = getWcStatus();
+      if(!st.ready) wcInitPromise = null;
     }
   })();
   return wcInitPromise;
@@ -4997,8 +5034,15 @@ async function wcPairFromInput(){
   try{
     const uri = ($("wcUri")?.value || "").trim();
     if(!uri) throw new Error("Paste a wc:… URI from the dApp");
-    const ok = await ensureWalletConnect();
-    if(!ok) throw new Error("WalletConnect not ready — check project ID");
+    let ok = await ensureWalletConnect();
+    if(!ok){
+      // hard retry once
+      ok = await ensureWalletConnect(true);
+    }
+    if(!ok){
+      const st = getWcStatus();
+      throw new Error(st.error || "WalletConnect not ready — open this page, wait for Ready, then try again");
+    }
     toast("Pairing…");
     await pairWithUri(uri);
     toast("Paired — approve the connection prompt");
