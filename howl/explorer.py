@@ -2344,6 +2344,34 @@ python3 -m howl go`;
 python3 -m howl mine --continuous`;
   const statusCmd = `python3 -m howl status
 python3 -m howl wallet`;
+  const beginnerCd = `cd ~/Desktop/howlcoin
+# if your folder is elsewhere, use that path instead`;
+  const everydayBundle = `cd ~/Desktop/howlcoin
+python3 -m howl wallet
+python3 -m howl status`;
+  // Everyday settings rows for beginners (label, cmd, note)
+  const everydayRows = [
+    { label: 'Address + balance', cmd: 'python3 -m howl wallet', note: 'Safe first check — your H… address & HOWL balance' },
+    { label: 'Chain status', cmd: 'python3 -m howl status', note: 'Height, difficulty, tip, mempool' },
+    { label: 'Balance only', cmd: 'python3 -m howl balance', note: 'Quick balance for primary address' },
+    { label: 'Software version', cmd: 'python3 -m howl --version', note: 'Must be v0.6+ for the public chain' },
+    { label: 'Recovery phrase', cmd: 'python3 -m howl mnemonic', note: '⚠ Secrets — only when alone; backs up the wallet' },
+    { label: 'Phrase via wallet', cmd: 'python3 -m howl wallet --show-mnemonic', note: '⚠ Same as mnemonic (dangerous if shared)' },
+    { label: 'Private key', cmd: 'python3 -m howl wallet --show-keys', note: '⚠ Full control of funds — never paste online' },
+    { label: 'JSON dump', cmd: 'python3 -m howl export', note: 'Tip + summary as JSON for debugging' },
+    { label: 'Wallet folder', cmd: 'ls -la ~/.howlcoin/', note: 'wallet.json · chain.json live here' },
+  ];
+  const everydayTable = everydayRows.map(r => `
+    <tr>
+      <td style="padding:10px 8px;border-bottom:1px solid var(--border);vertical-align:top;font-weight:600;color:var(--text);white-space:nowrap">${esc(r.label)}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid var(--border);vertical-align:top">
+        <code class="mono" style="font-size:.78rem;word-break:break-all">${esc(r.cmd)}</code>
+        <div class="muted" style="font-size:.78rem;margin-top:4px">${esc(r.note)}</div>
+      </td>
+      <td style="padding:10px 4px;border-bottom:1px solid var(--border);vertical-align:top;width:72px">
+        <button type="button" class="chipbtn" style="margin:0;padding:6px 10px;font-size:.72rem" onclick="copyText(${JSON.stringify(r.cmd)}, this)">Copy</button>
+      </td>
+    </tr>`).join('');
   app().innerHTML=`<div class="main" style="padding-top:12px">
     ${crumbs([{label:'Home',href:'#/public'},{label:'Run a node'}])}
     <div class="page-actions"><button class="back" onclick="location.hash='#/public'">← Home</button></div>
@@ -2382,6 +2410,42 @@ python3 -m howl wallet`;
       </p>
     </div>
 
+    <div class="card detail" style="margin-top:14px;border-color:rgba(77,163,255,.35)">
+      <h3 style="margin-top:0">⚙ Everyday settings (Terminal) — for beginners</h3>
+      <p class="muted" style="margin:0 0 10px">
+        After you install Howlcoin, open <b>Terminal</b>, go into the project folder, then run these anytime.
+        This is your <b>local mining wallet</b> (not the browser wallet at howlscan.org/app unless you imported the same phrase).
+      </p>
+      ${cmdBox('Always start here (change folder if needed)', beginnerCd)}
+      ${cmdBox('Safe daily check: wallet + chain', everydayBundle)}
+      <p style="margin:8px 0 12px">
+        <button class="chipbtn" style="margin:4px" onclick="copyText(${JSON.stringify(everydayBundle)}, this)">Copy daily check</button>
+        <button class="chipbtn" style="margin:4px" onclick="copyText('python3 -m howl wallet', this)">Copy wallet</button>
+        <button class="chipbtn" style="margin:4px" onclick="copyText('python3 -m howl status', this)">Copy status</button>
+      </p>
+      <div class="table-wrap" style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:.88rem">
+          <thead>
+            <tr>
+              <th style="text-align:left;padding:8px;border-bottom:1px solid var(--border);color:var(--muted);font-weight:600">What you want</th>
+              <th style="text-align:left;padding:8px;border-bottom:1px solid var(--border);color:var(--muted);font-weight:600">Command</th>
+              <th style="border-bottom:1px solid var(--border)"></th>
+            </tr>
+          </thead>
+          <tbody>${everydayTable}</tbody>
+        </table>
+      </div>
+      <div class="kv" style="margin-top:14px">
+        <div class="k">Data folder</div><div class="mono">~/.howlcoin/</div>
+        <div class="k">Dashboard UI</div><div class="mono">http://127.0.0.1:42070/</div>
+        <div class="k">Browser wallet</div><div><a href="https://howlscan.org/app" target="_blank" rel="noopener">howlscan.org/app</a> (separate unless same seed)</div>
+      </div>
+      <p class="muted" style="margin:12px 0 0;font-size:.82rem;line-height:1.45">
+        <b style="color:var(--amber,#ffb020)">Safety:</b> never share your recovery phrase or private key.
+        Never paste them into websites, Discord, or Telegram. Anyone with those words controls your HOWL.
+      </p>
+    </div>
+
     <div class="card detail" style="margin-top:14px">
       <h3 style="margin-top:0">⬆ Upgrade an existing node (v0.6)</h3>
       <p class="muted">If you mined before smooth difficulty, pull main and restart with <code>howl go</code>.</p>
@@ -2406,7 +2470,8 @@ python3 -m howl wallet`;
       <p class="muted">Equivalent flags:</p>
       ${cmdBox('Node with flags (same as go)', nodeOnlyCmd)}
       <p class="muted">Dashboard: <span class="mono">http://127.0.0.1:42070/</span> — use <b>⚡ Connect seed &amp; mine forever</b> if mining did not auto-start.</p>
-      ${cmdBox('3) Check height & wallet', statusCmd)}
+      ${cmdBox('3) Check height & wallet (everyday settings)', statusCmd)}
+      <p class="muted">More beginner commands: see <b>Everyday settings</b> above.</p>
       ${cmdBox('4) Mine without full dashboard (optional)', mineOnceCmd)}
     </div>
 
