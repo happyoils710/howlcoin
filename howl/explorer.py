@@ -194,15 +194,27 @@ tbody tr:hover{background:var(--rowh)}
 <body>
 <div class="topbar">
   <img src="/assets/howlcoin-logo.jpg" alt="HOWL"/>
-  <div class="brand">Howl<span>scan</span><small>Howlcoin block explorer</small></div>
+  <div class="brand" style="cursor:pointer" onclick="location.hash='#/'+net">Howl<span>scan</span><small>Howlcoin block explorer</small></div>
   <div class="nav" id="nav"></div>
   <div class="grow"></div>
+  <button class="chipbtn" onclick="location.hash='#/'+net+'/richlist'">Richlist</button>
+  <button class="chipbtn" onclick="location.hash='#/'+net+'/mempool'">Mempool</button>
+  <button class="chipbtn" onclick="location.hash='#/'+net+'/block/0'">Genesis</button>
   <button class="chipbtn" onclick="loadHome()">Refresh</button>
 </div>
 <div id="app"></div>
 <div class="footer">
-  <div>Howlscan · Scrypt PoW · not financial advice</div>
-  <div>API: <span class="mono">/api/networks</span> · seed <span class="mono">147.182.223.204:42069</span></div>
+  <div>Howlscan · Scrypt PoW · not financial advice ·
+    <a href="#/public">Public</a> ·
+    <a href="#/telegram">Telegram</a> ·
+    <a href="#/public/richlist">Richlist</a> ·
+    <a href="#/public/mempool">Mempool</a> ·
+    <a href="#/public/block/0">Genesis</a>
+  </div>
+  <div>API <span class="mono">/api/networks</span> · seed <span class="mono">147.182.223.204:42069</span> ·
+    <a href="https://t.me/HowlMine_bot" target="_blank" rel="noopener">Bot</a> ·
+    <a href="https://github.com/happyoils710/howlcoin" target="_blank" rel="noopener">Code</a>
+  </div>
 </div>
 <script>
 let net='public', networks=[];
@@ -215,7 +227,17 @@ function fmtTime(ts){if(!ts)return '—'; try{return new Date(ts*1000).toLocaleS
 function ago(ts){if(!ts)return ''; const s=Math.max(0,Math.floor(Date.now()/1000-ts));
   if(s<60)return s+'s ago'; if(s<3600)return Math.floor(s/60)+'m ago'; if(s<86400)return Math.floor(s/3600)+'h ago'; return Math.floor(s/86400)+'d ago'}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function linkBlock(h){return `<a href="#/${net}/block/${encodeURIComponent(h)}" onclick="route();return true">${esc(h)}</a>`}
+function copyBtn(text){
+  const id='c'+Math.random().toString(36).slice(2,9);
+  return `<button class="chipbtn" style="padding:2px 8px;font-size:.72rem;margin-left:6px" onclick="event.stopPropagation();navigator.clipboard.writeText('${esc(text).replace(/'/g,"\\'")}');this.textContent='Copied';setTimeout(()=>this.textContent='Copy',1200)">Copy</button>`;
+}
+function crumbs(parts){
+  // parts: [{label, href?}]
+  return `<div class="muted" style="margin:0 0 12px;font-size:.85rem">${parts.map((p,i)=>
+    p.href?`<a href="${p.href}">${esc(p.label)}</a>`:esc(p.label)
+  ).join(' <span style="opacity:.5">/</span> ')}</div>`;
+}
+function linkBlock(h){return `<a href="#/${net}/block/${encodeURIComponent(h)}">${esc(h)}</a>`}
 function linkTx(t){if(!t)return '—'; return `<a class="mono" href="#/${net}/tx/${encodeURIComponent(t)}">${esc(short(t,14))}</a>`}
 function linkAddr(a){if(!a||a==='HOWL_GENESIS_BURN') return `<span class="mono">${esc(a||'—')}</span>`;
   return `<a class="mono" href="#/${net}/address/${encodeURIComponent(a)}">${esc(short(a,12))}</a>`}
@@ -226,7 +248,7 @@ function renderNav(){
       ${esc(n.label)} ${n.online?`<span class="badge blue">#${n.height}</span>`:'<span class="badge warn">off</span>'}
     </button>`).join('');
 }
-function switchNet(id){net=id; location.hash=`#/${net}`; loadHome()}
+function switchNet(id){net=id; location.hash=`#/${net}`}
 
 async function loadNetworks(){
   const d=await api('/api/networks');
@@ -262,23 +284,37 @@ async function loadHome(){
   ]);
   app().innerHTML = shellSearch() + `
   <div class="stats">
-    <div class="stat"><div class="k">Height</div><div class="v">${s.height}</div><div class="s">tip block</div></div>
-    <div class="stat"><div class="k">Difficulty</div><div class="v">${s.difficulty}</div><div class="s">Scrypt leading zeros</div></div>
-    <div class="stat"><div class="k">Circulating</div><div class="v" style="font-size:1rem">${esc(String(s.circulating).replace(' HOWL',''))}</div><div class="s">HOWL supply</div></div>
-    <div class="stat"><div class="k">Mempool</div><div class="v">${s.mempool}</div><div class="s">unconfirmed txs</div></div>
-    <div class="stat"><div class="k">Addresses</div><div class="v">${s.addresses??'—'}</div><div class="s">with balance</div></div>
-    <div class="stat"><div class="k">Network</div><div class="v" style="font-size:1rem">${esc(s.label||net)}</div><div class="s mono">${esc(short(s.tip,16))}</div></div>
+    <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/block/${s.height}'">
+      <div class="k">Height</div><div class="v">${s.height}</div><div class="s">click → tip block</div></div>
+    <div class="stat"><div class="k">Difficulty</div><div class="v">${s.difficulty}</div><div class="s">Scrypt PoW</div></div>
+    <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/richlist'">
+      <div class="k">Circulating</div><div class="v" style="font-size:1rem">${esc(String(s.circulating).replace(' HOWL',''))}</div><div class="s">click → richlist</div></div>
+    <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/mempool'">
+      <div class="k">Mempool</div><div class="v">${s.mempool}</div><div class="s">click → pending txs</div></div>
+    <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/richlist'">
+      <div class="k">Addresses</div><div class="v">${s.addresses??'—'}</div><div class="s">click → richlist</div></div>
+    <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/block/${encodeURIComponent(s.tip)}'">
+      <div class="k">Tip hash</div><div class="v mono" style="font-size:.85rem">${esc(short(s.tip,14))}</div><div class="s">click → tip block</div></div>
+  </div>
+  <div class="main" style="padding-bottom:8px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <button class="chipbtn" onclick="location.hash='#/${net}/block/0'">Genesis #0</button>
+      <button class="chipbtn" onclick="location.hash='#/${net}/block/${s.height}'">Latest #${s.height}</button>
+      <button class="chipbtn" onclick="location.hash='#/${net}/richlist'">Top addresses</button>
+      <button class="chipbtn" onclick="location.hash='#/${net}/mempool'">Mempool (${s.mempool})</button>
+    </div>
   </div>
   <div class="main cols">
     <div class="card">
-      <h3>Latest blocks <a class="more" href="#/${net}">live</a></h3>
+      <h3>Latest blocks <a class="more" href="#/${net}/block/${s.height}">tip →</a></h3>
       <table>
-        <thead><tr><th>Height</th><th>Hash</th><th>Txs</th><th>Reward</th><th>Time</th></tr></thead>
+        <thead><tr><th>Height</th><th>Hash</th><th>Txs</th><th>Miner</th><th>Reward</th><th>Time</th></tr></thead>
         <tbody>
           ${(blocks.blocks||[]).map(b=>`<tr onclick="location.hash='#/${net}/block/${b.height}'">
             <td><b>${linkBlock(b.height)}</b></td>
             <td class="mono">${esc(short(b.hash,12))}</td>
             <td>${b.tx_count}</td>
+            <td onclick="event.stopPropagation()">${linkAddr(b.miner)}</td>
             <td class="amount">${fmtAmt(b.reward)}</td>
             <td class="muted" title="${esc(fmtTime(b.timestamp))}">${ago(b.timestamp)}</td>
           </tr>`).join('')}
@@ -286,15 +322,15 @@ async function loadHome(){
       </table>
     </div>
     <div class="card">
-      <h3>Latest transactions</h3>
+      <h3>Latest transactions <a class="more" href="#/${net}/mempool">mempool →</a></h3>
       <table>
-        <thead><tr><th>Txid</th><th>Amount</th><th>Status</th><th>Time</th></tr></thead>
+        <thead><tr><th>Txid</th><th>From → To</th><th>Amount</th><th>Status</th></tr></thead>
         <tbody>
           ${(txs.transactions||[]).map(t=>`<tr onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
-            <td>${linkTx(t.txid)}</td>
+            <td onclick="event.stopPropagation()">${linkTx(t.txid)}</td>
+            <td class="mono" onclick="event.stopPropagation()">${t.type==='coinbase'?'coinbase → '+linkAddr(t.to):linkAddr(t.from)+' → '+linkAddr(t.to)}</td>
             <td class="amount">${fmtAmt(t.amount)}</td>
-            <td>${t.confirmed?`<span class="badge ok">block ${t.block_height}</span>`:`<span class="badge warn">mempool</span>`}</td>
-            <td class="muted">${ago(t.timestamp)}</td>
+            <td>${t.confirmed?`<span class="badge ok" onclick="event.stopPropagation();location.hash='#/${net}/block/${t.block_height}'">#${t.block_height}</span>`:`<span class="badge warn">mempool</span>`}</td>
           </tr>`).join('') || '<tr><td colspan="4" class="muted" style="padding:16px">No transactions yet</td></tr>'}
         </tbody>
       </table>
@@ -307,19 +343,28 @@ async function showBlock(id){
   const d=await api(`/api/${net}/block/${encodeURIComponent(id)}`);
   const b=d.block; const txs=b.transactions||[];
   const cb=txs.find(t=>t.type==='coinbase');
+  const h=b.height;
+  const prev = h>0 ? h-1 : null;
+  const next = h; // will link next height; may 404 if tip
   app().innerHTML=`<div class="main" style="padding-top:20px">
-    <button class="back" onclick="location.hash='#/${net}'">← Back</button>
+    ${crumbs([{label:'Home',href:'#/'+net},{label:esc(net),href:'#/'+net},{label:'Block #'+h}])}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <button class="back" onclick="location.hash='#/${net}'">← Home</button>
+      ${prev!=null?`<button class="chipbtn" onclick="location.hash='#/${net}/block/${prev}'">← Prev #${prev}</button>`:''}
+      <button class="chipbtn" onclick="location.hash='#/${net}/block/${h+1}'">Next #${h+1} →</button>
+      <button class="chipbtn" onclick="location.hash='#/${net}/block/0'">Genesis</button>
+    </div>
     <div class="card detail">
       <div class="badge blue">Block</div>
       <h2 style="margin:8px 0 4px">Block #${b.height}</h2>
-      <div class="mono">${esc(b.hash)}</div>
+      <div class="mono">${esc(b.hash)}${copyBtn(b.hash)}</div>
       <div class="kv" style="margin-top:16px">
         <div class="k">Height</div><div>${b.height}</div>
         <div class="k">Timestamp</div><div>${esc(fmtTime(b.header.timestamp))} <span class="muted">(${ago(b.header.timestamp)})</span></div>
         <div class="k">Difficulty</div><div>${b.header.difficulty}</div>
         <div class="k">Nonce</div><div class="mono">${b.header.nonce}</div>
         <div class="k">Merkle root</div><div class="mono">${esc(b.header.merkle_root||'—')}</div>
-        <div class="k">Previous</div><div class="mono">${b.height>0?linkBlock(b.header.prev_hash):'— genesis'}</div>
+        <div class="k">Previous</div><div class="mono">${b.height>0?linkBlock(b.header.prev_hash)+copyBtn(b.header.prev_hash):'— genesis'}</div>
         <div class="k">Miner</div><div>${linkAddr(cb&&cb.to)}</div>
         <div class="k">Reward</div><div class="amount">${fmtAmt(cb&&cb.amount)}</div>
         <div class="k">Transactions</div><div>${txs.length}</div>
@@ -331,9 +376,9 @@ async function showBlock(id){
         <thead><tr><th>Txid</th><th>Type</th><th>From → To</th><th>Amount</th></tr></thead>
         <tbody>
           ${txs.map(t=>`<tr onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
-            <td>${t.txid?linkTx(t.txid):'—'}</td>
+            <td onclick="event.stopPropagation()">${t.txid?linkTx(t.txid):'—'}</td>
             <td><span class="badge ${t.type==='coinbase'?'ok':'blue'}">${esc(t.type||'transfer')}</span></td>
-            <td class="mono">${t.type==='coinbase'?'coinbase → '+linkAddr(t.to):linkAddr(t.from)+' → '+linkAddr(t.to)}</td>
+            <td class="mono" onclick="event.stopPropagation()">${t.type==='coinbase'?'coinbase → '+linkAddr(t.to):linkAddr(t.from)+' → '+linkAddr(t.to)}</td>
             <td class="amount">${fmtAmt(t.amount)}</td>
           </tr>`).join('')}
         </tbody>
@@ -347,11 +392,14 @@ async function showTx(id){
   const d=await api(`/api/${net}/tx/${encodeURIComponent(id)}`);
   const t=d.tx;
   app().innerHTML=`<div class="main" style="padding-top:20px">
-    <button class="back" onclick="location.hash='#/${net}'">← Back</button>
-    <div class="card detail">
+    ${crumbs([{label:'Home',href:'#/'+net},{label:esc(net),href:'#/'+net},{label:'Transaction'}])}
+    <button class="back" onclick="location.hash='#/${net}'">← Home</button>
+    ${d.confirmed?`<button class="chipbtn" onclick="location.hash='#/${net}/block/${d.block_height}'">Open block #${d.block_height}</button>`:
+      `<button class="chipbtn" onclick="location.hash='#/${net}/mempool'">View mempool</button>`}
+    <div class="card detail" style="margin-top:12px">
       <div class="badge ${d.confirmed?'ok':'warn'}">${d.confirmed?'Confirmed':'Mempool'}</div>
       <h2 style="margin:8px 0 4px">Transaction</h2>
-      <div class="mono">${esc(t.txid||id)}</div>
+      <div class="mono">${esc(t.txid||id)}${copyBtn(t.txid||id)}</div>
       <div class="kv" style="margin-top:16px">
         <div class="k">Status</div><div>${d.confirmed?('Block '+linkBlock(d.block_height)):'Unconfirmed'}</div>
         <div class="k">Type</div><div>${esc(t.type||'transfer')}</div>
@@ -375,11 +423,13 @@ async function showAddr(addr){
   await loadNetworks();
   const d=await api(`/api/${net}/address/${encodeURIComponent(addr)}`);
   app().innerHTML=`<div class="main" style="padding-top:20px">
-    <button class="back" onclick="location.hash='#/${net}'">← Back</button>
-    <div class="card detail">
+    ${crumbs([{label:'Home',href:'#/'+net},{label:esc(net),href:'#/'+net},{label:'Richlist',href:'#/'+net+'/richlist'},{label:'Address'}])}
+    <button class="back" onclick="location.hash='#/${net}'">← Home</button>
+    <button class="chipbtn" onclick="location.hash='#/${net}/richlist'">Richlist</button>
+    <div class="card detail" style="margin-top:12px">
       <div class="badge blue">Address</div>
       <h2 style="margin:8px 0 4px">Wallet</h2>
-      <div class="mono">${esc(d.address)}</div>
+      <div class="mono">${esc(d.address)}${copyBtn(d.address)}</div>
       <div class="kv" style="margin-top:16px">
         <div class="k">Balance</div><div class="amount" style="font-size:1.3rem">${esc(d.balance_fmt)}</div>
         <div class="k">Nonce</div><div>${d.nonce}</div>
@@ -403,6 +453,51 @@ async function showAddr(addr){
   </div>`;
 }
 
+async function showRichlist(){
+  await loadNetworks();
+  const d=await api(`/api/${net}/richlist?limit=50`);
+  app().innerHTML=`<div class="main" style="padding-top:20px">
+    ${crumbs([{label:'Home',href:'#/'+net},{label:esc(net),href:'#/'+net},{label:'Richlist'}])}
+    <button class="back" onclick="location.hash='#/${net}'">← Home</button>
+    <div class="card" style="margin-top:12px">
+      <h3>Top addresses by balance</h3>
+      <table>
+        <thead><tr><th>#</th><th>Address</th><th>Balance</th></tr></thead>
+        <tbody>
+          ${(d.richlist||[]).map(r=>`<tr onclick="location.hash='#/${net}/address/${encodeURIComponent(r.address)}'">
+            <td>${r.rank}</td>
+            <td onclick="event.stopPropagation()">${linkAddr(r.address)}</td>
+            <td class="amount">${esc(r.balance_fmt)}</td>
+          </tr>`).join('')||'<tr><td colspan="3" class="muted" style="padding:16px">No balances</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+async function showMempool(){
+  await loadNetworks();
+  const d=await api(`/api/${net}/mempool`);
+  app().innerHTML=`<div class="main" style="padding-top:20px">
+    ${crumbs([{label:'Home',href:'#/'+net},{label:esc(net),href:'#/'+net},{label:'Mempool'}])}
+    <button class="back" onclick="location.hash='#/${net}'">← Home</button>
+    <div class="card" style="margin-top:12px">
+      <h3>Mempool <span class="badge warn">${d.count||0} pending</span></h3>
+      <table>
+        <thead><tr><th>Txid</th><th>From → To</th><th>Amount</th><th>Fee</th></tr></thead>
+        <tbody>
+          ${(d.transactions||[]).map(t=>`<tr onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
+            <td onclick="event.stopPropagation()">${linkTx(t.txid)}</td>
+            <td class="mono" onclick="event.stopPropagation()">${linkAddr(t.from)} → ${linkAddr(t.to)}</td>
+            <td class="amount">${fmtAmt(t.amount)}</td>
+            <td>${fmtAmt(t.fee||0)}</td>
+          </tr>`).join('')||'<tr><td colspan="4" class="muted" style="padding:16px">Mempool empty</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
 function doSearch(){
   const q=($('#q')&&$('#q').value||'').trim();
   if(!q) return loadHome();
@@ -419,15 +514,17 @@ async function route(){
   const parts=h.split('/').filter(Boolean);
   if(parts[0] && networks.length && networks.find(n=>n.id===parts[0])){
     net=parts[0];
-  } else if(parts[0] && !['block','tx','address'].includes(parts[0])){
-    // keep
   }
   renderNav();
   try{
     if(parts.length>=3 && parts[1]==='block') return await showBlock(decodeURIComponent(parts[2]));
     if(parts.length>=3 && parts[1]==='tx') return await showTx(decodeURIComponent(parts[2]));
     if(parts.length>=3 && parts[1]==='address') return await showAddr(decodeURIComponent(parts[2]));
+    if(parts.length>=2 && parts[1]==='richlist') return await showRichlist();
+    if(parts.length>=2 && parts[1]==='mempool') return await showMempool();
     if(parts.length>=2 && parts[0]==='block') return await showBlock(decodeURIComponent(parts[1]));
+    if(parts.length>=1 && parts[0]==='richlist') return await showRichlist();
+    if(parts.length>=1 && parts[0]==='mempool') return await showMempool();
     return await loadHome();
   }catch(e){
     app().innerHTML=`<div class="main"><div class="card detail err">${esc(e.message)}</div></div>`;
@@ -527,6 +624,23 @@ class ExplorerServer:
                         return self._json(
                             200,
                             {"network": net, "transactions": chain.recent_transactions(limit)},
+                        )
+
+                    if rest[0] == "mempool":
+                        return self._json(
+                            200,
+                            {
+                                "network": net,
+                                "count": len(chain.mempool),
+                                "transactions": chain.mempool_list(),
+                            },
+                        )
+
+                    if rest[0] == "richlist":
+                        limit = int(qs.get("limit", ["50"])[0])
+                        return self._json(
+                            200,
+                            {"network": net, "richlist": chain.richlist(limit)},
                         )
 
                     if rest[0] == "block" and len(rest) >= 2:

@@ -588,6 +588,36 @@ class Blockchain:
             "transactions": txs,
         }
 
+    def richlist(self, limit: int = 50) -> List[Dict[str, Any]]:
+        limit = max(1, min(500, limit))
+        items = sorted(self.balances.items(), key=lambda x: -x[1])[:limit]
+        return [
+            {
+                "rank": i + 1,
+                "address": addr,
+                "balance": bal,
+                "balance_fmt": format_howl(bal),
+            }
+            for i, (addr, bal) in enumerate(items)
+        ]
+
+    def mempool_list(self) -> List[Dict[str, Any]]:
+        out = []
+        for tx in self.mempool:
+            out.append(
+                {
+                    "txid": tx.get("txid"),
+                    "type": tx.get("type", "transfer"),
+                    "from": tx.get("from"),
+                    "to": tx.get("to"),
+                    "amount": tx.get("amount", 0),
+                    "fee": tx.get("fee", 0),
+                    "memo": tx.get("memo", ""),
+                    "confirmed": False,
+                }
+            )
+        return list(reversed(out))
+
     def reload_from_disk(self) -> None:
         """Re-read chain.json (for explorer watching live nodes)."""
         if self.chain_path.exists():
