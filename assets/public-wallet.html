@@ -214,12 +214,20 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .browser-page{min-height:calc(100vh - var(--nav-h) - var(--safe-b));display:flex;flex-direction:column;background:var(--bg)}
 .browser-page.browsing .browser-home{display:none}
 .browser-page.browsing .browser-topbar{display:flex}
+.browser-page.browsing .tabs-strip{display:flex}
 .browser-page.browsing .dapp-frame-wrap{display:block;flex:1}
 .browser-page.browsing .browser-bottombar{display:flex}
 .browser-page.results .browser-home{display:none}
 .browser-page.results .browser-topbar{display:flex}
+.browser-page.results .tabs-strip{display:flex}
 .browser-page.results .search-results{display:block;flex:1}
 .browser-page.results .browser-bottombar{display:flex}
+.browser-page.reader .browser-home{display:none}
+.browser-page.reader .browser-topbar{display:flex}
+.browser-page.reader .tabs-strip{display:flex}
+.browser-page.reader .reader-view{display:block;flex:1}
+.browser-page.reader .browser-bottombar{display:flex}
+.browser-page.home-tabs .tabs-strip{display:flex}
 .search-results{display:none;overflow:auto;padding:8px 12px 20px;background:var(--bg);
   min-height:calc(100vh - 160px - var(--nav-h))}
 .search-results h3{margin:8px 4px 12px;font-size:.85rem;color:var(--muted);font-weight:600}
@@ -243,6 +251,49 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .howl-search input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--text);
   font:inherit;font-size:.95rem;font-weight:500;text-align:center}
 .howl-search input:focus{text-align:left}
+.tabs-btn{position:relative;width:36px;height:36px;border-radius:10px;border:1px solid var(--border);
+  background:var(--card2);color:var(--text);font:inherit;font-size:.72rem;font-weight:800;cursor:pointer;
+  flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.tabs-btn .n{min-width:16px;text-align:center}
+.tabs-btn .dot{position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;
+  background:var(--green);display:none}
+.tabs-btn.has-tabs .dot{display:block}
+.tabs-strip{display:none;align-items:center;gap:6px;padding:6px 10px 8px;overflow-x:auto;
+  -webkit-overflow-scrolling:touch;background:var(--top-bg);border-bottom:1px solid var(--border);scrollbar-width:none}
+.tabs-strip::-webkit-scrollbar{display:none}
+.tab-chip{flex-shrink:0;display:flex;align-items:center;gap:4px;max-width:148px;
+  border:1px solid var(--border);background:var(--card2);color:var(--muted);border-radius:10px;
+  padding:5px 6px 5px 10px;font:inherit;font-size:.72rem;font-weight:600;cursor:pointer}
+.tab-chip.on{border-color:var(--green);color:var(--text);background:color-mix(in srgb,var(--green) 12%,transparent)}
+.tab-chip .ttl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px}
+.tab-chip .x{border:0;background:transparent;color:var(--muted);font-size:.85rem;line-height:1;
+  padding:2px 4px;cursor:pointer;border-radius:6px}
+.tab-chip .x:hover{color:var(--text);background:rgba(255,255,255,.06)}
+.tab-new{flex-shrink:0;width:30px;height:30px;border-radius:8px;border:1px dashed var(--border);
+  background:transparent;color:var(--green);font-size:1.1rem;font-weight:700;cursor:pointer}
+.tabs-sheet{display:none;position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.55);
+  backdrop-filter:blur(6px);align-items:flex-end;justify-content:center}
+.tabs-sheet.on{display:flex}
+.tabs-sheet .sheet{width:100%;max-width:520px;max-height:70vh;overflow:auto;background:var(--card);
+  border-radius:18px 18px 0 0;border:1px solid var(--border);padding:14px 14px calc(18px + var(--safe-b))}
+.tabs-sheet h3{margin:0 0 10px;font-size:.95rem}
+.tabs-sheet .trow{display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:1px solid var(--border);
+  background:var(--card2);border-radius:12px;padding:10px 12px;margin:0 0 8px;color:var(--text);font:inherit;cursor:pointer}
+.tabs-sheet .trow.on{border-color:var(--green)}
+.tabs-sheet .trow .meta{flex:1;min-width:0}
+.tabs-sheet .trow .t{font-weight:700;font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tabs-sheet .trow .u{font-size:.7rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.reader-view{display:none;overflow:auto;padding:12px 16px 28px;background:var(--bg);
+  min-height:calc(100vh - 160px - var(--nav-h));-webkit-overflow-scrolling:touch}
+.reader-view .r-kicker{font-size:.72rem;font-weight:700;color:var(--green);margin:0 0 6px;text-transform:uppercase;letter-spacing:.04em}
+.reader-view .r-title{font-family:var(--font-display);font-size:1.35rem;line-height:1.25;margin:0 0 8px}
+.reader-view .r-url{font-size:.72rem;color:var(--muted);word-break:break-all;margin:0 0 14px}
+.reader-view .r-body{font-size:.98rem;line-height:1.55;color:var(--text)}
+.reader-view .r-body img{max-width:100%;height:auto;border-radius:10px;margin:10px 0}
+.reader-view .r-body a{color:var(--cyan)}
+.reader-view .r-body p{margin:0 0 12px}
+.reader-view .r-actions{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 8px}
+.reader-view .r-actions .btn{width:auto;padding:10px 14px;margin:0}
 .browser-home{flex:1;text-align:center;padding:max(48px,8vh) 16px 24px;display:flex;flex-direction:column;
   align-items:center;justify-content:flex-start}
 .browser-logo{font-family:var(--font-display);font-size:2rem;font-weight:800;letter-spacing:.04em;margin:0 0 8px;
@@ -494,8 +545,12 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
             <input id="dappUrl" placeholder="Howl Search or website" spellcheck="false" autocomplete="off"
               enterkeyhint="go" onfocus="this.select()" onkeydown="if(event.key==='Enter'){this.blur();browseTo()}"/>
           </div>
+          <button type="button" class="tabs-btn" id="tabsBtn" onclick="toggleTabsSheet()" title="Open tabs">
+            <span class="n" id="tabsCount">0</span><span class="dot"></span>
+          </button>
           <button type="button" class="navbtn" onclick="browseTo()" title="Go">↻</button>
         </div>
+        <div class="tabs-strip" id="tabsStrip"></div>
         <div class="progress" id="browserProgress"><i></i></div>
 
         <!-- New-tab / search home -->
@@ -508,11 +563,14 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
               <span class="mag">⌕</span>
               <input id="dappSearch" placeholder="Search the web or type a URL" spellcheck="false" autocomplete="off"
                 enterkeyhint="search" onkeydown="if(event.key==='Enter'){syncSearchToOmni();browseTo()}"/>
+              <button type="button" class="tabs-btn" id="tabsBtnHome" onclick="toggleTabsSheet()" title="Open tabs" style="margin-right:2px">
+                <span class="n" id="tabsCountHome">0</span><span class="dot"></span>
+              </button>
               <button type="button" class="go" onclick="syncSearchToOmni();browseTo()">Go</button>
             </div>
           </div>
           <div class="bookmarks" id="bookmarks"></div>
-          <p class="browser-hint">Howl Search pulls the open web into the wallet. Tap a result to open it in-app. Sites that block frames can open outside.</p>
+          <p class="browser-hint">Howl Search + open tabs by the bar. News sites open in <b>Howl Reader</b> when they block frames.</p>
           <div class="addr-chips">
             <button type="button" onclick="copyText(keypair&&keypair.address)">Copy HOWL</button>
             <button type="button" onclick="copyText(solInfo&&solInfo.address)">Copy SOL</button>
@@ -529,20 +587,34 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <div class="dapp-frame-wrap" id="dappFrameWrap">
           <iframe id="dappFrame" title="Browser" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"></iframe>
           <div class="dapp-fallback hidden" id="dappFallback">
-            <p style="font-weight:700;font-size:1.1rem;margin:0 0 8px">Can’t show this site inside the app</p>
-            <p class="hint" style="margin-bottom:14px;max-width:280px">This website blocks in-app frames. Open it full screen — or go back and pick another result.</p>
-            <button class="btn" type="button" id="dappOpenExt">Open outside</button>
+            <p style="font-weight:700;font-size:1.1rem;margin:0 0 8px">This site blocks in-app frames</p>
+            <p class="hint" style="margin-bottom:14px;max-width:300px">News and many big sites refuse iframes. Read the article inside Howl, or open full site outside.</p>
+            <button class="btn" type="button" id="dappReadHowl">Read in Howl</button>
+            <button class="btn sec" type="button" id="dappOpenExt">Open outside</button>
             <button class="btn sec" type="button" onclick="showLastSearchResults()">Back to results</button>
-            <button class="btn sec" type="button" onclick="browserHome()">New search</button>
+            <button class="btn sec" type="button" onclick="newBrowserTab()">New tab</button>
           </div>
         </div>
 
+        <!-- Howl Reader (articles that block iframes) -->
+        <div class="reader-view" id="readerView"></div>
+
         <div class="browser-bottombar" id="browserBottombar">
           <button type="button" onclick="browserBack()">‹ Back</button>
-          <button type="button" onclick="browserHome()">New tab</button>
-          <button type="button" onclick="browseTo()">Reload</button>
+          <button type="button" onclick="newBrowserTab()">New tab</button>
+          <button type="button" onclick="reloadActiveTab()">Reload</button>
           <button type="button" onclick="openCurrentExternal()">Share ↗</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Open tabs sheet (global overlay) -->
+    <div class="tabs-sheet" id="tabsSheet" onclick="if(event.target===this)toggleTabsSheet(false)">
+      <div class="sheet">
+        <h3>Open tabs <span id="tabsSheetCount" style="color:var(--muted);font-weight:600"></span></h3>
+        <div id="tabsSheetList"></div>
+        <button type="button" class="btn" style="margin-top:8px" onclick="newBrowserTab();toggleTabsSheet(false)">+ New tab</button>
+        <button type="button" class="btn sec" onclick="toggleTabsSheet(false)">Close</button>
       </div>
     </div>
 
@@ -746,13 +818,21 @@ const DAPP_BOOKMARKS = [
 const LS_THEME = "howl_theme_v1";
 
 let lastSwapQuote = null;
-let browserHistory = [];
-let browserMode = "home"; // home | results | browsing
+/** Multi-tab browser state */
+let browserTabs = [];
+let activeTabId = null;
+let tabSeq = 1;
+let browserMode = "home"; // home | results | browsing | reader
+let browserHistory = []; // mirrors active tab history for back nav
 let lastSearchQuery = "";
 let lastSearchResults = [];
 let discoverItems = [];
 let discoverFilter = "all";
 let discoverMeta = null;
+let frameCheckTimer = null;
+
+/** Hosts that usually block iframes — open Howl Reader first */
+const READER_HOSTS = /(?:^|\.)(cointelegraph\.com|decrypt\.co|coindesk\.com|theblock\.co|cryptonews\.com|bitcoinmagazine\.com|coinbureau\.com|reuters\.com|bloomberg\.com|wsj\.com|nytimes\.com|ft\.com|medium\.com|substack\.com|mirror\.xyz|twitter\.com|x\.com|youtube\.com|youtu\.be|reddit\.com|linkedin\.com|github\.com|binance\.com|coinmarketcap\.com|coingecko\.com|tradingview\.com)$/i;
 const LS_ENC = "howl_public_wallet_v2";
 const LS_META = "howl_public_wallet_meta_v2";
 const LS_BIO = "howl_public_webauthn_v1";
@@ -1276,9 +1356,179 @@ function applyStoredTheme(){
   setTheme(localStorage.getItem(LS_THEME) || "neo");
 }
 
+function ensureActiveTab(){
+  if(!getActiveTab()) newBrowserTab(false);
+  return getActiveTab();
+}
+function getActiveTab(){
+  return browserTabs.find(t => t.id === activeTabId) || null;
+}
+function hostOf(url){
+  try{ return new URL(url).hostname.replace(/^www\./,""); }catch{ return ""; }
+}
+function prefersReaderUrl(url){
+  const h = hostOf(url);
+  return !!(h && READER_HOSTS.test(h));
+}
+function syncTabGlobals(tab){
+  if(!tab) return;
+  browserMode = tab.mode || "home";
+  browserHistory = tab.history || [];
+  lastSearchQuery = tab.searchQuery || "";
+  lastSearchResults = tab.searchResults || [];
+}
+function saveActiveTabState(){
+  const tab = getActiveTab();
+  if(!tab) return;
+  tab.mode = browserMode;
+  tab.history = browserHistory.slice();
+  tab.searchQuery = lastSearchQuery;
+  tab.searchResults = lastSearchResults;
+  if($("dappUrl") && $("dappUrl").value) tab.display = $("dappUrl").value;
+}
+function newBrowserTab(focusHome){
+  saveActiveTabState();
+  const tab = {
+    id: "t" + (tabSeq++),
+    title: "New tab",
+    url: "",
+    display: "",
+    mode: "home",
+    history: [],
+    searchQuery: "",
+    searchResults: [],
+    reader: null,
+  };
+  browserTabs.push(tab);
+  activeTabId = tab.id;
+  syncTabGlobals(tab);
+  renderTabsUI();
+  if(focusHome !== false){
+    showPage("browser");
+    browserHome(false);
+  }
+  return tab;
+}
+function closeBrowserTab(id, ev){
+  if(ev){ ev.stopPropagation(); ev.preventDefault(); }
+  const idx = browserTabs.findIndex(t => t.id === id);
+  if(idx < 0) return;
+  browserTabs.splice(idx, 1);
+  if(!browserTabs.length){
+    activeTabId = null;
+    newBrowserTab(true);
+    return;
+  }
+  if(activeTabId === id){
+    const next = browserTabs[Math.max(0, idx - 1)];
+    switchBrowserTab(next.id);
+  } else {
+    renderTabsUI();
+  }
+}
+function switchBrowserTab(id){
+  if(id === activeTabId){ renderTabsUI(); return; }
+  saveActiveTabState();
+  const tab = browserTabs.find(t => t.id === id);
+  if(!tab) return;
+  activeTabId = id;
+  syncTabGlobals(tab);
+  showPage("browser");
+  applyTabView(tab);
+  renderTabsUI();
+}
+function applyTabView(tab){
+  $("dappFallback")?.classList.add("hidden");
+  if($("dappUrl")) $("dappUrl").value = tab.display || tab.url || tab.searchQuery || "";
+  if($("dappSearch")) $("dappSearch").value = tab.searchQuery || tab.display || "";
+  if(tab.mode === "reader" && tab.reader){
+    setBrowserMode("reader");
+    renderReaderView(tab.reader);
+    return;
+  }
+  if(tab.mode === "results"){
+    setBrowserMode("results");
+    paintSearchResults();
+    return;
+  }
+  if(tab.mode === "browsing" && tab.url){
+    setBrowserMode("browsing");
+    setProgress(true);
+    const frame = $("dappFrame");
+    frame.onload = ()=> setProgress(false);
+    frame.src = tab.url;
+    setTimeout(()=> setProgress(false), 2000);
+    return;
+  }
+  browserHome(false);
+}
+function renderTabsUI(){
+  const n = browserTabs.length;
+  ["tabsCount","tabsCountHome","tabsSheetCount"].forEach(id=>{
+    const el = $(id);
+    if(el) el.textContent = id === "tabsSheetCount" ? `(${n})` : String(n);
+  });
+  ["tabsBtn","tabsBtnHome"].forEach(id=>{
+    const el = $(id);
+    if(el) el.classList.toggle("has-tabs", n > 0);
+  });
+  const strip = $("tabsStrip");
+  if(strip){
+    strip.innerHTML = browserTabs.map(t=>`
+      <div class="tab-chip ${t.id===activeTabId?"on":""}" data-id="${t.id}">
+        <span class="ttl">${esc(t.title || t.display || "Tab")}</span>
+        <button type="button" class="x" data-close="${t.id}" aria-label="Close">×</button>
+      </div>`).join("") + `<button type="button" class="tab-new" title="New tab" onclick="newBrowserTab()">+</button>`;
+    strip.querySelectorAll(".tab-chip").forEach(chip=>{
+      chip.onclick = (e)=>{
+        if(e.target.closest("[data-close]")) return;
+        switchBrowserTab(chip.dataset.id);
+      };
+    });
+    strip.querySelectorAll("[data-close]").forEach(btn=>{
+      btn.onclick = (e)=> closeBrowserTab(btn.dataset.close, e);
+    });
+  }
+  const list = $("tabsSheetList");
+  if(list){
+    if(!browserTabs.length){
+      list.innerHTML = `<p class="hint">No open tabs yet.</p>`;
+    } else {
+      list.innerHTML = browserTabs.map(t=>`
+        <button type="button" class="trow ${t.id===activeTabId?"on":""}" data-id="${t.id}">
+          <div class="meta">
+            <div class="t">${esc(t.title || "Tab")}</div>
+            <div class="u">${esc(t.url || t.searchQuery || "New tab")}</div>
+          </div>
+          <span class="x" data-close="${t.id}" style="font-size:1.2rem;padding:4px 8px">×</span>
+        </button>`).join("");
+      list.querySelectorAll(".trow").forEach(row=>{
+        row.onclick = (e)=>{
+          if(e.target.closest("[data-close]")){
+            closeBrowserTab(e.target.closest("[data-close]").dataset.close, e);
+            return;
+          }
+          switchBrowserTab(row.dataset.id);
+          toggleTabsSheet(false);
+        };
+      });
+    }
+  }
+  const page = $("browserPage");
+  if(page) page.classList.toggle("home-tabs", browserMode === "home" && browserTabs.length > 0);
+}
+function toggleTabsSheet(force){
+  const sheet = $("tabsSheet");
+  if(!sheet) return;
+  const on = force === undefined ? !sheet.classList.contains("on") : !!force;
+  sheet.classList.toggle("on", on);
+  if(on) renderTabsUI();
+}
+
 function initBrowserUI(){
   const app = $("app");
   if(app) app.classList.add("browser-focus");
+  ensureActiveTab();
   const bm = $("bookmarks");
   if(bm && !bm.dataset.ready){
     bm.innerHTML = DAPP_BOOKMARKS.map(b=>
@@ -1289,7 +1539,10 @@ function initBrowserUI(){
     });
     bm.dataset.ready = "1";
   }
-  setBrowserMode(browserMode === "browsing" ? "browsing" : "home");
+  renderTabsUI();
+  const tab = getActiveTab();
+  if(tab && tab.mode !== "home") applyTabView(tab);
+  else setBrowserMode(browserMode === "browsing" || browserMode === "reader" || browserMode === "results" ? browserMode : "home");
   setTimeout(()=>{ const s=$("dappSearch"); if(s && browserMode==="home") s.focus(); }, 120);
 }
 function setBrowserMode(mode){
@@ -1298,10 +1551,15 @@ function setBrowserMode(mode){
   if(!page) return;
   page.classList.toggle("browsing", mode === "browsing");
   page.classList.toggle("results", mode === "results");
+  page.classList.toggle("reader", mode === "reader");
+  page.classList.toggle("home-tabs", mode === "home" && browserTabs.length > 0);
   const app = $("app");
   if(app && document.getElementById("p-browser")?.classList.contains("on")){
     app.classList.add("browser-focus");
   }
+  const tab = getActiveTab();
+  if(tab) tab.mode = mode;
+  renderTabsUI();
 }
 function syncSearchToOmni(){
   const q = ($("dappSearch") && $("dappSearch").value) || "";
@@ -1325,17 +1583,24 @@ function resolveNavigation(input){
   }
   return { kind: "search", query: u, display: u };
 }
-function openDapp(url){
+function openDapp(url, opts){
   showPage("browser");
+  ensureActiveTab();
   if(/^search:/i.test(url)){
     const q = url.replace(/^search:/i, "").trim();
     if($("dappSearch")) $("dappSearch").value = q;
     if($("dappUrl")) $("dappUrl").value = q;
-  } else {
-    if($("dappUrl")) $("dappUrl").value = url;
-    if($("dappSearch")) $("dappSearch").value = url;
+    browseTo();
+    return;
   }
-  browseTo();
+  if($("dappUrl")) $("dappUrl").value = url;
+  if($("dappSearch")) $("dappSearch").value = url;
+  const preferReader = opts && opts.preferReader;
+  if(preferReader || prefersReaderUrl(url)){
+    openInReader(url, opts && opts.title);
+  } else {
+    openUrlInApp(url, (opts && opts.title) || url);
+  }
 }
 function setProgress(run){
   const p = $("browserProgress");
@@ -1346,39 +1611,61 @@ function esc(s){
   return String(s??"").replace(/[&<>"']/g,c=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
 }
 
-/** In-app search results (API) so users stay in the wallet */
-async function runInAppSearch(query){
-  lastSearchQuery = query;
-  setBrowserMode("results");
-  $("dappFallback").classList.add("hidden");
-  setProgress(true);
+function paintSearchResults(){
   const list = $("searchResultsList");
   const title = $("searchResultsTitle");
-  if(title) title.textContent = `Results for “${query}”`;
+  if(title) title.textContent = lastSearchQuery ? `Howl Search · “${lastSearchQuery}”` : "Results";
+  if(!list) return;
+  if(!lastSearchResults.length){
+    list.innerHTML = `<div class="search-empty">No results. Try different words, or type a website like <b>jup.ag</b>.</div>`;
+    return;
+  }
+  list.innerHTML = lastSearchResults.map((r,i)=>`
+    <button type="button" class="sres" data-i="${i}">
+      ${r.source ? `<span class="src">${esc(r.source)}</span>` : ""}
+      <div class="st">${esc(r.title||r.url)}</div>
+      <div class="su">${esc(r.url)}</div>
+      <div class="ss">${esc(r.snippet||"")}</div>
+    </button>`).join("");
+  list.querySelectorAll(".sres").forEach(btn=>{
+    btn.onclick = ()=>{
+      const item = lastSearchResults[Number(btn.dataset.i)];
+      if(!item) return;
+      // news-ish → reader first
+      if(prefersReaderUrl(item.url) || (item.source && item.source !== "web" && item.source !== "wiki" && item.source !== "crypto")){
+        // only force reader for known blockers; crypto market pages also block frames
+        if(prefersReaderUrl(item.url)) openInReader(item.url, item.title);
+        else openUrlInApp(item.url, item.title || item.url);
+      } else {
+        openUrlInApp(item.url, item.title || item.url);
+      }
+    };
+  });
+}
+
+/** In-app search results (API) so users stay in the wallet */
+async function runInAppSearch(query){
+  ensureActiveTab();
+  lastSearchQuery = query;
+  const tab = getActiveTab();
+  if(tab){
+    tab.title = query.slice(0, 28);
+    tab.searchQuery = query;
+    tab.display = query;
+    tab.url = "";
+  }
+  setBrowserMode("results");
+  $("dappFallback")?.classList.add("hidden");
+  setProgress(true);
+  const list = $("searchResultsList");
   if(list) list.innerHTML = `<div class="search-empty">Searching…</div>`;
+  if($("searchResultsTitle")) $("searchResultsTitle").textContent = `Results for “${query}”`;
   try{
     const data = await api("/api/public/search?q=" + encodeURIComponent(query) + "&limit=12");
     lastSearchResults = data.results || [];
-    if(!lastSearchResults.length){
-      if(list) list.innerHTML = `<div class="search-empty">No results. Try different words, or type a website like <b>jup.ag</b>.</div>`;
-      return;
-    }
-    if(title) title.textContent = `Howl Search · “${query}”`;
-    if(list){
-      list.innerHTML = lastSearchResults.map((r,i)=>`
-        <button type="button" class="sres" data-i="${i}">
-          ${r.source ? `<span class="src">${esc(r.source)}</span>` : ""}
-          <div class="st">${esc(r.title||r.url)}</div>
-          <div class="su">${esc(r.url)}</div>
-          <div class="ss">${esc(r.snippet||"")}</div>
-        </button>`).join("");
-      list.querySelectorAll(".sres").forEach(btn=>{
-        btn.onclick = ()=>{
-          const item = lastSearchResults[Number(btn.dataset.i)];
-          if(item) openUrlInApp(item.url, item.title || item.url);
-        };
-      });
-    }
+    if(tab) tab.searchResults = lastSearchResults;
+    paintSearchResults();
+    renderTabsUI();
   }catch(e){
     if(list) list.innerHTML = `<div class="search-empty">Howl Search unavailable (${esc(e.message)}). Try a direct website like <b>jup.ag</b>.</div>`;
   }finally{
@@ -1389,7 +1676,6 @@ async function runInAppSearch(query){
 /** Discover — crypto tech radar */
 async function loadDiscover(force){
   const feed = $("discoverFeed");
-  const metaEl = $("discoverMeta");
   if(feed && (!discoverItems.length || force)){
     feed.innerHTML = `<p class="hint">${force ? "Refreshing scout agents…" : "Loading radar…"}</p>`;
   }
@@ -1445,20 +1731,21 @@ function renderDiscoverFeed(){
     <button type="button" class="dcard" data-i="${i}">
       <div class="dtop">
         <span class="dcat">${esc(it.category||"crypto")}</span>
-        <span class="dsrc">${esc(it.source||"")}${it.kind==="scout"?" · scout":""}</span>
+        <span class="dsrc">${esc(it.source||"")}${it.kind==="scout"?" · scout":""} · reader</span>
       </div>
       <div class="dtitle">${esc(it.title||"")}</div>
       ${it.why ? `<div class="dwhy">${esc(it.why)}</div>` : ""}
       <div class="dsn">${esc(it.snippet||"")}</div>
       ${(it.tags&&it.tags.length)?`<div class="dtags">${it.tags.map(t=>`<span>${esc(t)}</span>`).join("")}</div>`:""}
     </button>`).join("");
-  // re-map to filtered list indices carefully
   const filtered = items;
   feed.querySelectorAll(".dcard").forEach((btn, idx)=>{
     btn.onclick = ()=>{
       const item = filtered[idx];
       if(!item || !item.url) return;
-      openDapp(item.url);
+      // New tab + Howl Reader for news (most publishers block iframes)
+      newBrowserTab(false);
+      openDapp(item.url, { preferReader: true, title: item.title });
     };
   });
 }
@@ -1466,16 +1753,95 @@ function renderDiscoverFeed(){
 function showLastSearchResults(){
   if(lastSearchQuery && lastSearchResults.length){
     setBrowserMode("results");
-    $("dappFallback").classList.add("hidden");
+    $("dappFallback")?.classList.add("hidden");
     if($("dappUrl")) $("dappUrl").value = lastSearchQuery;
+    paintSearchResults();
     return;
   }
   if(lastSearchQuery) runInAppSearch(lastSearchQuery);
   else browserHome();
 }
 
+function renderReaderView(doc){
+  const el = $("readerView");
+  if(!el || !doc) return;
+  el.innerHTML = `
+    <div class="r-kicker">Howl Reader</div>
+    <h1 class="r-title">${esc(doc.title || "Article")}</h1>
+    <div class="r-url">${esc(doc.url || "")}</div>
+    <div class="r-actions">
+      <button type="button" class="btn sec" onclick="window.open(${JSON.stringify(doc.url||"")},'_blank','noopener,noreferrer')">Open original ↗</button>
+      <button type="button" class="btn sec" onclick="tryIframeAnyway(${JSON.stringify(doc.url||"")})">Try live site</button>
+    </div>
+    <div class="r-body">${doc.content_html || "<p>No content.</p>"}</div>
+  `;
+}
+
+/** Fetch article via server and show in-app reader (bypasses X-Frame blocks) */
+async function openInReader(url, titleHint){
+  ensureActiveTab();
+  const tab = getActiveTab();
+  const nav = {
+    kind: "reader",
+    url,
+    display: titleHint || url.replace(/^https?:\/\//,""),
+    embedUrl: url,
+    externalUrl: url,
+  };
+  browserHistory.push(nav);
+  if(tab){
+    tab.url = url;
+    tab.display = nav.display;
+    tab.title = (titleHint || hostOf(url) || "Article").slice(0, 36);
+    tab.history = browserHistory.slice();
+  }
+  setBrowserMode("reader");
+  $("dappFallback")?.classList.add("hidden");
+  if($("dappUrl")) $("dappUrl").value = nav.display;
+  const el = $("readerView");
+  if(el) el.innerHTML = `<p class="hint">Loading article in Howl Reader…</p>`;
+  setProgress(true);
+  renderTabsUI();
+  try{
+    const data = await api("/api/public/reader?url=" + encodeURIComponent(url));
+    const doc = {
+      title: data.title || titleHint || url,
+      url: data.url || url,
+      content_html: data.content_html || "",
+    };
+    if(tab){
+      tab.reader = doc;
+      tab.title = (doc.title || tab.title).slice(0, 36);
+    }
+    renderReaderView(doc);
+    renderTabsUI();
+  }catch(e){
+    if(el){
+      el.innerHTML = `
+        <div class="r-kicker">Howl Reader</div>
+        <h1 class="r-title">${esc(titleHint || "Article")}</h1>
+        <p class="hint">Couldn’t extract this page (${esc(e.message||e)}).</p>
+        <div class="r-actions">
+          <button type="button" class="btn" onclick="window.open(${JSON.stringify(url)},'_blank','noopener,noreferrer')">Open outside</button>
+          <button type="button" class="btn sec" onclick="tryIframeAnyway(${JSON.stringify(url)})">Try live site</button>
+        </div>`;
+    }
+  }finally{
+    setProgress(false);
+  }
+}
+function tryIframeAnyway(url){
+  openUrlInApp(url, url, url, { forceIframe: true });
+}
+
 /** Load a website inside the app iframe */
-function openUrlInApp(url, display, externalUrl){
+function openUrlInApp(url, display, externalUrl, opts){
+  ensureActiveTab();
+  const forceIframe = opts && opts.forceIframe;
+  if(!forceIframe && prefersReaderUrl(url)){
+    openInReader(url, display);
+    return;
+  }
   const nav = {
     kind: "url",
     url,
@@ -1484,25 +1850,63 @@ function openUrlInApp(url, display, externalUrl){
     externalUrl: externalUrl || url,
   };
   browserHistory.push(nav);
+  const tab = getActiveTab();
+  if(tab){
+    tab.url = url;
+    tab.display = nav.display;
+    tab.title = (display || hostOf(url) || "Page").slice(0, 36);
+    tab.history = browserHistory.slice();
+    tab.reader = null;
+  }
   setBrowserMode("browsing");
-  $("dappFallback").classList.add("hidden");
+  $("dappFallback")?.classList.add("hidden");
   if($("dappUrl")) $("dappUrl").value = nav.display;
   setProgress(true);
+  renderTabsUI();
   const frame = $("dappFrame");
+  if(frameCheckTimer) clearTimeout(frameCheckTimer);
   try{
-    frame.onload = ()=> setProgress(false);
+    frame.onload = ()=>{
+      setProgress(false);
+      // Cross-origin blocked frames often look "loaded" but empty — probe after a beat
+      frameCheckTimer = setTimeout(()=>{
+        try{
+          // same-origin only; if throws, likely loaded foreign doc (or about:blank)
+          const doc = frame.contentDocument;
+          if(doc && (!doc.body || doc.body.innerHTML.trim().length < 20)){
+            showDappFallback(nav);
+          }
+        }catch(_){
+          // Many blockers still fire onload with opaque content — give user reader option
+          // Don't auto-steal control if site might work; wait for user on long load only
+        }
+      }, 900);
+    };
     frame.onerror = ()=> { setProgress(false); showDappFallback(nav); };
     frame.src = nav.embedUrl;
   }catch(e){
     setProgress(false);
     showDappFallback(nav);
   }
-  $("dappOpenExt").onclick = ()=> window.open(nav.externalUrl, "_blank", "noopener,noreferrer");
-  // If still blank-ish after delay, offer outside open (many sites block X-Frame)
-  setTimeout(()=> setProgress(false), 2800);
+  wireFallbackButtons(nav);
+  // If site is a known hard blocker but force was used, still surface reader quick
+  frameCheckTimer = setTimeout(()=>{
+    setProgress(false);
+    if(prefersReaderUrl(url) && forceIframe){
+      // keep iframe attempt; fallback already has Read in Howl
+    }
+  }, 3200);
+}
+
+function wireFallbackButtons(nav){
+  const n = typeof nav === "string" ? { externalUrl: nav, url: nav, embedUrl: nav } : nav;
+  const url = n.externalUrl || n.embedUrl || n.url;
+  if($("dappOpenExt")) $("dappOpenExt").onclick = ()=> window.open(url, "_blank", "noopener,noreferrer");
+  if($("dappReadHowl")) $("dappReadHowl").onclick = ()=> openInReader(url, n.display);
 }
 
 function browseTo(){
+  ensureActiveTab();
   const raw = ($("dappUrl") && $("dappUrl").value.trim()) || ($("dappSearch") && $("dappSearch").value.trim()) || "";
   const nav = resolveNavigation(raw);
   if(!nav) return;
@@ -1514,19 +1918,19 @@ function browseTo(){
     runInAppSearch(nav.query);
     return;
   }
-  // direct URL / domain — open inside the app
   openUrlInApp(nav.url || nav.embedUrl, nav.display, nav.externalUrl);
 }
 function showDappFallback(nav){
-  const n = typeof nav === "string" ? { externalUrl: nav, embedUrl: nav } : nav;
-  $("dappFallback").classList.remove("hidden");
-  $("dappOpenExt").onclick = ()=> window.open(n.externalUrl || n.embedUrl || n, "_blank", "noopener,noreferrer");
+  const n = typeof nav === "string" ? { externalUrl: nav, embedUrl: nav, url: nav } : nav;
+  $("dappFallback")?.classList.remove("hidden");
+  wireFallbackButtons(n);
 }
 function browserBack(){
-  if(browserMode === "browsing" && lastSearchQuery){
-    // from site → back to in-app results
-    showLastSearchResults();
-    return;
+  if(browserMode === "reader" || browserMode === "browsing"){
+    if(lastSearchQuery){
+      showLastSearchResults();
+      return;
+    }
   }
   if(browserHistory.length > 1){
     browserHistory.pop();
@@ -1535,9 +1939,13 @@ function browserBack(){
       runInAppSearch(prev.query);
       return;
     }
+    if(prev.kind === "reader"){
+      openInReader(prev.url, prev.display);
+      return;
+    }
     if($("dappUrl")) $("dappUrl").value = prev.display || prev.embedUrl || "";
     setBrowserMode("browsing");
-    $("dappFallback").classList.add("hidden");
+    $("dappFallback")?.classList.add("hidden");
     setProgress(true);
     $("dappFrame").src = prev.embedUrl || prev.url || prev;
     setTimeout(()=> setProgress(false), 1500);
@@ -1545,19 +1953,47 @@ function browserBack(){
   }
   browserHome();
 }
-function browserHome(){
+function browserHome(clearTab){
   setBrowserMode("home");
-  $("dappFallback").classList.add("hidden");
+  $("dappFallback")?.classList.add("hidden");
   setProgress(false);
   try{ $("dappFrame").src = "about:blank"; }catch(_){}
+  if($("readerView")) $("readerView").innerHTML = "";
   if($("dappSearch")){ $("dappSearch").value = ""; $("dappSearch").focus(); }
   if($("dappUrl")) $("dappUrl").value = "";
+  const tab = getActiveTab();
+  if(tab && clearTab !== false){
+    tab.title = "New tab";
+    tab.url = "";
+    tab.display = "";
+    tab.reader = null;
+    tab.searchQuery = "";
+    tab.searchResults = [];
+    tab.history = [];
+    browserHistory = [];
+    lastSearchQuery = "";
+    lastSearchResults = [];
+  }
+  renderTabsUI();
+}
+function reloadActiveTab(){
+  const tab = getActiveTab();
+  if(!tab) return browseTo();
+  if(tab.mode === "reader" && tab.url) return openInReader(tab.url, tab.title);
+  if(tab.mode === "results" && tab.searchQuery) return runInAppSearch(tab.searchQuery);
+  if(tab.url) return openUrlInApp(tab.url, tab.display, tab.url, { forceIframe: tab.mode === "browsing" });
+  browseTo();
 }
 function browserExitOrMore(){
-  if(browserMode === "browsing" || browserMode === "results") browserHome();
+  if(browserMode === "browsing" || browserMode === "results" || browserMode === "reader") browserHome();
   else showPage("more");
 }
 function openCurrentExternal(){
+  const tab = getActiveTab();
+  if(tab && tab.url){
+    window.open(tab.url, "_blank", "noopener,noreferrer");
+    return;
+  }
   const raw = ($("dappUrl") && $("dappUrl").value) || ($("dappSearch") && $("dappSearch").value) || "";
   if(browserMode === "browsing" && browserHistory.length){
     const cur = browserHistory[browserHistory.length-1];
@@ -1567,7 +2003,6 @@ function openCurrentExternal(){
   const nav = resolveNavigation(raw);
   if(!nav) return;
   if(nav.kind === "search"){
-    // Re-run Howl Search in-app rather than opening a third-party engine
     if($("dappSearch")) $("dappSearch").value = nav.query;
     if($("dappUrl")) $("dappUrl").value = nav.query;
     runInAppSearch(nav.query);
@@ -2239,6 +2674,13 @@ window.syncSearchToOmni = syncSearchToOmni;
 window.openDapp = openDapp;
 window.openCurrentExternal = openCurrentExternal;
 window.showLastSearchResults = showLastSearchResults;
+window.newBrowserTab = newBrowserTab;
+window.closeBrowserTab = closeBrowserTab;
+window.switchBrowserTab = switchBrowserTab;
+window.toggleTabsSheet = toggleTabsSheet;
+window.reloadActiveTab = reloadActiveTab;
+window.openInReader = openInReader;
+window.tryIframeAnyway = tryIframeAnyway;
 window.resetToolbar = resetToolbar;
 window.saveToolbarFromEditor = saveToolbarFromEditor;
 window.setTheme = setTheme;

@@ -781,6 +781,199 @@ def discover_feed(force: bool = False) -> Dict[str, Any]:
     _DISCOVER_CACHE["payload"] = payload
     return payload
 
+
+# ---------------------------------------------------------------------------
+# Howl Reader — in-app article view when sites block iframes (news, etc.)
+# ---------------------------------------------------------------------------
+
+# Domains that commonly refuse embedding — open via Reader by default
+_FRAME_BLOCK_HOSTS = re.compile(
+    r"(^|\.)("
+    r"cointelegraph\.com|decrypt\.co|coindesk\.com|theblock\.co|cryptonews\.com|"
+    r"bitcoinmagazine\.com|coinbureau\.com|reuters\.com|bloomberg\.com|wsj\.com|"
+    r"nytimes\.com|ft\.com|medium\.com|substack\.com|mirror\.xyz|"
+    r"twitter\.com|x\.com|youtube\.com|youtu\.be|facebook\.com|instagram\.com|"
+    r"reddit\.com|linkedin\.com|github\.com|google\.com|binance\.com|"
+    r"coinmarketcap\.com|coingecko\.com|tradingview\.com"
+    r")$",
+    re.I,
+)
+
+_ALLOWED_READER_TAGS = {
+    "p",
+    "br",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "strong",
+    "b",
+    "em",
+    "i",
+    "ul",
+    "ol",
+    "li",
+    "blockquote",
+    "a",
+    "img",
+    "figure",
+    "figcaption",
+    "pre",
+    "code",
+    "span",
+    "div",
+    "section",
+    "article",
+    "hr",
+}
+
+
+def prefers_reader(url: str) -> bool:
+    try:
+        host = (urllib.parse.urlparse(url).hostname or "").lower()
+        if host.startswith("www."):
+            host = host[4:]
+        return bool(_FRAME_BLOCK_HOSTS.search(host))
+    except Exception:
+        return False
+
+
+def _sanitize_reader_html(raw: str) -> str:
+    """Strip scripts/styles and non-content tags; keep a readable subset."""
+    if not raw:
+        return ""
+    s = re.sub(r"(?is)<script[^>]*>.*?</script>", " ", raw)
+    s = re.sub(r"(?is)<style[^>]*>.*?</style>", " ", s)
+    s = re.sub(r"(?is)<noscript[^>]*>.*?</noscript>", " ", s)
+    s = re.sub(r"(?is)<iframe[^>]*>.*?</iframe>", " ", s)
+    s = re.sub(r"(?is)<!--.*?-->", " ", s)
+    # drop attributes except href/src/alt on allowed tags
+    def repl_tag(m: re.Match) -> str:
+        full = m.group(0)
+        if full.startswith("</"):
+            name = full[2:-1].strip().lower()
+            return f"</{name}>" if name in _ALLOWED_READER_TAGS else ""
+        name_m = re.match(r"<([a-zA-Z0-9]+)", full)
+        if not name_m:
+            return ""
+        name = name_m.group(1).lower()
+        if name not in _ALLOWED_READER_TAGS:
+            return ""
+        attrs = ""
+        if name == "a":
+            hm = re.search(r'\bhref\s*=\s*["\']([^"\']+)["\']', full, re.I)
+            if hm:
+                href = hm.group(1)
+                if href.startswith(("http://", "https://", "/")):
+                    attrs = f' href="{html_lib.escape(href, quote=True)}" target="_blank" rel="noopener noreferrer"'
+        elif name == "img":
+            sm = re.search(r'\bsrc\s*=\s*["\']([^"\']+)["\']', full, re.I)
+            am = re.search(r'\balt\s*=\s*["\']([^"\']*)["\']', full, re.I)
+            if sm and sm.group(1).startswith(("http://", "https://", "/")):
+                alt = am.group(1) if am else ""
+                attrs = (
+                    f' src="{html_lib.escape(sm.group(1), quote=True)}"'
+                    f' alt="{html_lib.escape(alt, quote=True)}" loading="lazy"'
+                )
+            else:
+                return ""
+        self_close = full.rstrip().endswith("/>") or name in ("br", "hr", "img")
+        if self_close and name in ("br", "hr", "img"):
+            return f"<{name}{attrs}/>"
+        return f"<{name}{attrs}>"
+
+    s = re.sub(r"</?[a-zA-Z][^>]*>", repl_tag, s)
+    s = re.sub(r"\s{2,}", " ", s)
+    # collapse empty tags noise lightly
+    s = re.sub(r"(?i)<(p|div|span)>\s*</\1>", "", s)
+    return s.strip()
+
+
+def _extract_main_html(page: str) -> str:
+    # Prefer semantic containers
+    patterns = [
+        r"(?is)<article\b[^>]*>(.*?)</article>",
+        r'(?is)<main\b[^>]*>(.*?)</main>',
+        r'(?is)<div[^>]+class="[^"]*(?:article-body|article__body|post-content|entry-content|story-body|content-body|rich-text)[^"]*"[^>]*>(.*?)</div>',
+        r'(?is)<section[^>]+class="[^"]*(?:article|post-content|entry-content)[^"]*"[^>]*>(.*?)</section>',
+    ]
+    for pat in patterns:
+        m = re.search(pat, page)
+        if m and len(m.group(1)) > 200:
+            return m.group(1)
+    # fallback: body
+    m = re.search(r"(?is)<body[^>]*>(.*?)</body>", page)
+    return m.group(1) if m else page
+
+
+def fetch_reader(url: str) -> Dict[str, Any]:
+    """
+    Fetch a URL server-side and return a sanitized reader document
+    so news sites that block iframes still open inside Howl Search.
+    """
+    u = (url or "").strip()
+    if not u.startswith("http"):
+        raise ValueError("url must be http(s)")
+    # safety: no local/private targets
+    parsed = urllib.parse.urlparse(u)
+    host = (parsed.hostname or "").lower()
+    if host in ("localhost", "127.0.0.1", "0.0.0.0", "::1") or host.endswith(".local"):
+        raise ValueError("blocked host")
+    if re.match(r"^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)", host):
+        raise ValueError("blocked host")
+
+    raw = _http_get(
+        u,
+        headers={
+            "User-Agent": _BROWSER_UA,
+            "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        },
+        timeout=14,
+    )
+    # cap size
+    page = raw[:1_500_000].decode("utf-8", errors="ignore")
+    title_m = re.search(r"(?is)<title[^>]*>(.*?)</title>", page)
+    title = _clean_html(title_m.group(1)) if title_m else ""
+    if not title:
+        og = re.search(
+            r'(?is)<meta[^>]+property=["\']og:title["\'][^>]+content=["\']([^"\']+)["\']',
+            page,
+        ) or re.search(
+            r'(?is)<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:title["\']',
+            page,
+        )
+        title = _clean_html(og.group(1)) if og else (host or u)
+
+    desc_m = re.search(
+        r'(?is)<meta[^>]+name=["\']description["\'][^>]+content=["\']([^"\']+)["\']',
+        page,
+    ) or re.search(
+        r'(?is)<meta[^>]+property=["\']og:description["\'][^>]+content=["\']([^"\']+)["\']',
+        page,
+    )
+    description = _clean_html(desc_m.group(1)) if desc_m else ""
+
+    main = _extract_main_html(page)
+    content = _sanitize_reader_html(main)
+    # if still tiny, try description + paragraphs from page
+    if len(_clean_html(content)) < 120:
+        paras = re.findall(r"(?is)<p\b[^>]*>(.*?)</p>", page)
+        joined = " ".join(f"<p>{_clean_html(p)}</p>" for p in paras[:40] if len(_clean_html(p)) > 40)
+        content = _sanitize_reader_html(joined) or f"<p>{html_lib.escape(description or 'No extractable article text.')}</p>"
+
+    text_len = len(_clean_html(content))
+    return {
+        "url": u,
+        "title": title[:240],
+        "description": description[:400],
+        "content_html": content[:200_000],
+        "text_len": text_len,
+        "prefer_reader": True,
+        "host": host,
+        "engine": "Howl Reader",
+    }
+
 ASSETS_DIR = Path(__file__).resolve().parents[1] / "assets"
 
 DEFAULT_PUBLIC = Path.home() / ".howlcoin"
@@ -1849,6 +2042,35 @@ class ExplorerServer:
                         return self._json(200, discover_feed(force=force))
                     except Exception as e:
                         return self._json(502, {"error": f"discover failed: {e}"})
+
+                if path in ("/api/public/reader", "/api/reader"):
+                    u = (qs.get("url") or [""])[0].strip()
+                    if not u:
+                        return self._json(400, {"error": "url required"})
+                    try:
+                        return self._json(200, fetch_reader(u))
+                    except Exception as e:
+                        return self._json(
+                            502,
+                            {
+                                "error": f"reader failed: {e}",
+                                "url": u,
+                                "prefer_reader": prefers_reader(u),
+                            },
+                        )
+
+                if path in ("/api/public/embed-check", "/api/embed-check"):
+                    u = (qs.get("url") or [""])[0].strip()
+                    return self._json(
+                        200,
+                        {
+                            "url": u,
+                            "prefer_reader": prefers_reader(u),
+                            "reason": "known frame-blocker"
+                            if prefers_reader(u)
+                            else "try_iframe",
+                        },
+                    )
 
                 # /api/<net>/...
                 parts = path.strip("/").split("/")
