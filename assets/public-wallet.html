@@ -688,8 +688,9 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
             <button type="button" class="chip" id="btnWalletNew" style="cursor:pointer" title="Create another wallet">+ New</button>
             <button type="button" class="chip" id="btnWalletImport" style="cursor:pointer" title="Import recovery phrase">Import phrase</button>
             <button type="button" class="chip" id="btnWalletImportKey" style="cursor:pointer" title="Import HOWL private key (64 hex)">Import key</button>
+            <button type="button" class="chip" id="btnWalletDelete" style="cursor:pointer;color:var(--red,#f66);border-color:rgba(255,80,80,.35)" title="Remove selected wallet from this device">Delete</button>
           </div>
-          <p class="hint" id="walletSwitchHint" style="margin:6px 0 0">Switch · create · import phrase or private key</p>
+          <p class="hint" id="walletSwitchHint" style="margin:6px 0 0">Switch · create · import · delete</p>
         </div>
       </div>
       <div class="actions">
@@ -1248,7 +1249,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <div class="sec-block">
           <h3>Session &amp; device</h3>
           <button class="btn sec" type="button" onclick="lockWallet()">Lock wallet</button>
-          <button class="btn danger" type="button" onclick="wipeWallet()">Remove wallet from this device</button>
+          <button class="btn danger" type="button" onclick="wipeWallet()">Remove ALL wallets from this device</button>
         </div>
       </div>
     </div>
@@ -5565,14 +5566,7 @@ function lockWallet(){
 }
 function wipeWallet(){
   if(!confirm("Remove ALL wallets from this device? Keep recovery phrases / private keys safe.")) return;
-  localStorage.removeItem(LS_ENC);
-  localStorage.removeItem(LS_META);
-  localStorage.removeItem(LS_BIO);
-  localStorage.removeItem(LS_BIO_VAULT);
-  localStorage.removeItem(LS_CREATED);
-  localStorage.removeItem(LS_CUSTOM);
-  localStorage.removeItem(LS_WALLET_INDEX);
-  lockWallet();
+  wipeWalletConfirmed();
 }
 
 function clearMultiChainKeys(){
@@ -5731,6 +5725,14 @@ function renderWalletSwitcher(){
     $("btnWalletImportKey").dataset.wired = "1";
     $("btnWalletImportKey").onclick = ()=> promptImportPrivateKey();
   }
+  if($("btnWalletDelete") && !$("btnWalletDelete").dataset.wired){
+    $("btnWalletDelete").dataset.wired = "1";
+    $("btnWalletDelete").onclick = ()=> promptDeleteWallet();
+  }
+  if($("btnWalletDelete")){
+    $("btnWalletDelete").disabled = list.length === 0;
+    $("btnWalletDelete").style.opacity = list.length ? "1" : ".45";
+  }
   if($("walletSwitchHint")){
     $("walletSwitchHint").textContent = list.length + " wallet" + (list.length===1?"":"s") + " on this device";
   }
@@ -5750,6 +5752,83 @@ async function switchWallet(id){
   chainInfo = { height: 0, nonce: 0, balance: 0n, txs: [] };
   await refresh();
   renderWalletSwitcher();
+}
+
+/**
+ * Remove one wallet from this device (not the chain).
+ * Last wallet → full device wipe (same as Security remove-all).
+ */
+async function promptDeleteWallet(){
+  if(!multiVault?.wallets?.length){
+    toast("No wallets to delete");
+    return;
+  }
+  if(!walletPin && !hasBiometricUnlock()){
+    toast("Unlock with PIN first to delete wallets");
+    return;
+  }
+  const sel = $("walletSelect");
+  const id = (sel && sel.value) || activeWalletId || multiVault.activeId;
+  const entry = multiVault.wallets.find(w => w.id === id) || activeWalletEntry();
+  if(!entry){
+    toast("Select a wallet to delete");
+    return;
+  }
+  const addr = walletEntryAddress(entry);
+  const short = addr ? (addr.slice(0, 8) + "…" + addr.slice(-6)) : "(no address)";
+  const name = entry.name || "Wallet";
+  const isLast = multiVault.wallets.length === 1;
+  const kind = entry.mnemonic ? "recovery phrase" : (entry.privateKeyHex ? "private key" : "backup");
+  const msg = isLast
+    ? `Delete "${name}" (${short})?\n\nThis is the last wallet on this device. All local data will be cleared. Make sure you have the ${kind} offline first.`
+    : `Delete "${name}" (${short}) from this device?\n\nKeys stay on-chain if you have the ${kind}. This only removes it from this browser.`;
+  if(!confirm(msg)) return;
+  if(isLast){
+    if(!confirm("Final confirm: wipe this device's wallet data?")) return;
+    wipeWalletConfirmed();
+    toast("Wallet removed from this device");
+    return;
+  }
+  try{
+    await deleteWallet(entry.id);
+    toast("Deleted \"" + name + "\"");
+  }catch(e){
+    toast(e.message || "Delete failed");
+  }
+}
+
+async function deleteWallet(id){
+  if(!multiVault) throw new Error("Unlock first");
+  const idx = multiVault.wallets.findIndex(w => w.id === id);
+  if(idx < 0) throw new Error("Wallet not found");
+  if(multiVault.wallets.length <= 1){
+    throw new Error("Cannot delete the last wallet — use full remove instead");
+  }
+  const wasActive = multiVault.activeId === id || activeWalletId === id;
+  multiVault.wallets.splice(idx, 1);
+  if(wasActive || !multiVault.wallets.some(w => w.id === multiVault.activeId)){
+    multiVault.activeId = multiVault.wallets[0].id;
+  }
+  if(walletPin) await saveVault(multiVault, walletPin);
+  else if(hasBiometricUnlock()) await saveBioVault(multiVault);
+  else throw new Error("Unlock with PIN to save changes");
+  persistWalletIndex();
+  if(wasActive){
+    await switchWallet(multiVault.activeId);
+  } else {
+    renderWalletSwitcher();
+  }
+}
+
+function wipeWalletConfirmed(){
+  localStorage.removeItem(LS_ENC);
+  localStorage.removeItem(LS_META);
+  localStorage.removeItem(LS_BIO);
+  localStorage.removeItem(LS_BIO_VAULT);
+  localStorage.removeItem(LS_CREATED);
+  localStorage.removeItem(LS_CUSTOM);
+  localStorage.removeItem(LS_WALLET_INDEX);
+  lockWallet();
 }
 
 async function promptCreateWallet(){
