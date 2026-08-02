@@ -135,13 +135,23 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .item.click{cursor:pointer;border-radius:10px;margin:0 -6px;padding:11px 6px}
 .item.click:active{background:rgba(0,255,198,.06)}
 .mono{font-family:ui-monospace,Menlo,monospace;font-size:.82rem;word-break:break-all}
-.bottom{position:fixed;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(5,1fr);
-  background:rgba(3,1,12,.9);backdrop-filter:blur(18px);
-  border-top:1px solid rgba(0,255,200,.15);padding:6px 2px calc(6px + var(--safe-b));z-index:30}
+.bottom{position:fixed;left:0;right:0;bottom:0;width:100%;box-sizing:border-box;
+  display:flex;flex-direction:row;align-items:stretch;justify-content:space-evenly;
+  background:rgba(3,1,12,.94);backdrop-filter:blur(18px);
+  border-top:1px solid rgba(0,255,200,.15);
+  padding:4px env(safe-area-inset-right,0px) calc(6px + var(--safe-b)) env(safe-area-inset-left,0px);
+  z-index:30}
 .tab{border:0;background:0;color:var(--muted);font:inherit;font-size:.58rem;font-weight:700;
-  min-height:54px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:2px;letter-spacing:.04em;text-transform:uppercase}
+  flex:1 1 0;min-width:0;max-width:100%;min-height:54px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;letter-spacing:.04em;text-transform:uppercase;padding:4px 2px;margin:0}
+.tab span.ico{font-size:1.15rem;line-height:1;display:block}
 .tab.on{color:var(--green);text-shadow:0 0 12px rgba(0,255,198,.5)}
+.toolbar-edit .menu-row .mi{font-size:1rem}
+.toolbar-edit .chk{width:22px;height:22px;accent-color:var(--green);flex-shrink:0}
+.toolbar-edit .ord{display:flex;flex-direction:column;gap:2px;margin-left:4px}
+.toolbar-edit .ord button{border:1px solid rgba(0,255,200,.2);background:rgba(0,0,0,.4);color:var(--cyan);
+  border-radius:6px;width:28px;height:22px;padding:0;font-size:.7rem;cursor:pointer;line-height:1}
 .toast{position:fixed;left:50%;bottom:calc(var(--nav-h) + 20px);transform:translateX(-50%);
   background:rgba(12,8,32,.95);border:1px solid rgba(0,255,198,.35);padding:10px 16px;border-radius:14px;
   font-size:.9rem;font-weight:700;opacity:0;transition:opacity .2s;z-index:50;max-width:90%;pointer-events:none;
@@ -300,6 +310,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <h2>Settings</h2>
         <div class="menu-list">
           <button type="button" class="menu-row" onclick="showPage('sec')"><span class="mi">🛡</span><div><div class="mt">Security</div><div class="ms" id="moreSecHint">Face ID · 2FA · recovery</div></div><span class="chev">›</span></button>
+          <button type="button" class="menu-row" onclick="showPage('toolbar')"><span class="mi">☰</span><div><div class="mt">Customize toolbar</div><div class="ms">Pick bottom icons · order &amp; Browser</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="refresh();toast('Synced')"><span class="mi">↻</span><div><div class="mt">Refresh data</div><div class="ms">Reload balances &amp; chain</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="window.open('https://howlscan.org/','_blank')"><span class="mi">⎋</span><div><div class="mt">Howlscan</div><div class="ms">Block explorer</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="lockWallet()"><span class="mi">🔒</span><div><div class="mt">Lock wallet</div><div class="ms">Require unlock again</div></div><span class="chev">›</span></button>
@@ -507,6 +518,19 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       </div>
     </div>
 
+    <!-- CUSTOMIZE TOOLBAR -->
+    <div class="page" id="p-toolbar">
+      <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>Toolbar</h1></div>
+      <div class="panel toolbar-edit">
+        <h2>Bottom bar icons</h2>
+        <p class="hint">Choose 3–5 items. <b>Home</b> and <b>More</b> stay pinned. Drag order with ↑ ↓.</p>
+        <div class="menu-list" id="toolbarEditor"></div>
+        <button class="btn sec" type="button" onclick="resetToolbar()">Reset to default</button>
+        <button class="btn" type="button" onclick="saveToolbarFromEditor()">Save toolbar</button>
+        <p class="hint" id="toolbarHint" style="margin-top:10px"></p>
+      </div>
+    </div>
+
     <!-- SECURITY (single settings screen) -->
     <div class="page" id="p-sec">
       <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>Security</h1></div>
@@ -549,12 +573,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       </div>
     </div>
   </div>
-  <nav class="bottom">
-    <button type="button" class="tab on" data-p="home" onclick="showPage('home')"><span>⌂</span>Home</button>
-    <button type="button" class="tab" data-p="send" onclick="showPage('send')"><span>↑</span>Send</button>
-    <button type="button" class="tab" data-p="recv" onclick="showPage('recv')"><span>↓</span>Deposit</button>
-    <button type="button" class="tab" data-p="more" onclick="showPage('more')"><span>☰</span>More</button>
-  </nav>
+  <nav class="bottom" id="bottomNav" aria-label="Main"></nav>
 </div>
 <div class="toast" id="toast"></div>
 
@@ -598,6 +617,20 @@ const LS_BIO = "howl_public_webauthn_v1";
 const LS_BIO_VAULT = "howl_public_bio_vault_v1"; // convenience unlock payload (after Face ID)
 const LS_CUSTOM = "howl_custom_tokens_v1";
 const LS_CREATED = "howl_public_wallet_ready_v2";
+const LS_TOOLBAR = "howl_toolbar_v1";
+
+/** All items that can appear on the bottom bar */
+const TOOLBAR_CATALOG = [
+  { id: "home", label: "Home", icon: "⌂", page: "home", fixed: true },
+  { id: "send", label: "Send", icon: "↑", page: "send" },
+  { id: "recv", label: "Deposit", icon: "↓", page: "recv" },
+  { id: "browser", label: "Browser", icon: "◈", page: "browser" },
+  { id: "swap", label: "Swap", icon: "⇄", page: "swap" },
+  { id: "nft", label: "NFT", icon: "◆", page: "nft" },
+  { id: "oracle", label: "Oracle", icon: "◎", page: "oracle" },
+  { id: "more", label: "More", icon: "☰", page: "more", fixed: true },
+];
+const DEFAULT_TOOLBAR = ["home", "send", "browser", "recv", "more"];
 
 let keypair = null;
 let ethInfo = null;
@@ -838,6 +871,7 @@ function showApp(){
   $("app").classList.remove("hidden");
   updateSecUI();
   renderAssetSeg();
+  renderToolbar("home");
   refresh();
   setInterval(refresh, 15000);
 }
@@ -865,18 +899,123 @@ function updateSecUI(){
   if(hint) hint.textContent = status || "Face ID · 2FA · recovery";
 }
 
+function getToolbarIds(){
+  try{
+    const raw = JSON.parse(localStorage.getItem(LS_TOOLBAR) || "null");
+    if(Array.isArray(raw) && raw.length) return normalizeToolbar(raw);
+  }catch(_){}
+  return DEFAULT_TOOLBAR.slice();
+}
+function normalizeToolbar(ids){
+  const cat = Object.fromEntries(TOOLBAR_CATALOG.map(t=>[t.id,t]));
+  let list = ids.filter(id => cat[id]);
+  // Always pin Home first and More last
+  list = list.filter(id => id !== "home" && id !== "more");
+  list = ["home", ...list, "more"];
+  // de-dupe
+  list = [...new Set(list)];
+  // clamp middle slots so total 3–5
+  while(list.length > 5){
+    // remove last non-fixed before more
+    const mid = list.slice(1, -1);
+    if(!mid.length) break;
+    list.splice(list.length - 2, 1);
+  }
+  if(list.length < 3) list = DEFAULT_TOOLBAR.slice();
+  return list;
+}
+function renderToolbar(activePage){
+  const nav = $("bottomNav");
+  if(!nav) return;
+  const ids = getToolbarIds();
+  const cat = Object.fromEntries(TOOLBAR_CATALOG.map(t=>[t.id,t]));
+  // Which bottom tab should look active?
+  const onBar = new Set(ids);
+  let active = activePage;
+  if(!onBar.has(activePage)){
+    // map nested pages
+    if(activePage === "sec" || activePage === "toolbar") active = "more";
+    else if(!onBar.has(activePage)) active = onBar.has("more") ? "more" : ids[0];
+  }
+  nav.innerHTML = ids.map(id=>{
+    const t = cat[id];
+    if(!t) return "";
+    const on = t.page === active || (active === "more" && t.id === "more" && (activePage==="sec"||activePage==="toolbar"||activePage==="more"))
+      || (t.page === activePage);
+    return `<button type="button" class="tab ${on?"on":""}" data-p="${t.page}" onclick="showPage('${t.page}')"><span class="ico">${t.icon}</span>${t.label}</button>`;
+  }).join("");
+}
+function renderToolbarEditor(){
+  const host = $("toolbarEditor");
+  if(!host) return;
+  const selected = getToolbarIds();
+  const orderMid = selected.filter(id => id !== "home" && id !== "more");
+  host.innerHTML = TOOLBAR_CATALOG.map(t=>{
+    const checked = selected.includes(t.id);
+    const fixed = !!t.fixed;
+    const midIdx = orderMid.indexOf(t.id);
+    return `<div class="menu-row" style="cursor:default" data-id="${t.id}">
+      <input class="chk" type="checkbox" ${checked?"checked":""} ${fixed?"disabled":""} data-id="${t.id}" id="tb_${t.id}"/>
+      <span class="mi">${t.icon}</span>
+      <div style="flex:1;min-width:0"><div class="mt">${t.label}${fixed?" · pinned":""}</div>
+      <div class="ms">${t.page === "browser" ? "Web search &amp; dapps" : "Opens "+t.label}</div></div>
+      ${!fixed && checked ? `<div class="ord">
+        <button type="button" data-move="up" data-id="${t.id}" ${midIdx<=0?"disabled":""}>↑</button>
+        <button type="button" data-move="down" data-id="${t.id}" ${midIdx<0||midIdx>=orderMid.length-1?"disabled":""}>↓</button>
+      </div>` : `<span class="chev" style="opacity:.3">${fixed?"🔒":""}</span>`}
+    </div>`;
+  }).join("");
+  host.querySelectorAll("input.chk").forEach(chk=>{
+    chk.onchange = ()=>{
+      let ids = getToolbarIds().filter(id => id !== "home" && id !== "more");
+      if(chk.checked){
+        if(ids.length >= 3){ chk.checked = false; toast("Max 5 icons (Home + More + 3)"); return; }
+        ids.push(chk.dataset.id);
+      } else {
+        ids = ids.filter(id => id !== chk.dataset.id);
+      }
+      localStorage.setItem(LS_TOOLBAR, JSON.stringify(normalizeToolbar(ids)));
+      renderToolbarEditor();
+      renderToolbar("toolbar");
+    };
+  });
+  host.querySelectorAll("[data-move]").forEach(btn=>{
+    btn.onclick = ()=>{
+      let mid = getToolbarIds().filter(id => id !== "home" && id !== "more");
+      const i = mid.indexOf(btn.dataset.id);
+      if(i < 0) return;
+      const j = btn.dataset.move === "up" ? i - 1 : i + 1;
+      if(j < 0 || j >= mid.length) return;
+      [mid[i], mid[j]] = [mid[j], mid[i]];
+      localStorage.setItem(LS_TOOLBAR, JSON.stringify(normalizeToolbar(mid)));
+      renderToolbarEditor();
+      renderToolbar("toolbar");
+    };
+  });
+  $("toolbarHint").textContent = "Current: " + getToolbarIds().map(id => TOOLBAR_CATALOG.find(t=>t.id===id)?.label).join(" · ");
+}
+function saveToolbarFromEditor(){
+  // already live-saved on toggle; just confirm
+  toast("Toolbar saved");
+  showPage("more");
+}
+function resetToolbar(){
+  localStorage.setItem(LS_TOOLBAR, JSON.stringify(DEFAULT_TOOLBAR));
+  renderToolbarEditor();
+  renderToolbar("toolbar");
+  toast("Toolbar reset");
+}
+
 function showPage(name){
   document.querySelectorAll(".page").forEach(p=>p.classList.toggle("on", p.id==="p-"+name));
-  // Bottom tabs only for primary destinations
-  const tabMap = { home:"home", send:"send", recv:"recv", more:"more", sec:"more", swap:"more", browser:"more", nft:"more", oracle:"more" };
-  const tab = tabMap[name] || "more";
-  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on", t.dataset.p===tab));
+  renderToolbar(name);
   if(name==="recv") selectAsset(selectedAsset);
   if(name==="sec" || name==="more") updateSecUI();
   if(name==="swap") initSwapUI();
   if(name==="browser") initBrowserUI();
   if(name==="nft") refreshNfts();
   if(name==="oracle") refreshOracle();
+  if(name==="toolbar") renderToolbarEditor();
   try{ window.scrollTo({ top:0, behavior:"instant" in window? "instant":"auto" }); }catch(_){ window.scrollTo(0,0); }
 }
 
@@ -1743,6 +1882,8 @@ window.browserExitOrMore = browserExitOrMore;
 window.syncSearchToOmni = syncSearchToOmni;
 window.openDapp = openDapp;
 window.openCurrentExternal = openCurrentExternal;
+window.resetToolbar = resetToolbar;
+window.saveToolbarFromEditor = saveToolbarFromEditor;
 window.mintNft = mintNft;
 window.transferNft = transferNft;
 window.observeChains = observeChains;
