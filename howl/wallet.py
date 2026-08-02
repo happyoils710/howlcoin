@@ -47,6 +47,34 @@ class Wallet:
             raise ValueError("Invalid BIP39 mnemonic")
         return self._init_from_mnemonic(phrase, passphrase=passphrase)
 
+    def import_private_key(self, private_key_hex: str, replace: bool = True) -> KeyPair:
+        """
+        Import a raw secp256k1 private key (64 hex chars).
+        If replace=True, becomes the only/primary key; else appends.
+        No BIP39 mnemonic is attached (legacy key wallet).
+        """
+        key_hex = private_key_hex.strip().lower().replace("0x", "")
+        if len(key_hex) != 64:
+            raise ValueError("Private key must be 64 hex characters (32 bytes)")
+        try:
+            bytes.fromhex(key_hex)
+        except ValueError as e:
+            raise ValueError("Private key is not valid hex") from e
+        kp = KeyPair.from_private_hex(key_hex)
+        if replace:
+            self.keys = [kp]
+            self.mnemonic = None
+            self.passphrase = ""
+            self.next_index = 1
+            self.derivation = "imported-private-key"
+        else:
+            # avoid duplicates
+            if any(k.private_key_hex == kp.private_key_hex for k in self.keys):
+                return kp
+            self.keys.append(kp)
+        self.save()
+        return kp
+
     def _init_from_mnemonic(self, phrase: str, passphrase: str = "") -> KeyPair:
         self.mnemonic = normalize_mnemonic(phrase)
         self.passphrase = passphrase
@@ -91,6 +119,16 @@ class Wallet:
     @property
     def address(self) -> str:
         return self.primary.address
+
+    def get_key_by_address(self, address: str) -> Optional[KeyPair]:
+        """Find a keypair in this wallet by HOWL address."""
+        for k in self.keys:
+            if k.address == address:
+                return k
+        return None
+
+    def list_addresses(self) -> List[str]:
+        return [k.address for k in self.keys]
 
     @property
     def has_mnemonic(self) -> bool:

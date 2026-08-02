@@ -27,11 +27,11 @@ from .wallet import Wallet, format_howl, parse_howl
 
 
 BANNER = r"""
-  _   _                 _
- | | | | ___   __      | | ___ ___  _ __
- | |_| |/ _ \ / _ \ /\ | |/ __/ _ \| '_ \
- |  _  | (_) | (_|  V  | | (_| (_) | | | |
- |_| |_|\___/ \__,_|_|_|_|\___\___/|_| |_|
+ _   _                 _           _
+| | | | _____      __ | | ___ ___ (_)_ __
+| |_| |/ _ \ \ /\ / / | |/ __/ _ \| | '_ \
+|  _  | (_) \ V  V /  | | (_| (_) | | | | |
+|_| |_|\___/ \_/\_/   |_|\___\___/|_|_| |_|
         Scrypt meme coin · ticker HOWL
 """
 
@@ -86,13 +86,17 @@ def cmd_wallet(args: argparse.Namespace) -> None:
     dd = data_dir(args)
     wallet = Wallet(dd / WALLET_FILE)
     chain = Blockchain(dd)
-    print(f"Address  : {wallet.address}")
+    print(f"Primary  : {wallet.address}")
     print(f"Balance  : {format_howl(chain.balance(wallet.address))}")
     print(f"Nonce    : {chain.next_nonce(wallet.address)}")
     print(f"Mnemonic : {'yes (BIP39)' if wallet.has_mnemonic else 'no (legacy private-key only)'}")
+    print(f"Keys     : {len(wallet.keys)}")
+    for i, k in enumerate(wallet.keys):
+        tag = " (primary / default sender)" if i == 0 else ""
+        print(f"  [{i}] {k.address}  {format_howl(chain.balance(k.address))}{tag}")
     if wallet.has_mnemonic:
         print(f"Path     : {wallet.derivation}")
-        print(f"Addresses: {len(wallet.keys)} (next index {wallet.next_index})")
+        print(f"Next idx : {wallet.next_index}")
     if args.show_keys:
         print(f"PubKey   : {wallet.primary.public_key_hex}")
         print(f"PrivKey  : {wallet.primary.private_key_hex}")
@@ -163,6 +167,42 @@ def cmd_restore(args: argparse.Namespace) -> None:
     print("Verify with: python3 -m howl wallet")
 
 
+def cmd_import_key(args: argparse.Namespace) -> None:
+    """Import a raw hex private key into the wallet."""
+    dd = data_dir(args)
+    key = (args.private_key or "").strip()
+    if not key:
+        print("Usage: python3 -m howl import-key <64-char-hex-private-key>", file=sys.stderr)
+        sys.exit(2)
+    wallet_path = dd / WALLET_FILE
+    if wallet_path.exists():
+        wallet = Wallet(wallet_path)
+        if not args.add:
+            backup = wallet.backup_file()
+            print(f"Backed up previous wallet → {backup}")
+    else:
+        # create empty structure without random mnemonic first
+        wallet_path.parent.mkdir(parents=True, exist_ok=True)
+        wallet = Wallet(wallet_path, create_if_missing=True)
+        if not args.add:
+            # replace the auto-generated key
+            pass
+    try:
+        kp = wallet.import_private_key(key, replace=not args.add)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    chain = Blockchain(dd)
+    print(BANNER)
+    print("Private key imported.")
+    print(f"Address : {kp.address}")
+    print(f"Balance : {format_howl(chain.balance(kp.address))}")
+    print(f"Primary : {wallet.address}")
+    if args.add:
+        print("(Key added; primary address unchanged unless it was empty.)")
+    print("⚠ No BIP39 phrase for imported keys — back up the hex key itself.")
+
+
 def cmd_newaddress(args: argparse.Namespace) -> None:
     dd = data_dir(args)
     wallet = Wallet(dd / WALLET_FILE)
@@ -223,13 +263,42 @@ def cmd_send(args: argparse.Namespace) -> None:
     wallet = Wallet(dd / WALLET_FILE)
     amount = parse_howl(args.amount)
     fee = parse_howl(args.fee) if args.fee else 0
-    nonce = chain.next_nonce(wallet.address)
+
+    # Sender: --from ADDRESS, else primary wallet address
+    from_key = wallet.primary
+    if args.sender:
+        found = wallet.get_key_by_address(args.sender.strip())
+        if not found:
+            print(
+                f"Sender address not in this wallet: {args.sender}\n"
+                f"Known addresses:\n  " + "\n  ".join(wallet.list_addresses()),
+                file=sys.stderr,
+            )
+            print(
+                "\nImport that key first:\n"
+                "  python3 -m howl import-key <PRIVATE_KEY> --add",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        from_key = found
+
+    nonce = chain.next_nonce(from_key.address)
+    bal = chain.balance(from_key.address)
+    if bal < amount + fee:
+        print(
+            f"Insufficient balance on sender {from_key.address}\n"
+            f"  have {format_howl(bal)}, need {format_howl(amount + fee)}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     tx = wallet.build_tx(
         to=args.to,
         amount_howlies=amount,
         nonce=nonce,
         fee=fee,
         memo=args.memo or "",
+        key=from_key,
     )
     ok, msg = chain.add_to_mempool(tx)
     if not ok:
@@ -430,6 +499,15 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--passphrase", default="", help="optional BIP39 passphrase")
     s.set_defaults(func=cmd_restore)
 
+    s = sub.add_parser("import-key", help="import raw hex private key")
+    s.add_argument("private_key", help="64-character hex private key (optional 0x prefix)")
+    s.add_argument(
+        "--add",
+        action="store_true",
+        help="add key alongside existing keys (default: replace primary wallet)",
+    )
+    s.set_defaults(func=cmd_import_key)
+
     s = sub.add_parser("newaddress", help="generate extra receive address")
     s.set_defaults(func=cmd_newaddress)
 
@@ -450,6 +528,12 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("send", help="queue a transfer (confirm by mining)")
     s.add_argument("to", help="destination HOWL address")
     s.add_argument("amount", help="amount in HOWL, e.g. 100 or 12.5")
+    s.add_argument(
+        "--from",
+        dest="sender",
+        default=None,
+        help="sender HOWL address (must be a key in this wallet; default: primary)",
+    )
     s.add_argument("--fee", default="0", help="fee in HOWL")
     s.add_argument("--memo", default="", help="optional memo")
     s.set_defaults(func=cmd_send)

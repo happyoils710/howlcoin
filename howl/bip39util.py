@@ -21,8 +21,14 @@ ACCOUNT = 0
 CHANGE = 0
 
 _MNEMO = Mnemonic("english")
-_CURVE_ORDER = SECP256k1.order
+# Force plain Python int — conda/gmpy ecdsa may return mpz (no .to_bytes)
+_CURVE_ORDER = int(SECP256k1.order)
 _GEN = SECP256k1.generator
+
+
+def _int_to_32(n) -> bytes:
+    """Serialize integer/mpz to 32 big-endian bytes."""
+    return int(n).to_bytes(32, "big")
 
 
 def generate_mnemonic(strength: int = 128) -> str:
@@ -55,10 +61,10 @@ def _point_from_priv(k: int) -> Point:
 
 def _ser_p(point: Point) -> bytes:
     """Compressed SEC1 public key."""
-    x = point.x()
-    y = point.y()
+    x = int(point.x())
+    y = int(point.y())
     prefix = b"\x02" if (y % 2 == 0) else b"\x03"
-    return prefix + x.to_bytes(32, "big")
+    return prefix + _int_to_32(x)
 
 
 def _ckd_priv(parent_key: bytes, parent_chain: bytes, index: int) -> Tuple[bytes, bytes]:
@@ -74,11 +80,12 @@ def _ckd_priv(parent_key: bytes, parent_chain: bytes, index: int) -> Tuple[bytes
         data = _ser_p(_point_from_priv(parent_int)) + _ser32(index)
     I = hmac.new(parent_chain, data, hashlib.sha512).digest()
     IL, IR = I[:32], I[32:]
-    child = (int.from_bytes(IL, "big") + int.from_bytes(parent_key, "big")) % _CURVE_ORDER
-    if int.from_bytes(IL, "big") >= _CURVE_ORDER or child == 0:
+    il_int = int.from_bytes(IL, "big")
+    child = int((il_int + int.from_bytes(parent_key, "big")) % _CURVE_ORDER)
+    if il_int >= _CURVE_ORDER or child == 0:
         # extremely rare; skip to next index in callers if needed
         raise ValueError("invalid child key, try next index")
-    return child.to_bytes(32, "big"), IR
+    return _int_to_32(child), IR
 
 
 def master_from_seed(seed: bytes) -> Tuple[bytes, bytes]:
