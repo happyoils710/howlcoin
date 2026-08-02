@@ -410,7 +410,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
     <div class="page" id="p-sec">
       <div class="panel">
         <h2>Face ID / Touch ID</h2>
-        <p class="hint">Unlock this device with biometrics (WebAuthn). Works with Face ID, Touch ID, Windows Hello.</p>
+        <p class="hint">When enabled, unlock with Face ID / Touch ID / Windows Hello only — no PIN each time. PIN remains as a backup if biometrics fail.</p>
         <p id="bioStatus" class="hint"></p>
         <button class="btn sec" type="button" id="bioBtn" onclick="setupBiometric()">Enable Face ID / Touch ID</button>
       </div>
@@ -486,6 +486,7 @@ let browserHistory = [];
 const LS_ENC = "howl_public_wallet_v2";
 const LS_META = "howl_public_wallet_meta_v2";
 const LS_BIO = "howl_public_webauthn_v1";
+const LS_BIO_VAULT = "howl_public_bio_vault_v1"; // convenience unlock payload (after Face ID)
 const LS_CUSTOM = "howl_custom_tokens_v1";
 const LS_CREATED = "howl_public_wallet_ready_v2";
 
@@ -534,6 +535,18 @@ async function deriveKey(pin, salt){
 function b64(u8){ return btoa(String.fromCharCode(...u8)); }
 function unb64(s){ return Uint8Array.from(atob(s), c=>c.charCodeAt(0)); }
 
+async function encryptWithRawKey(rawKeyBytes, plaintext){
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await crypto.subtle.importKey("raw", rawKeyBytes, "AES-GCM", false, ["encrypt"]);
+  const ct = await crypto.subtle.encrypt({ name:"AES-GCM", iv }, key, new TextEncoder().encode(plaintext));
+  return { iv: b64(iv), data: b64(new Uint8Array(ct)) };
+}
+async function decryptWithRawKey(rawKeyBytes, blob){
+  const key = await crypto.subtle.importKey("raw", rawKeyBytes, "AES-GCM", false, ["decrypt"]);
+  const pt = await crypto.subtle.decrypt({ name:"AES-GCM", iv: unb64(blob.iv) }, key, unb64(blob.data));
+  return new TextDecoder().decode(pt);
+}
+
 async function saveVault(payload, pin){
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -541,6 +554,10 @@ async function saveVault(payload, pin){
   const ct = await crypto.subtle.encrypt({ name:"AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(payload)));
   localStorage.setItem(LS_ENC, JSON.stringify({ salt:b64(salt), iv:b64(iv), data:b64(new Uint8Array(ct)) }));
   localStorage.setItem(LS_CREATED, "1");
+  // Keep Face ID unlock payload in sync if biometrics already enabled
+  if(localStorage.getItem(LS_BIO) && localStorage.getItem(LS_BIO_VAULT)){
+    try{ await saveBioVault(payload); }catch(_){}
+  }
 }
 async function loadVault(pin){
   const raw = localStorage.getItem(LS_ENC);
@@ -554,12 +571,38 @@ async function loadVault(pin){
   return obj;
 }
 
+/** Convenience Face ID unlock: device key + encrypted vault (requires WebAuthn each unlock). */
+async function saveBioVault(payload){
+  const deviceKey = crypto.getRandomValues(new Uint8Array(32));
+  const wrapped = await encryptWithRawKey(deviceKey, JSON.stringify(payload));
+  localStorage.setItem(LS_BIO_VAULT, JSON.stringify({
+    ...wrapped,
+    key: b64(deviceKey),
+  }));
+}
+async function loadBioVault(){
+  const raw = localStorage.getItem(LS_BIO_VAULT);
+  if(!raw) throw new Error("Face ID unlock not set up — enable it in Security after unlocking with PIN");
+  const blob = JSON.parse(raw);
+  if(!blob.key) throw new Error("Face ID vault missing — re-enable Face ID in Security");
+  const pt = await decryptWithRawKey(unb64(blob.key), blob);
+  return JSON.parse(pt);
+}
+function clearBioVault(){
+  localStorage.removeItem(LS_BIO_VAULT);
+}
+
 // --- WebAuthn ---
 function bufToB64(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf))); }
 function b64ToBuf(b64s){ const s=atob(b64s); const u=new Uint8Array(s.length); for(let i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u.buffer; }
 
+function hasBiometricUnlock(){
+  return !!(localStorage.getItem(LS_BIO) && localStorage.getItem(LS_BIO_VAULT));
+}
+
 async function setupBiometric(){
   if(!window.PublicKeyCredential){ toast("Biometrics not supported here"); return; }
+  if(!mnemonic){ toast("Unlock the wallet first, then enable Face ID"); return; }
   try{
     const challenge = crypto.getRandomValues(new Uint8Array(32));
     const userId = crypto.getRandomValues(new Uint8Array(16));
@@ -575,8 +618,14 @@ async function setupBiometric(){
     });
     if(!cred) throw new Error("Cancelled");
     localStorage.setItem(LS_BIO, JSON.stringify({ id: bufToB64(cred.rawId) }));
+    // Store vault for PIN-free unlock after Face ID succeeds
+    await saveBioVault({
+      mnemonic,
+      totpSecret: meta.totpSecret || null,
+      totpEnabled: !!meta.totpEnabled,
+    });
     updateSecUI();
-    toast("Face ID / Touch ID enabled");
+    toast("Face ID / Touch ID unlock ready — no PIN needed next time");
   }catch(e){ toast(e.message || "Biometric setup failed"); }
 }
 
@@ -594,10 +643,6 @@ async function unlockBiometric(){
     }
   });
   if(!assertion) throw new Error("Cancelled");
-  // Biometric proves device presence; still need vault key — store pin session flag?
-  // We re-prompt PIN after bio OR store a device unlock token encrypted...
-  // UX: Face ID then enter PIN if vault needs it — better: after first PIN unlock, session is open.
-  // For bio-only unlock: we store a second "device key" wrapped... Keep simple: bio succeeds → ask PIN if required for vault.
   return true;
 }
 
@@ -689,17 +734,23 @@ function showApp(){
 }
 
 function updateSecUI(){
-  const bio = !!localStorage.getItem(LS_BIO);
-  $("bioStatus").textContent = bio ? "● Face ID / Touch ID is on for this device" : "Not enabled on this device";
+  const bio = hasBiometricUnlock();
+  $("bioStatus").textContent = bio
+    ? "● Face ID / Touch ID unlock is on — PIN not required to open"
+    : "Off — enable to unlock with Face ID / Touch ID only (PIN stays as backup)";
   $("bioStatus").className = bio ? "ok" : "hint";
-  $("bioBtn").textContent = bio ? "Re-bind Face ID / Touch ID" : "Enable Face ID / Touch ID";
+  $("bioBtn").textContent = bio ? "Re-enable Face ID / Touch ID" : "Enable Face ID / Touch ID";
   const tOn = !!(meta.totpEnabled && meta.hasTotp);
   $("totpStatus").textContent = tOn ? "● Google Authenticator 2FA is on" : "2FA is off";
   $("totpStatus").className = tOn ? "ok" : "hint";
   $("totpBtn").classList.toggle("hidden", tOn);
   $("totpOffBtn").classList.toggle("hidden", !tOn);
   $("send2faBox").classList.toggle("hidden", !tOn);
-  $("secStatus").textContent = [ "PIN", bio?"Face ID":null, tOn?"2FA":null ].filter(Boolean).join(" · ");
+  $("secStatus").textContent = [
+    bio ? "Face ID" : "PIN",
+    !bio ? null : "PIN backup",
+    tOn ? "2FA" : null,
+  ].filter(Boolean).join(" · ");
 }
 
 function showPage(name){
@@ -1290,6 +1341,7 @@ function wipeWallet(){
   localStorage.removeItem(LS_ENC);
   localStorage.removeItem(LS_META);
   localStorage.removeItem(LS_BIO);
+  localStorage.removeItem(LS_BIO_VAULT);
   localStorage.removeItem(LS_CREATED);
   localStorage.removeItem(LS_CUSTOM);
   lockWallet();
@@ -1308,6 +1360,11 @@ async function openSession(phrase, pin, vaultExtras={}){
   meta.totpEnabled = !!(vaultExtras.totpEnabled && meta.totpSecret);
   saveMeta();
   if(pin) await saveVault({ mnemonic, totpSecret: meta.totpSecret||null, totpEnabled: meta.totpEnabled }, pin);
+  else if(hasBiometricUnlock()){
+    try{
+      await saveBioVault({ mnemonic, totpSecret: meta.totpSecret||null, totpEnabled: meta.totpEnabled });
+    }catch(_){}
+  }
   showApp();
 }
 
@@ -1326,7 +1383,9 @@ async function confirmTotpSetup(){
   meta.totpEnabled = true;
   meta.hasTotp = true;
   totpSecretPending = null;
-  if(walletPin) await saveVault({ mnemonic, totpSecret: meta.totpSecret, totpEnabled: true }, walletPin);
+  const payload = { mnemonic, totpSecret: meta.totpSecret, totpEnabled: true };
+  if(walletPin) await saveVault(payload, walletPin);
+  else if(hasBiometricUnlock()) await saveBioVault(payload);
   saveMeta();
   $("totpSetup").classList.add("hidden");
   updateSecUI();
@@ -1336,7 +1395,9 @@ async function disableTotp(){
   const code = prompt("Enter Authenticator code to disable 2FA");
   if(!meta.totpSecret || !verifyTotp(meta.totpSecret, code||"")){ toast("Invalid code"); return; }
   meta.totpSecret = null; meta.totpEnabled = false; meta.hasTotp = false;
-  if(walletPin) await saveVault({ mnemonic, totpSecret: null, totpEnabled: false }, walletPin);
+  const payload = { mnemonic, totpSecret: null, totpEnabled: false };
+  if(walletPin) await saveVault(payload, walletPin);
+  else if(hasBiometricUnlock()) await saveBioVault(payload);
   saveMeta();
   updateSecUI();
   toast("2FA disabled");
@@ -1422,32 +1483,42 @@ function uiCreate(){
 
 function uiUnlock(){
   $("gateMsg").textContent = "Unlock your wallet";
-  const bio = !!localStorage.getItem(LS_BIO);
+  const bio = hasBiometricUnlock();
   const need2fa = !!(meta.totpEnabled);
   showGate(`
-    ${bio?`<button class="btn" type="button" id="btnBio">Unlock with Face ID / Touch ID</button>`:""}
-    <label>PIN</label>
+    ${bio?`<button class="btn" type="button" id="btnBio">Unlock with Face ID / Touch ID</button>
+    <p class="hint" style="text-align:center;margin:4px 0 10px">No PIN required when Face ID is enabled</p>`:""}
+    ${bio?`<p class="hint" style="text-align:center;margin:0 0 8px">Or use PIN backup</p>`:""}
+    <label>PIN${bio?" (backup)":""}</label>
     <input class="field" id="unPin" type="password" inputmode="numeric" maxlength="8" placeholder="PIN"/>
     ${need2fa?`<label>Authenticator code</label><input class="field" id="unTotp" inputmode="numeric" maxlength="6" placeholder="6 digits"/>`:""}
     <div class="err" id="gErr"></div>
-    <button class="btn ${bio?"sec":""}" type="button" id="btnUn">Open wallet</button>
+    <button class="btn ${bio?"sec":""}" type="button" id="btnUn">${bio?"Open with PIN":"Open wallet"}</button>
     <button class="btn sec" type="button" id="btnRest2">Restore different phrase</button>
   `);
+  async function applyVault(vault, pinOrNull){
+    if(vault.totpEnabled && vault.totpSecret){
+      const code = $("unTotp")?.value?.trim() || "";
+      if(!verifyTotp(vault.totpSecret, code)) throw new Error("Invalid authenticator code");
+    }
+    meta.totpEnabled = !!vault.totpEnabled;
+    meta.hasTotp = !!vault.totpSecret;
+    // PIN may be null after Face ID unlock; openSession still works
+    await openSession(vault.mnemonic, pinOrNull, vault);
+  }
   async function tryOpen(fromBio){
     try{
-      if(fromBio) await unlockBiometric();
-      const pin = $("unPin").value.trim();
-      if(!pin && !fromBio) throw new Error("Enter PIN");
-      // After bio, still need PIN to decrypt vault (non-custodial)
-      if(!pin) throw new Error("Enter PIN to decrypt wallet");
-      const vault = await loadVault(pin);
-      if(vault.totpEnabled && vault.totpSecret){
-        const code = $("unTotp")?.value?.trim() || "";
-        if(!verifyTotp(vault.totpSecret, code)) throw new Error("Invalid authenticator code");
+      if(fromBio){
+        await unlockBiometric();
+        const vault = await loadBioVault();
+        await applyVault(vault, null);
+        toast("Unlocked with Face ID");
+        return;
       }
-      meta.totpEnabled = !!vault.totpEnabled;
-      meta.hasTotp = !!vault.totpSecret;
-      await openSession(vault.mnemonic, pin, vault);
+      const pin = $("unPin").value.trim();
+      if(!pin) throw new Error("Enter PIN");
+      const vault = await loadVault(pin);
+      await applyVault(vault, pin);
     }catch(e){ $("gErr").textContent = e.message || "Unlock failed"; }
   }
   $("btnUn").onclick = ()=>tryOpen(false);
