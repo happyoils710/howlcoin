@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Howlcoin Wallet — Install guide</title>
+<link rel="icon" href="/assets/howlcoin-logo-meme-pup-coin.jpg"/>
+<style>
+:root{
+  --bg:#0c0f14; --panel:#161b26; --border:#252d3d; --text:#e8edf7; --muted:#8b95a8;
+  --link:#4da3ff; --green:#3dff9a; --chip:#222a3a;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg);color:var(--text);line-height:1.55}
+a{color:var(--link);text-decoration:none}
+a:hover{text-decoration:underline}
+.topbar{display:flex;align-items:center;gap:14px;padding:12px 20px;border-bottom:1px solid var(--border);
+  background:rgba(12,15,20,.92);position:sticky;top:0;z-index:10}
+.topbar img{width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid rgba(61,255,154,.45)}
+.brand{font-weight:750}.brand span{color:var(--green)}
+.brand small{display:block;font-weight:500;color:var(--muted);font-size:.75rem}
+.grow{flex:1}
+.chipbtn{border:1px solid var(--border);background:var(--chip);color:var(--text);border-radius:8px;
+  padding:8px 12px;font:inherit;font-size:.85rem;font-weight:600;text-decoration:none;display:inline-block}
+.chipbtn:hover{border-color:#3a4660;text-decoration:none}
+.chipbtn.primary{border-color:rgba(61,255,154,.45);color:var(--green)}
+.wrap{max-width:720px;margin:0 auto;padding:28px 20px 60px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:22px 24px;margin-bottom:16px}
+h1{margin:0 0 8px;font-size:1.6rem}
+h2{margin:0 0 10px;font-size:1.05rem;color:var(--green)}
+.muted{color:var(--muted)}
+ol{margin:8px 0;padding-left:1.25rem}
+li{margin:8px 0}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88rem;word-break:break-all;
+  background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+.btn{display:inline-block;margin:6px 6px 6px 0;padding:12px 16px;border-radius:12px;font-weight:700;
+  border:1px solid rgba(61,255,154,.45);background:rgba(61,255,154,.1);color:var(--green);text-decoration:none}
+.btn:hover{text-decoration:none;filter:brightness(1.08)}
+.btn.sec{border-color:var(--border);background:var(--chip);color:var(--text)}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <a href="/"><img src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt="HOWL"/></a>
+  <a href="/" class="brand" style="color:inherit;text-decoration:none">Howl<span>scan</span><small>Howlcoin block explorer</small></a>
+  <div class="grow"></div>
+  <a class="chipbtn" href="/">Explorer</a>
+  <a class="chipbtn primary" href="/wallet">Wallet</a>
+  <a class="chipbtn" href="/#/run">Run a node</a>
+</div>
+<div class="wrap">
+  <div class="card">
+    <h1>Howlcoin Wallet</h1>
+    <p class="muted">The wallet is a home-screen app on your computer or phone. It talks to your <b>local node</b> — it does not hold keys on howlscan.org.</p>
+  </div>
+  <div class="card">
+    <h2>1. Run a node</h2>
+    <p class="muted">On your Mac / PC, start Howlcoin connected to the public seed:</p>
+    <div class="mono">python3 -m howl node --connect 147.182.223.204:42069</div>
+    <p class="muted" style="margin-top:12px">Dashboard opens at <span class="mono" style="display:inline;padding:2px 6px">http://127.0.0.1:42070/</span></p>
+  </div>
+  <div class="card">
+    <h2>2. Open the wallet page</h2>
+    <p class="muted">On the same device as the node:</p>
+    <a class="btn" href="http://127.0.0.1:42070/app">Open wallet → http://127.0.0.1:42070/app</a>
+    <a class="btn sec" href="http://127.0.0.1:42070/">Node portal</a>
+  </div>
+  <div class="card">
+    <h2>3. Add to Home Screen (required)</h2>
+    <p class="muted">The wallet <b>will not launch</b> in a normal browser tab. You must install it first:</p>
+    <p><b>iPhone / iPad (Safari)</b></p>
+    <ol>
+      <li>Open <span class="mono" style="display:inline;padding:2px 6px">http://127.0.0.1:42070/app</span> in Safari</li>
+      <li>Tap <b>Share</b> → <b>Add to Home Screen</b></li>
+      <li>Open <b>Howlcoin</b> from your home screen</li>
+    </ol>
+    <p><b>Android (Chrome)</b></p>
+    <ol>
+      <li>Open the wallet URL in Chrome</li>
+      <li>Menu ⋮ → <b>Install app</b> or <b>Add to Home screen</b></li>
+      <li>Open Howlcoin from the home screen</li>
+    </ol>
+    <p><b>Desktop</b></p>
+    <ol>
+      <li>Open the wallet URL in Chrome / Edge</li>
+      <li>Use <b>Install app</b> / create shortcut</li>
+      <li>Launch the installed app</li>
+    </ol>
+  </div>
+  <div class="card">
+    <h2>4. Create wallet</h2>
+    <p class="muted">After the home-screen app opens, tap <b>Create wallet</b>. Then back up your recovery phrase under <b>Security</b>.</p>
+  </div>
+  <div class="card">
+    <h2>Features</h2>
+    <ul>
+      <li>Send &amp; receive HOWL</li>
+      <li>Network fee (min 1 HOWL) paid to miners</li>
+      <li>BIP39 recovery phrase backup</li>
+      <li>Optional PIN / Face ID / Touch ID</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>

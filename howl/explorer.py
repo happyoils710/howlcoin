@@ -314,6 +314,7 @@ tbody tr:hover{background:var(--rowh)}
     <button class="chipbtn" onclick="location.hash='#/'+net+'/mempool'">Mempool</button>
     <button class="chipbtn" onclick="location.hash='#/'+net+'/block/0'">Genesis</button>
     <a class="chipbtn" href="/whitepaper" style="text-decoration:none;display:inline-flex;align-items:center">White paper</a>
+    <a class="chipbtn" href="/wallet" style="text-decoration:none;display:inline-flex;align-items:center">Wallet</a>
     <button class="chipbtn" style="border-color:rgba(61,255,154,.45);color:var(--green)" onclick="location.hash='#/run'">Run a node</button>
     <button class="chipbtn" onclick="refreshData()">Refresh</button>
   </div>
@@ -333,6 +334,7 @@ tbody tr:hover{background:var(--rowh)}
   <button class="ditem" type="button" onclick="navTo('#/'+net+'/block/0')">🌱 Genesis</button>
   <h4 style="margin-top:16px">Get started</h4>
   <button class="ditem primary" type="button" onclick="navTo('#/run')">🐺 Run a node</button>
+  <a class="ditem" href="/wallet">👛 Wallet</a>
   <a class="ditem" href="/whitepaper">📄 White paper</a>
   <a class="ditem" href="https://github.com/happyoils710/howlcoin" target="_blank" rel="noopener">⌥ GitHub</a>
   <h4 style="margin-top:16px">Network</h4>
@@ -358,6 +360,7 @@ tbody tr:hover{background:var(--rowh)}
   <div>Howlscan · Scrypt PoW · not financial advice ·
     <a href="#/public">Home</a> ·
     <a href="/whitepaper">White paper</a> ·
+    <a href="/wallet">Wallet</a> ·
     <a href="#/run">Run a node</a> ·
     <a href="#/public/richlist">Richlist</a> ·
     <a href="#/public/mempool">Mempool</a> ·
@@ -999,6 +1002,12 @@ class ExplorerServer:
                     if not wp.is_file():
                         return self._json(404, {"error": "whitepaper not found"})
                     return self._bytes(200, wp.read_bytes(), "text/html; charset=utf-8")
+
+                if path in ("/wallet", "/wallet.html"):
+                    wh = ASSETS_DIR / "wallet.html"
+                    if not wh.is_file():
+                        return self._json(404, {"error": "wallet guide not found"})
+                    return self._bytes(200, wh.read_bytes(), "text/html; charset=utf-8")
 
                 if path.startswith("/assets/"):
                     name = path[len("/assets/") :]

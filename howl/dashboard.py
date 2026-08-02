@@ -36,9 +36,14 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Howlcoin"/>
+<meta name="mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#0b1020"/>
 <title>Howlcoin Wallet</title>
 <link rel="icon" href="/assets/howlcoin-logo-meme-pup-coin.jpg"/>
+<link rel="apple-touch-icon" href="/assets/howlcoin-logo-meme-pup-coin.jpg"/>
+<link rel="manifest" href="/manifest.webmanifest"/>
 <style>
 :root{
   --bg:#070b14; --card:#121a2e; --card2:#0e1526; --border:#1e2a44;
@@ -52,20 +57,26 @@ html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,Inte
 button,input,select{font:inherit}
 a{color:var(--blue);text-decoration:none}
 .hidden{display:none!important}
-/* Lock */
-#lock{
+/* Install + create screens */
+#installGate,#lock{
   min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
   padding:calc(24px + var(--safe-t)) 24px calc(24px + var(--safe-b));
   background:radial-gradient(800px 400px at 50% 0%,rgba(61,255,154,.12),transparent 60%),var(--bg);
 }
-#lock img{width:88px;height:88px;border-radius:50%;border:2px solid rgba(61,255,154,.5);
+#installGate img,#lock img{width:88px;height:88px;border-radius:50%;border:2px solid rgba(61,255,154,.5);
   box-shadow:0 0 40px rgba(61,255,154,.25);object-fit:cover;margin-bottom:16px}
-#lock h1{margin:0;font-size:1.5rem;font-weight:750}
-#lock p{color:var(--muted);margin:8px 0 24px;text-align:center;max-width:300px}
+#installGate h1,#lock h1{margin:0;font-size:1.5rem;font-weight:750}
+#installGate p,#lock p{color:var(--muted);margin:8px 0 16px;text-align:center;max-width:340px}
 .lock-card{width:100%;max-width:360px;background:var(--card);border:1px solid var(--border);
   border-radius:20px;padding:20px}
 .lock-card input{width:100%;padding:14px 16px;border-radius:12px;border:1px solid var(--border);
   background:var(--card2);color:var(--text);font-size:16px;margin-bottom:12px}
+.steps{text-align:left;width:100%;max-width:360px;background:var(--card);border:1px solid var(--border);
+  border-radius:20px;padding:18px 20px;margin-bottom:14px}
+.steps ol{margin:0;padding-left:1.2rem;color:var(--text)}
+.steps li{margin:10px 0;font-size:.92rem;line-height:1.4}
+.steps strong{color:var(--green)}
+.steps .muted{color:var(--muted);font-size:.82rem;margin-top:12px}
 .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
   padding:14px 16px;border-radius:14px;border:1px solid rgba(61,255,154,.4);
   background:linear-gradient(180deg,#1f3d32,#163028);color:var(--green);
@@ -159,28 +170,44 @@ label{display:block;font-size:.78rem;color:var(--muted);font-weight:650;margin:0
 </style>
 </head>
 <body>
-<!-- LOCK / ONBOARD -->
-<div id="lock">
+<!-- Must add to Home Screen first -->
+<div id="installGate" class="hidden">
   <img src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt="HOWL"/>
   <h1>Howlcoin Wallet</h1>
-  <p id="lockSub">Secure wallet for HOWL · send, receive, backup</p>
+  <p>Add this app to your <strong style="color:var(--text)">Home Screen</strong> to open it. It will not launch in a normal browser tab.</p>
+  <div class="steps">
+    <ol id="installSteps">
+      <li>Open this page in <strong>Safari</strong> (iPhone) or <strong>Chrome</strong> (Android)</li>
+      <li>Tap <strong>Share</strong> (iOS) or the menu ⋮ (Android)</li>
+      <li>Choose <strong>Add to Home Screen</strong></li>
+      <li>Open <strong>Howlcoin</strong> from your home screen</li>
+    </ol>
+    <p class="muted">Desktop: install as an app from the browser’s install / “Create shortcut” option, then open that app.</p>
+  </div>
+  <button class="btn secondary" type="button" onclick="checkInstallAgain()">I’ve added it — check again</button>
+  <p class="hint" id="installHint" style="text-align:center;max-width:340px"></p>
+</div>
+
+<!-- CREATE WALLET / UNLOCK (only when installed) -->
+<div id="lock" class="hidden">
+  <img src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt="HOWL"/>
+  <h1>Howlcoin Wallet</h1>
+  <p id="lockSub">Send, receive, and back up your HOWL</p>
   <div class="lock-card" id="lockCard">
     <div class="err" id="lockErr"></div>
     <div id="lockSetup" class="hidden">
-      <label>Create a PIN (4–8 digits)</label>
-      <input class="field" id="setupPin" type="password" inputmode="numeric" maxlength="8" placeholder="••••" autocomplete="new-password"/>
-      <label>Confirm PIN</label>
-      <input class="field" id="setupPin2" type="password" inputmode="numeric" maxlength="8" placeholder="••••" autocomplete="new-password"/>
-      <button class="btn" type="button" onclick="finishSetup()">Create wallet lock</button>
-      <button class="btn secondary" type="button" id="bioSetupBtn" onclick="setupBiometric()">Enable Touch ID / Face ID</button>
-      <p class="hint">PIN + biometrics protect this app on your device. Your seed is stored in the local node wallet file.</p>
+      <button class="btn" type="button" onclick="createWallet()">Create wallet</button>
+      <p class="hint" style="margin:0;text-align:center">Uses your local node wallet. Back up your recovery phrase under Security after you open the app.</p>
     </div>
     <div id="lockUnlock" class="hidden">
-      <button class="btn" type="button" id="bioUnlockBtn" onclick="unlockBiometric()">Unlock with Face ID / Touch ID</button>
-      <label>Or enter PIN</label>
-      <input class="field" id="unlockPin" type="password" inputmode="numeric" maxlength="8" placeholder="PIN" autocomplete="current-password"
-        onkeydown="if(event.key==='Enter')unlockPin()"/>
-      <button class="btn secondary" type="button" onclick="unlockPin()">Unlock</button>
+      <button class="btn" type="button" onclick="openWallet()">Open wallet</button>
+      <button class="btn secondary hidden" type="button" id="bioUnlockBtn" onclick="unlockBiometric()">Unlock with Face ID / Touch ID</button>
+      <div id="pinUnlockBox" class="hidden">
+        <label>PIN</label>
+        <input class="field" id="unlockPin" type="password" inputmode="numeric" maxlength="8" placeholder="PIN" autocomplete="current-password"
+          onkeydown="if(event.key==='Enter')unlockPin()"/>
+        <button class="btn secondary" type="button" onclick="unlockPin()">Unlock with PIN</button>
+      </div>
     </div>
   </div>
 </div>
@@ -195,7 +222,7 @@ label{display:block;font-size:.78rem;color:var(--muted);font-weight:650;margin:0
     </div>
     <div class="grow"></div>
     <span class="chip" id="liveChip">● …</span>
-    <button class="chip" type="button" onclick="lockNow()" title="Lock">Lock</button>
+    <button class="chip hidden" type="button" id="lockBtn" onclick="lockNow()" title="Lock">Lock</button>
   </div>
   <div class="content">
     <!-- HOME -->
@@ -278,16 +305,17 @@ label{display:block;font-size:.78rem;color:var(--muted);font-weight:650;margin:0
         <p class="hint" id="seedMeta"></p>
       </div>
       <div class="card">
-        <h2>App lock</h2>
-        <button class="btn secondary" type="button" onclick="setupBiometric()">Enable / re-bind Face ID · Touch ID</button>
-        <button class="btn secondary" type="button" onclick="changePinPrompt()">Change PIN</button>
-        <button class="btn danger" type="button" onclick="lockNow()">Lock wallet now</button>
+        <h2>Optional security</h2>
+        <p class="hint">Add a PIN or Face ID / Touch ID if you want to lock the app when you leave it.</p>
+        <button class="btn secondary" type="button" onclick="setupPinPrompt()">Set PIN</button>
+        <button class="btn secondary" type="button" onclick="setupBiometric()">Enable Face ID / Touch ID</button>
+        <button class="btn danger hidden" type="button" id="lockNowBtn" onclick="lockNow()">Lock wallet</button>
       </div>
       <div class="card">
         <h2>Safety</h2>
         <p class="hint" style="margin:0">
           Keys live in your local node data directory (<span class="mono">~/.howlcoin/wallet.json</span>).
-          Biometrics only lock this browser app — keep your machine secure and back up your phrase offline.
+          Keep your machine secure and back up your recovery phrase offline.
         </p>
       </div>
     </div>
@@ -332,9 +360,11 @@ label{display:block;font-size:.78rem;color:var(--muted);font-weight:650;margin:0
 <script>
 const LS_PIN = 'howl_wallet_pin_hash_v1';
 const LS_BIO = 'howl_wallet_bio_v1';
+const LS_CREATED = 'howl_wallet_created_v1';
 const LS_UNLOCKED = 'howl_wallet_session';
 let state = null;
 let feePreset = 1;
+let refreshTimer = null;
 
 async function shaPin(pin){
   const data = new TextEncoder().encode('howlcoin-pin:' + pin);
@@ -348,46 +378,92 @@ function toast(msg){
 }
 function lockErr(msg){ document.getElementById('lockErr').textContent = msg || ''; }
 
-function hasPin(){ return !!localStorage.getItem(LS_PIN); }
-function isSession(){
-  const s = sessionStorage.getItem(LS_UNLOCKED);
-  return s === '1';
+function isStandalone(){
+  return window.matchMedia('(display-mode: standalone)').matches
+    || window.matchMedia('(display-mode: fullscreen)').matches
+    || window.matchMedia('(display-mode: minimal-ui)').matches
+    || window.navigator.standalone === true;
 }
+function hasPin(){ return !!localStorage.getItem(LS_PIN); }
+function hasWallet(){ return localStorage.getItem(LS_CREATED) === '1'; }
+function isSession(){ return sessionStorage.getItem(LS_UNLOCKED) === '1'; }
 function setSession(on){
   if(on) sessionStorage.setItem(LS_UNLOCKED,'1');
   else sessionStorage.removeItem(LS_UNLOCKED);
 }
 
-function showApp(){
-  document.getElementById('lock').classList.add('hidden');
-  document.getElementById('app').classList.remove('hidden');
-  refresh();
-  setInterval(refresh, 4000);
-}
-function showLock(){
-  document.getElementById('app').classList.add('hidden');
-  document.getElementById('lock').classList.remove('hidden');
-  const setup = !hasPin();
-  document.getElementById('lockSetup').classList.toggle('hidden', !setup);
-  document.getElementById('lockUnlock').classList.toggle('hidden', setup);
-  document.getElementById('lockSub').textContent = setup
-    ? 'Create a PIN to protect this wallet app on your device.'
-    : 'Unlock with Face ID, Touch ID, or your PIN.';
-  const bio = localStorage.getItem(LS_BIO);
-  document.getElementById('bioUnlockBtn').classList.toggle('hidden', !bio);
-  document.getElementById('bioSetupBtn').classList.toggle('hidden', !window.PublicKeyCredential);
+function showOnly(id){
+  ['installGate','lock','app'].forEach(x=>{
+    const el = document.getElementById(x);
+    if(el) el.classList.toggle('hidden', x !== id);
+  });
 }
 
-async function finishSetup(){
+function showApp(){
+  showOnly('app');
+  const hasSec = hasPin() || !!localStorage.getItem(LS_BIO);
+  document.getElementById('lockBtn').classList.toggle('hidden', !hasSec);
+  document.getElementById('lockNowBtn').classList.toggle('hidden', !hasSec);
+  refresh();
+  if(!refreshTimer) refreshTimer = setInterval(refresh, 4000);
+}
+
+function showInstallGate(){
+  showOnly('installGate');
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+  const android = /Android/i.test(navigator.userAgent);
+  const steps = document.getElementById('installSteps');
+  if(ios){
+    steps.innerHTML = `
+      <li>Open this page in <strong>Safari</strong> (not Chrome/in-app browsers)</li>
+      <li>Tap the <strong>Share</strong> button</li>
+      <li>Scroll and tap <strong>Add to Home Screen</strong></li>
+      <li>Tap <strong>Add</strong>, then open <strong>Howlcoin</strong> from your home screen</li>`;
+  } else if(android){
+    steps.innerHTML = `
+      <li>Open this page in <strong>Chrome</strong></li>
+      <li>Tap the menu <strong>⋮</strong></li>
+      <li>Tap <strong>Install app</strong> or <strong>Add to Home screen</strong></li>
+      <li>Open <strong>Howlcoin</strong> from your home screen</li>`;
+  }
+  document.getElementById('installHint').textContent =
+    'Waiting for home-screen install… (this page stays here until you open the installed app)';
+}
+
+function showCreateOrOpen(){
+  showOnly('lock');
+  const created = hasWallet();
+  document.getElementById('lockSetup').classList.toggle('hidden', created);
+  document.getElementById('lockUnlock').classList.toggle('hidden', !created);
+  document.getElementById('lockSub').textContent = created
+    ? 'Welcome back'
+    : 'Create your wallet to send, receive, and back up HOWL';
+  const bio = !!localStorage.getItem(LS_BIO);
+  const pin = hasPin();
+  document.getElementById('bioUnlockBtn').classList.toggle('hidden', !bio);
+  document.getElementById('pinUnlockBox').classList.toggle('hidden', !pin);
+  // If no optional security, Open wallet is enough
+}
+
+function createWallet(){
   lockErr('');
-  const a = document.getElementById('setupPin').value.trim();
-  const b = document.getElementById('setupPin2').value.trim();
-  if(!/^\d{4,8}$/.test(a)){ lockErr('PIN must be 4–8 digits'); return; }
-  if(a !== b){ lockErr('PINs do not match'); return; }
-  localStorage.setItem(LS_PIN, await shaPin(a));
+  localStorage.setItem(LS_CREATED, '1');
   setSession(true);
-  toast('PIN created');
+  toast('Wallet ready');
   showApp();
+}
+function openWallet(){
+  lockErr('');
+  if(!hasPin() && !localStorage.getItem(LS_BIO)){
+    setSession(true);
+    showApp();
+    return;
+  }
+  if(hasPin()){
+    lockErr('Enter your PIN, or use Face ID / Touch ID if enabled');
+    return;
+  }
+  lockErr('Unlock with Face ID / Touch ID');
 }
 async function unlockPin(){
   lockErr('');
@@ -399,18 +475,44 @@ async function unlockPin(){
 }
 function lockNow(){
   setSession(false);
-  showLock();
+  showCreateOrOpen();
   toast('Wallet locked');
 }
-async function changePinPrompt(){
-  const cur = prompt('Current PIN');
-  if(cur==null) return;
-  if(await shaPin(cur) !== localStorage.getItem(LS_PIN)){ toast('Wrong PIN'); return; }
-  const n = prompt('New PIN (4–8 digits)');
+async function setupPinPrompt(){
+  const n = prompt('Choose a PIN (4–8 digits)');
   if(n==null) return;
-  if(!/^\d{4,8}$/.test(n)){ toast('Invalid PIN'); return; }
+  if(!/^\d{4,8}$/.test(n)){ toast('PIN must be 4–8 digits'); return; }
+  const n2 = prompt('Confirm PIN');
+  if(n2 !== n){ toast('PINs do not match'); return; }
   localStorage.setItem(LS_PIN, await shaPin(n));
-  toast('PIN updated');
+  document.getElementById('lockBtn').classList.remove('hidden');
+  document.getElementById('lockNowBtn').classList.remove('hidden');
+  toast('PIN saved');
+}
+function checkInstallAgain(){
+  if(isStandalone()){
+    boot();
+  } else {
+    document.getElementById('installHint').textContent =
+      'Still running in the browser. Open Howlcoin from your Home Screen after adding it.';
+  }
+}
+function boot(){
+  if(!isStandalone()){
+    showInstallGate();
+    return;
+  }
+  if(isSession() && hasWallet()){
+    // session open: if security enabled, still allow session for this app open
+    showApp();
+    return;
+  }
+  if(hasWallet() && !hasPin() && !localStorage.getItem(LS_BIO)){
+    setSession(true);
+    showApp();
+    return;
+  }
+  showCreateOrOpen();
 }
 
 /* WebAuthn — platform authenticator (Touch ID / Face ID where available) */
@@ -470,6 +572,11 @@ async function unlockBiometric(){
   }catch(e){
     lockErr(e.message || 'Biometric unlock failed');
   }
+}
+
+// register tiny SW so install prompts work better on Android
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/sw.js').catch(()=>{});
 }
 
 function showPage(name){
@@ -652,11 +759,98 @@ async function connectPeer(){
 }
 
 // boot
-if(isSession() && hasPin()) showApp();
-else showLock();
+boot();
 </script>
 </body>
 </html>
+"""
+
+PORTAL_HTML = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Howlcoin Node</title>
+<link rel="icon" href="/assets/howlcoin-logo-meme-pup-coin.jpg"/>
+<style>
+:root{--bg:#070b14;--card:#121a2e;--border:#1e2a44;--text:#e8eef7;--muted:#8b9bb8;--green:#3dff9a;--blue:#4da3ff}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;padding:40px 20px}
+img{width:72px;height:72px;border-radius:50%;border:2px solid rgba(61,255,154,.45);object-fit:cover}
+h1{margin:16px 0 6px;font-size:1.5rem} h1 span{color:var(--green)}
+p{color:var(--muted);text-align:center;max-width:400px}
+.card{width:100%;max-width:400px;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;margin:12px 0}
+.stat{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:.95rem}
+.stat:last-child{border-bottom:0}
+a.btn,button.btn{display:block;text-align:center;text-decoration:none;width:100%;padding:14px;border-radius:14px;
+  border:1px solid rgba(61,255,154,.4);background:linear-gradient(180deg,#1f3d32,#163028);color:var(--green);
+  font-weight:700;margin:8px 0;cursor:pointer;font:inherit}
+a.secondary{background:#151e32;color:var(--text);border-color:var(--border)}
+.mono{font-family:ui-monospace,Menlo,monospace;font-size:.8rem;word-break:break-all;color:var(--muted)}
+</style>
+</head>
+<body>
+<img src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt="HOWL"/>
+<h1>Howl<span>coin</span> Node</h1>
+<p>Local node dashboard. Use the wallet as a home-screen app.</p>
+<div class="card" id="stats">
+  <div class="stat"><span>Status</span><span id="st">…</span></div>
+  <div class="stat"><span>Height</span><span id="h">—</span></div>
+  <div class="stat"><span>Wallet</span><span class="mono" id="a">—</span></div>
+  <div class="stat"><span>Balance</span><span id="b" style="color:var(--green)">—</span></div>
+</div>
+<a class="btn" href="/app">Open Howlcoin Wallet</a>
+<p style="font-size:.85rem">Wallet requires <b style="color:var(--text)">Add to Home Screen</b> before it launches.</p>
+<a class="btn secondary" href="https://howlscan.org/" target="_blank" rel="noopener">Howlscan explorer</a>
+<a class="btn secondary" href="https://howlscan.org/wallet" target="_blank" rel="noopener">Wallet guide on Howlscan</a>
+<script>
+fetch('/api/status').then(r=>r.json()).then(s=>{
+  document.getElementById('st').textContent = s.node_running ? '● LIVE' : '○ OFF';
+  document.getElementById('st').style.color = s.node_running ? 'var(--green)' : 'var(--amber,#ffb020)';
+  document.getElementById('h').textContent = s.height;
+  document.getElementById('a').textContent = s.wallet.address;
+  document.getElementById('b').textContent = s.wallet.balance;
+}).catch(()=>{ document.getElementById('st').textContent = 'offline'; });
+</script>
+</body>
+</html>
+"""
+
+MANIFEST_JSON = """{
+  "name": "Howlcoin Wallet",
+  "short_name": "Howlcoin",
+  "description": "Howlcoin wallet — send, receive, and back up HOWL",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#070b14",
+  "theme_color": "#0b1020",
+  "icons": [
+    {
+      "src": "/assets/howlcoin-logo-meme-pup-coin.jpg",
+      "sizes": "1024x1024",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}
+"""
+
+SW_JS = """
+// Minimal service worker so browsers can install the wallet as an app
+const CACHE = 'howl-wallet-v1';
+self.addEventListener('install', (e) => {
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['/app', '/manifest.webmanifest'])));
+  self.skipWaiting();
+});
+self.addEventListener('activate', (e) => { e.waitUntil(self.clients.claim()); });
+self.addEventListener('fetch', (e) => {
+  e.respondWith(
+    fetch(e.request).catch(() => caches.match(e.request))
+  );
+});
 """
 
 
@@ -814,8 +1008,16 @@ class Dashboard:
 
             def do_GET(self):
                 path = urllib.parse.urlparse(self.path).path
-                if path in ("/", "/index.html", "/wallet"):
+                if path in ("/", "/index.html"):
+                    return self._bytes(200, PORTAL_HTML.encode(), "text/html; charset=utf-8")
+                if path in ("/app", "/wallet", "/wallet/"):
                     return self._bytes(200, DASHBOARD_HTML.encode(), "text/html; charset=utf-8")
+                if path in ("/manifest.webmanifest", "/manifest.json"):
+                    return self._bytes(
+                        200, MANIFEST_JSON.encode(), "application/manifest+json"
+                    )
+                if path == "/sw.js":
+                    return self._bytes(200, SW_JS.encode(), "application/javascript")
                 if path.startswith("/assets/"):
                     name = path[len("/assets/") :]
                     if ".." in name or name.startswith("/"):

@@ -80,20 +80,29 @@ python3 -m pip install --user -r requirements.txt
 # birth the chain + wallet
 python3 -m howl init
 
-# full node: P2P + advanced wallet app (recommended)
+# full node: P2P + wallet (recommended)
 python3 -m howl node --connect 147.182.223.204:42069
-# open http://127.0.0.1:42070/  → Howlcoin Wallet (send/receive, PIN, Face ID / Touch ID, backup)
+# portal:  http://127.0.0.1:42070/
+# wallet:  http://127.0.0.1:42070/app  → Add to Home Screen, then Create wallet
 ```
 
 ### Wallet app (local)
 
-The dashboard is the **Howlcoin wallet** for your node:
+Guide on Howlscan: **[howlscan.org/wallet](https://howlscan.org/wallet)**
+
+The wallet is a **home-screen app** at `http://127.0.0.1:42070/app`:
+
+1. **Add to Home Screen** (required — it will not open in a normal browser tab)  
+2. Tap **Create wallet**  
+3. Back up your recovery phrase under Security  
+
+Features:
 
 - **Send / receive** HOWL with QR code  
 - **Network fee** (min **1 HOWL**, paid to the miner who confirms)  
-- **BIP39 backup phrase** (reveal under Security)  
-- **PIN + Face ID / Touch ID** app lock (WebAuthn on supported devices)  
-- Mine, peers, activity  
+- **BIP39 backup phrase**  
+- Optional PIN / Face ID / Touch ID  
+- Mine, peers, activity from the Node tab  
 
 ### Solo CLI mining
 
