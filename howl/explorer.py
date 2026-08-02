@@ -188,6 +188,82 @@ HOWL_SPL_MINT = os.environ.get("HOWL_SPL_MINT", "").strip()
 HOWL_SITE = os.environ.get("HOWL_SITE", "https://howlscan.org").rstrip("/")
 HOWL_GITHUB = os.environ.get("HOWL_GITHUB", "https://github.com/happyoils710/howlcoin")
 HOWL_SEED = os.environ.get("HOWL_SEED", "147.182.223.204:42069")
+# NFT media uploads (compressed images for Howlcoin mints)
+MEDIA_DIR = Path(
+    os.environ.get(
+        "HOWL_MEDIA_DIR",
+        str(Path(os.environ.get("HOWL_PUBLIC_DATA", "/var/lib/howlcoin")) / "media"),
+    )
+)
+MEDIA_MAX_BYTES = int(os.environ.get("HOWL_MEDIA_MAX_BYTES", str(450_000)))
+
+
+def _save_nft_media(
+    image_b64: str,
+    mime: str = "image/jpeg",
+    base_dir: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """Decode base64 image, write under media dir, return public URL path."""
+    import base64
+    import hashlib
+    import re
+
+    raw_b64 = (image_b64 or "").strip()
+    if raw_b64.startswith("data:"):
+        # data:image/jpeg;base64,....
+        m = re.match(r"^data:([^;]+);base64,(.+)$", raw_b64, re.I | re.S)
+        if not m:
+            raise ValueError("invalid data URL")
+        mime = m.group(1).strip() or mime
+        raw_b64 = m.group(2)
+    raw_b64 = re.sub(r"\s+", "", raw_b64)
+    try:
+        data = base64.b64decode(raw_b64, validate=False)
+    except Exception as e:
+        raise ValueError(f"bad base64: {e}") from e
+    if not data:
+        raise ValueError("empty image")
+    if len(data) > MEDIA_MAX_BYTES:
+        raise ValueError(
+            f"image too large ({len(data)} bytes; max {MEDIA_MAX_BYTES})"
+        )
+    mime = (mime or "image/jpeg").split(";")[0].strip().lower()
+    allowed = {
+        "image/jpeg": ".jpg",
+        "image/jpg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp",
+        "image/gif": ".gif",
+    }
+    if mime not in allowed:
+        # sniff
+        if data[:3] == b"\xff\xd8\xff":
+            mime, ext = "image/jpeg", ".jpg"
+        elif data[:8] == b"\x89PNG\r\n\x1a\n":
+            mime, ext = "image/png", ".png"
+        elif data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+            mime, ext = "image/webp", ".webp"
+        elif data[:6] in (b"GIF87a", b"GIF89a"):
+            mime, ext = "image/gif", ".gif"
+        else:
+            raise ValueError("unsupported image type (use jpeg/png/webp/gif)")
+    else:
+        ext = allowed[mime]
+    digest = hashlib.sha256(data).hexdigest()[:32]
+    root = Path(base_dir) if base_dir else MEDIA_DIR
+    root.mkdir(parents=True, exist_ok=True)
+    fname = f"{digest}{ext}"
+    path = root / fname
+    if not path.is_file():
+        path.write_bytes(data)
+    rel = f"/media/{fname}"
+    return {
+        "url": f"{HOWL_SITE}{rel}",
+        "path": rel,
+        "sha256": digest,
+        "bytes": len(data),
+        "mime": mime,
+    }
 
 
 def howl_token_info(chain: Optional[Blockchain] = None) -> Dict[str, Any]:
@@ -2556,6 +2632,29 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                         ctype = "text/javascript; charset=utf-8"
                     return self._bytes(200, f.read_bytes(), ctype)
 
+                # NFT media files (uploaded from wallet mint flow)
+                if path.startswith("/media/"):
+                    name = path[len("/media/") :]
+                    if ".." in name or "/" in name or not name:
+                        return self._json(400, {"error": "bad path"})
+                    candidates = []
+                    pub = hub.paths.get("public")
+                    if pub:
+                        candidates.append(Path(pub) / "media" / name)
+                    candidates.append(MEDIA_DIR / name)
+                    f = next((p for p in candidates if p.is_file()), None)
+                    if not f:
+                        return self._json(404, {"error": "media not found"})
+                    ctype = mimetypes.guess_type(str(f))[0] or "application/octet-stream"
+                    self.send_response(200)
+                    self.send_header("Content-Type", ctype)
+                    self.send_header("Content-Length", str(f.stat().st_size))
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+                    self.end_headers()
+                    self.wfile.write(f.read_bytes())
+                    return
+
                 if path == "/api/networks":
                     return self._json(200, {"networks": hub.list_networks()})
 
@@ -2997,6 +3096,22 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                             except Exception as e:
                                 return self._json(400, {"error": str(e)})
 
+                # NFT media upload (base64 image → permanent /media/ URL)
+                if path in ("/api/public/nft-media", "/api/nft-media"):
+                    try:
+                        img = body.get("image") or body.get("image_b64") or body.get("data") or ""
+                        mime = str(body.get("mime") or body.get("content_type") or "image/jpeg")
+                        if not img:
+                            return self._json(400, {"error": "image required (base64 or data URL)"})
+                        pub = hub.paths.get("public")
+                        base = Path(pub) / "media" if pub else MEDIA_DIR
+                        meta = _save_nft_media(str(img), mime=mime, base_dir=base)
+                        return self._json(200, meta)
+                    except ValueError as e:
+                        return self._json(400, {"error": str(e)})
+                    except Exception as e:
+                        return self._json(500, {"error": f"upload failed: {e}"})
+
                 # Generic Solana JSON-RPC proxy (POST body: {method, params})
                 if path in ("/api/public/sol/rpc", "/api/sol/rpc"):
                     method = str(body.get("method") or "")
@@ -3013,8 +3128,12 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                         "getSignaturesForAddress",
                         "getTransaction",
                         "getTokenAccountsByOwner",
+                        "getAccountInfo",
                         "getHealth",
                         "getSlot",
+                        "getLatestBlockhash",
+                        "sendTransaction",
+                        "getTokenLargestAccounts",
                     }
                     if method not in allowed:
                         return self._json(400, {"error": f"method not allowed: {method}"})

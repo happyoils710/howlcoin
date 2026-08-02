@@ -37,6 +37,7 @@ const copies = [
   ["public-wallet.html", "assets/public-wallet.html"],
   ["howl-crypto.mjs", "assets/howl-crypto.mjs"],
   ["wallet-swap.mjs", "assets/wallet-swap.mjs"],
+  ["wallet-nft.mjs", "assets/wallet-nft.mjs"],
   ["wallet-manifest.webmanifest", "assets/wallet-manifest.webmanifest"],
   ["wallet-sw.js", "assets/wallet-sw.js"],
   ["howlcoin-logo-meme-pup-coin.jpg", "assets/howlcoin-logo-meme-pup-coin.jpg"],

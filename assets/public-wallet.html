@@ -755,7 +755,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
           <button type="button" class="menu-row" onclick="showPage('swap')"><span class="mi">⇄</span><div><div class="mt">Swap</div><div class="ms">Jupiter · Howl Swap (→ HOWL)</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('browser')"><span class="mi">◈</span><div><div class="mt">Howl Search</div><div class="ms">Search the open web · open any site or dapp</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('discover')"><span class="mi">✦</span><div><div class="mt">Discover</div><div class="ms">New crypto tech · scout agents</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="showPage('nft')"><span class="mi">◆</span><div><div class="mt">NFTs</div><div class="ms">Mint &amp; transfer on Howlcoin</div></div><span class="chev">›</span></button>
+          <button type="button" class="menu-row" onclick="showPage('nft')"><span class="mi">◆</span><div><div class="mt">NFTs</div><div class="ms">Photo mint · multi-chain receive &amp; send</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('oracle')"><span class="mi">◎</span><div><div class="mt">Oracle</div><div class="ms">Observe chains · post tips on HOWL</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('recv')"><span class="mi">↓</span><div><div class="mt">Deposits</div><div class="ms">HOWL · SOL · XTZ · ETH · tokens</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('send')"><span class="mi">↑</span><div><div class="mt">Send HOWL</div><div class="ms">Transfer on public chain</div></div><span class="chev">›</span></button>
@@ -1014,33 +1014,57 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       </div>
     </div>
 
-    <!-- NFT MINT / GALLERY -->
+    <!-- NFT MINT / GALLERY (multi-chain) -->
     <div class="page" id="p-nft">
       <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>NFTs</h1></div>
       <div class="panel">
-        <h2>Mint NFT on Howlcoin</h2>
-        <p class="hint">Creates an on-chain NFT record (name + media URI). Costs network fee (1 HOWL min) paid to miners.</p>
+        <h2>Chain</h2>
+        <p class="hint">Pick a network to mint, receive, or send NFTs. Photo mint is live on Howlcoin; other chains support receive + collection tools.</p>
+        <select class="chain-select" id="nftChainSelect"></select>
+      </div>
+      <div class="panel" id="nftReceivePanel">
+        <h2>Receive NFTs</h2>
+        <p class="hint" id="nftRecvHint">Send NFTs to this address on the selected network only.</p>
+        <div class="mono" id="nftRecvAddr" style="font-size:.8rem;margin:8px 0;word-break:break-all" onclick="copyNftRecvAddr()" title="Copy">—</div>
+        <div class="qr" id="nftRecvQr" style="text-align:center"></div>
+        <button class="btn sec" type="button" onclick="copyNftRecvAddr()">Copy receive address</button>
+      </div>
+      <div class="panel" id="nftMintPanel">
+        <h2 id="nftMintTitle">Create NFT</h2>
+        <p class="hint" id="nftMintHint">Pick a photo or image from your device, then mint on Howlcoin.</p>
         <label>Name</label>
         <input class="field" id="nftName" placeholder="Moon Howl #1" maxlength="80"/>
-        <label>Media URI (https image / ipfs / data)</label>
-        <input class="field" id="nftUri" placeholder="https://…"/>
+        <label>Image from Photos / Files</label>
+        <input class="field" id="nftFile" type="file" accept="image/*" capture="environment" style="padding:10px"/>
+        <div id="nftPreview" style="text-align:center;margin:8px 0"></div>
+        <label>Or media URI (https / ipfs / leave blank if using photo)</label>
+        <input class="field" id="nftUri" placeholder="https://… or auto from photo"/>
         <label>Memo (optional)</label>
         <input class="field" id="nftMemo" placeholder=""/>
         <button class="btn" type="button" id="nftMintBtn" onclick="mintNft()">Mint NFT</button>
         <p class="err" id="nftErr"></p>
         <p class="hint" id="nftTx"></p>
       </div>
-      <div class="panel">
-        <h2>Your collection</h2>
-        <div id="nftGallery"><p class="hint">Loading…</p></div>
+      <div class="panel hidden" id="nftWatchPanel">
+        <h2>Watch / import NFT</h2>
+        <p class="hint" id="nftWatchHint">Track an NFT you already own on this chain (does not move it).</p>
+        <div id="nftWatchFields"></div>
+        <button class="btn sec" type="button" onclick="watchNftFromForm()">Add to collection</button>
+        <p class="err" id="nftWatchErr"></p>
       </div>
       <div class="panel">
-        <h2>Transfer NFT</h2>
-        <label>NFT id</label>
-        <input class="field" id="nftXferId" placeholder="nft id"/>
-        <label>To HOWL address</label>
-        <input class="field" id="nftXferTo" placeholder="H…"/>
-        <button class="btn sec" type="button" onclick="transferNft()">Transfer</button>
+        <h2>Your collection <button type="button" class="chip" style="cursor:pointer;margin-left:8px" onclick="refreshNfts()">↻</button></h2>
+        <div id="nftGallery"><p class="hint">Loading…</p></div>
+      </div>
+      <div class="panel" id="nftTransferPanel">
+        <h2>Send / transfer NFT</h2>
+        <label>NFT id / mint / token</label>
+        <input class="field" id="nftXferId" placeholder="nft id or mint"/>
+        <label id="nftXferToLab">To address</label>
+        <input class="field" id="nftXferTo" placeholder="Recipient"/>
+        <label id="nftXferExtraLab" class="hidden">Contract (EVM)</label>
+        <input class="field hidden" id="nftXferContract" placeholder="0x… contract"/>
+        <button class="btn sec" type="button" onclick="transferNft()">Send NFT</button>
         <p class="err" id="nftXferErr"></p>
       </div>
     </div>
@@ -1178,6 +1202,11 @@ import {
   SWAP_TOKENS, amountToRaw, rawToUi,
   getJupiterQuote, buildJupiterSwap, signAndSendSolTx, SOL_RPC as JUP_SOL_RPC,
 } from "/assets/wallet-swap.mjs";
+import {
+  listSolNfts, transferSolNft,
+  erc721TokenURIData, erc721TransferFromData, sendErc721Transfer,
+  ethCall, decodeAbiString,
+} from "/assets/wallet-nft.mjs";
 
 const API = "";
 const ETH_RPC = "https://cloudflare-eth.com";
@@ -2670,7 +2699,7 @@ function showPage(name){
   if(name==="swap"){ initSwapUI(); if(swapMode==="howl") initBridgeUI(); }
   if(name==="browser") initBrowserUI();
   if(name==="discover") loadDiscover(false);
-  if(name==="nft") refreshNfts();
+  if(name==="nft"){ wireNftPage(); refreshNfts(); }
   if(name==="oracle") refreshOracle();
   if(name==="toolbar") renderToolbarEditor();
   if(name==="appearance"){
@@ -4271,39 +4300,376 @@ async function refreshEthBalances(){
   paintBalances();
 }
 
-async function refreshNfts(){
-  if(!keypair) return;
-  try{
-    const j = await api("/api/public/nfts?owner=" + encodeURIComponent(keypair.address));
-    const list = j.nfts || [];
-    $("nftCount").textContent = String(list.length);
-    if(!list.length){
-      $("nftGallery").innerHTML = '<p class="hint">No NFTs yet — mint one above</p>';
-      return;
-    }
-    $("nftGallery").innerHTML = list.map(n=>`
-      <div class="item">
-        <div style="min-width:0">
-          <div><b>${escHtml(n.name||"NFT")}</b></div>
-          <div class="m mono">${escHtml(n.nft_id||"")}</div>
-          ${n.uri?`<div class="m"><a href="${escAttr(n.uri)}" target="_blank" rel="noopener">media</a></div>`:""}
-        </div>
-        <button class="btn sec" style="width:auto;margin:0;padding:6px 10px;min-height:0;font-size:.6rem"
-          type="button" onclick="document.getElementById('nftXferId').value='${escAttr(n.nft_id)}';showPage('nft')">Transfer</button>
-      </div>`).join("");
-  }catch(e){
-    $("nftGallery").innerHTML = `<p class="err">${escHtml(e.message)}</p>`;
+/* —— Multi-chain NFT hub —— */
+const LS_NFT_WATCH = "howl_nft_watch_v1";
+const NFT_CHAINS = [
+  { id: "howl", label: "Howlcoin", mint: true, send: true, watch: false },
+  { id: "solana", label: "Solana", mint: false, send: true, watch: false, list: "sol" },
+  { id: "ethereum", label: "Ethereum", mint: false, send: true, watch: true, evmId: "eth", chainId: 1 },
+  { id: "op", label: "Optimism", mint: false, send: true, watch: true, evmId: "op", chainId: 10 },
+  { id: "base", label: "Base", mint: false, send: true, watch: true, evmId: "base", chainId: 8453 },
+  { id: "bnb", label: "BNB Chain", mint: false, send: true, watch: true, evmId: "bnb", chainId: 56 },
+  { id: "avax", label: "Avalanche", mint: false, send: true, watch: true, evmId: "avax", chainId: 43114 },
+  { id: "hype", label: "HyperEVM", mint: false, send: false, watch: true, evmId: "hype", chainId: 999 },
+  { id: "tron", label: "TRON", mint: false, send: false, watch: true },
+  { id: "tezos", label: "Tezos", mint: false, send: false, watch: true },
+  { id: "bitcoin", label: "Bitcoin (Ordinals)", mint: false, send: false, watch: false },
+  { id: "xrp", label: "XRP Ledger", mint: false, send: false, watch: false },
+  { id: "stellar", label: "Stellar", mint: false, send: false, watch: false },
+];
+let nftChain = "howl";
+let nftImageDataUrl = ""; // compressed preview / upload source
+
+function loadNftWatch(){
+  try { return JSON.parse(localStorage.getItem(LS_NFT_WATCH) || "[]"); } catch { return []; }
+}
+function saveNftWatch(list){
+  localStorage.setItem(LS_NFT_WATCH, JSON.stringify(list || []));
+}
+
+function nftChainMeta(id){
+  return NFT_CHAINS.find(c => c.id === (id || nftChain)) || NFT_CHAINS[0];
+}
+
+function nftReceiveAddress(chainId){
+  const id = chainId || nftChain;
+  if(id === "howl") return keypair?.address || "";
+  if(id === "solana") return solInfo?.address || "";
+  if(id === "tezos") return xtzInfo?.address || "";
+  if(id === "tron") return multiInfo.trx?.address || "";
+  if(id === "xrp") return multiInfo.xrp?.address || "";
+  if(id === "stellar") return multiInfo.xlm?.address || "";
+  if(id === "bitcoin") return multiInfo.btc?.address || "";
+  // EVM L2s share eth address
+  return ethInfo?.address || "";
+}
+
+function wireNftPage(){
+  const sel = $("nftChainSelect");
+  if(sel && !sel.dataset.wired){
+    sel.dataset.wired = "1";
+    sel.innerHTML = NFT_CHAINS.map(c =>
+      `<option value="${c.id}">${c.label}</option>`
+    ).join("");
+    sel.value = nftChain;
+    sel.addEventListener("change", ()=>{
+      nftChain = sel.value;
+      renderNftChainUI();
+      refreshNfts();
+    });
+  }
+  const file = $("nftFile");
+  if(file && !file.dataset.wired){
+    file.dataset.wired = "1";
+    file.addEventListener("change", async ()=>{
+      const f = file.files && file.files[0];
+      if(!f) return;
+      try{
+        toast("Compressing image…");
+        nftImageDataUrl = await compressImageFile(f);
+        const prev = $("nftPreview");
+        if(prev){
+          prev.innerHTML = `<img src="${nftImageDataUrl}" alt="preview" style="max-width:180px;max-height:180px;border:1px solid var(--border);object-fit:cover"/>
+            <p class="hint">Photo ready — mint will upload to Howlscan media</p>`;
+        }
+        if($("nftUri") && !$("nftUri").value.trim()){
+          $("nftUri").placeholder = "(from photo on mint)";
+        }
+        toast("Image ready");
+      }catch(e){
+        toast(e.message || "Image failed");
+        nftImageDataUrl = "";
+      }
+    });
+  }
+  renderNftChainUI();
+}
+
+function renderNftChainUI(){
+  const meta = nftChainMeta();
+  const sel = $("nftChainSelect");
+  if(sel && sel.value !== nftChain) sel.value = nftChain;
+
+  const addr = nftReceiveAddress(nftChain);
+  if($("nftRecvAddr")) $("nftRecvAddr").textContent = addr || "— (unlock wallet)";
+  if($("nftRecvHint")){
+    $("nftRecvHint").textContent = `Only send ${meta.label} NFTs to this address. Wrong network can mean lost assets.`;
+  }
+  if($("nftRecvQr")){
+    if(addr){
+      $("nftRecvQr").innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(addr)}" alt="QR"/>`;
+    } else $("nftRecvQr").innerHTML = "";
+  }
+
+  const mintPanel = $("nftMintPanel");
+  if(mintPanel) mintPanel.classList.toggle("hidden", !meta.mint);
+  if(meta.mint){
+    if($("nftMintTitle")) $("nftMintTitle").textContent = "Create NFT on Howlcoin";
+    if($("nftMintHint")) $("nftMintHint").textContent = "Pick a photo from Files/Photos (or paste a media URI). Fee ≈ 1 HOWL to miners.";
+  }
+
+  const watchPanel = $("nftWatchPanel");
+  if(watchPanel){
+    watchPanel.classList.toggle("hidden", !meta.watch);
+    if(meta.watch) renderNftWatchFields(meta);
+  }
+
+  const xfer = $("nftTransferPanel");
+  if(xfer) xfer.classList.toggle("hidden", !(meta.send || meta.mint));
+  if($("nftXferToLab")){
+    $("nftXferToLab").textContent = meta.id === "howl" ? "To HOWL address (H…)"
+      : meta.id === "solana" ? "To Solana address"
+      : "To address on " + meta.label;
+  }
+  if($("nftXferTo")){
+    $("nftXferTo").placeholder = meta.id === "howl" ? "H…" : meta.id === "solana" ? "Base58…" : "0x… / address";
+  }
+  const needContract = !!(meta.evmId);
+  if($("nftXferExtraLab")) $("nftXferExtraLab").classList.toggle("hidden", !needContract);
+  if($("nftXferContract")) $("nftXferContract").classList.toggle("hidden", !needContract);
+  if($("nftXferId")){
+    $("nftXferId").placeholder = meta.id === "howl" ? "nft id"
+      : meta.id === "solana" ? "mint address"
+      : "token id";
   }
 }
+
+function renderNftWatchFields(meta){
+  const box = $("nftWatchFields");
+  if(!box) return;
+  if(meta.evmId){
+    box.innerHTML = `
+      <label>Contract address</label>
+      <input class="field" id="nftWatchContract" placeholder="0x…" spellcheck="false"/>
+      <label>Token ID</label>
+      <input class="field" id="nftWatchTokenId" placeholder="1" inputmode="numeric"/>
+      <label>Name (optional)</label>
+      <input class="field" id="nftWatchName" placeholder="My NFT"/>
+    `;
+  } else if(meta.id === "tezos"){
+    box.innerHTML = `
+      <label>FA2 contract (KT1…)</label>
+      <input class="field" id="nftWatchContract" placeholder="KT1…"/>
+      <label>Token ID</label>
+      <input class="field" id="nftWatchTokenId" placeholder="0"/>
+      <label>Name (optional)</label>
+      <input class="field" id="nftWatchName" placeholder="Tezos NFT"/>
+    `;
+  } else if(meta.id === "tron"){
+    box.innerHTML = `
+      <label>TRC-721 contract</label>
+      <input class="field" id="nftWatchContract" placeholder="T…"/>
+      <label>Token ID</label>
+      <input class="field" id="nftWatchTokenId" placeholder="1"/>
+      <label>Name (optional)</label>
+      <input class="field" id="nftWatchName" placeholder="TRON NFT"/>
+    `;
+  } else {
+    box.innerHTML = `<p class="hint">No import form for this chain yet — use receive address.</p>`;
+  }
+}
+
+function copyNftRecvAddr(){
+  const a = nftReceiveAddress(nftChain);
+  if(a) copyText(a);
+  else toast("No address");
+}
+
+/** Compress image for upload (JPEG, max edge 1280, ~350KB). */
+async function compressImageFile(file, maxEdge = 1280, quality = 0.82, maxBytes = 350000){
+  if(!file || !file.type.startsWith("image/")) throw new Error("Choose an image file");
+  const bmp = await createImageBitmap(file);
+  let w = bmp.width, h = bmp.height;
+  const scale = Math.min(1, maxEdge / Math.max(w, h));
+  w = Math.max(1, Math.round(w * scale));
+  h = Math.max(1, Math.round(h * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(bmp, 0, 0, w, h);
+  let q = quality;
+  let blob = await new Promise(r => canvas.toBlob(r, "image/jpeg", q));
+  while(blob && blob.size > maxBytes && q > 0.45){
+    q -= 0.08;
+    blob = await new Promise(r => canvas.toBlob(r, "image/jpeg", q));
+  }
+  if(!blob) throw new Error("Could not compress image");
+  if(blob.size > maxBytes) throw new Error("Image still too large after compress — try a smaller photo");
+  return await new Promise((resolve, reject)=>{
+    const fr = new FileReader();
+    fr.onload = ()=> resolve(String(fr.result || ""));
+    fr.onerror = ()=> reject(new Error("read failed"));
+    fr.readAsDataURL(blob);
+  });
+}
+
+async function uploadNftMedia(dataUrl){
+  const j = await api("/api/public/nft-media", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image: dataUrl, mime: "image/jpeg" }),
+  });
+  if(!j.url && !j.path) throw new Error(j.error || "Upload failed");
+  return j.url || (location.origin + j.path);
+}
+
+function renderNftCards(list, opts = {}){
+  const el = $("nftGallery");
+  if(!el) return;
+  if(!list.length){
+    el.innerHTML = `<p class="hint">${opts.empty || "No NFTs found on this chain"}</p>`;
+    return;
+  }
+  el.innerHTML = list.map((n, i)=>{
+    const id = n.nft_id || n.mint || n.id || n.tokenId || "";
+    const title = n.name || n.symbol || "NFT";
+    const img = n.image || (n.uri && /\.(png|jpe?g|gif|webp)(\?|$)/i.test(n.uri) ? n.uri : "");
+    const sub = n.uri || n.contract || n.mint || id;
+    return `<div class="item" style="align-items:center">
+      ${img ? `<img src="${escAttr(img)}" alt="" style="width:48px;height:48px;object-fit:cover;border:1px solid var(--border);flex-shrink:0" onerror="this.style.display='none'"/>` : `<div style="width:48px;height:48px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);flex-shrink:0">◆</div>`}
+      <div style="min-width:0;flex:1">
+        <div><b>${escHtml(title)}</b></div>
+        <div class="m mono" style="font-size:.72rem">${escHtml(String(id).slice(0,28))}${String(id).length>28?"…":""}</div>
+        ${sub && sub !== id ? `<div class="m" style="font-size:.7rem;overflow:hidden;text-overflow:ellipsis">${escHtml(String(sub).slice(0,48))}</div>` : ""}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        ${opts.canSend !== false ? `<button class="btn sec" style="width:auto;margin:0;padding:6px 10px;min-height:0;font-size:.6rem" type="button" data-send="${i}">Send</button>` : ""}
+        ${n.uri ? `<a class="btn sec" style="width:auto;margin:0;padding:6px 10px;min-height:0;font-size:.6rem;text-decoration:none;display:inline-flex;align-items:center" href="${escAttr(n.uri)}" target="_blank" rel="noopener">Open</a>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+  el.querySelectorAll("button[data-send]").forEach(btn=>{
+    btn.onclick = ()=>{
+      const n = list[Number(btn.dataset.send)];
+      if(!n) return;
+      if($("nftXferId")) $("nftXferId").value = n.nft_id || n.mint || n.tokenId || n.id || "";
+      if($("nftXferContract") && n.contract) $("nftXferContract").value = n.contract;
+      toast("Ready to send — enter recipient below");
+      $("nftXferTo")?.focus();
+    };
+  });
+}
+
+async function refreshNfts(){
+  wireNftPage();
+  if(!keypair && !solInfo && !ethInfo) return;
+  const meta = nftChainMeta();
+  const gal = $("nftGallery");
+  if(gal) gal.innerHTML = `<p class="hint">Loading ${meta.label} NFTs…</p>`;
+  try{
+    if(meta.id === "howl"){
+      if(!keypair) throw new Error("Unlock wallet");
+      const j = await api("/api/public/nfts?owner=" + encodeURIComponent(keypair.address));
+      const list = (j.nfts || []).map(n => ({
+        ...n,
+        image: (n.uri && (n.uri.startsWith("http") || n.uri.startsWith("data:"))) ? n.uri : "",
+      }));
+      if($("nftCount")) $("nftCount").textContent = String(list.length);
+      renderNftCards(list, { empty: "No Howlcoin NFTs yet — mint with a photo above", canSend: true });
+      return;
+    }
+    if(meta.id === "solana"){
+      if(!solInfo?.address) throw new Error("Solana address not ready");
+      const list = await listSolNfts(solInfo.address, { solRpc });
+      if($("nftCount")) $("nftCount").textContent = String(list.length);
+      renderNftCards(list, {
+        empty: "No Solana NFTs found (0-decimal / amount 1). Receive to the address above.",
+        canSend: true,
+      });
+      return;
+    }
+    // watched NFTs for EVM / TRON / Tezos
+    const watched = loadNftWatch().filter(n => n.chain === meta.id);
+    // enrich EVM with tokenURI when possible
+    if(meta.evmId && ethInfo){
+      const rpc = (EVM_CHAINS[meta.evmId] || {}).rpc || (meta.evmId === "eth" ? ETH_RPC : "");
+      for(const n of watched){
+        if(!rpc || !n.contract || n.tokenId == null) continue;
+        try{
+          const hex = await ethCall(rpc, n.contract, erc721TokenURIData(n.tokenId));
+          const uri = decodeAbiString(hex);
+          if(uri){
+            n.uri = uri;
+            if(uri.startsWith("http") || uri.startsWith("ipfs://") || uri.startsWith("data:")){
+              let metaUrl = uri.replace("ipfs://", "https://ipfs.io/ipfs/");
+              if(metaUrl.startsWith("http")){
+                try{
+                  const mr = await fetchTimeout(metaUrl, {}, 8000);
+                  if(mr.ok){
+                    const mj = await mr.json();
+                    n.name = n.name || mj.name || n.name;
+                    n.image = mj.image || mj.image_url || "";
+                    if(n.image.startsWith("ipfs://")) n.image = n.image.replace("ipfs://", "https://ipfs.io/ipfs/");
+                  }
+                }catch(_){}
+              }
+            }
+          }
+        }catch(_){}
+      }
+    }
+    if($("nftCount")) $("nftCount").textContent = String(watched.length);
+    renderNftCards(watched.map(n => ({
+      ...n,
+      id: n.tokenId != null ? String(n.tokenId) : n.id,
+      nft_id: n.tokenId != null ? String(n.tokenId) : n.id,
+    })), {
+      empty: meta.watch
+        ? "No watched NFTs — import contract + token id, or receive to the address above"
+        : "Receive-only on this chain — use the address above in your external NFT wallet",
+      canSend: !!meta.send,
+    });
+  }catch(e){
+    if(gal) gal.innerHTML = `<p class="err">${escHtml(e.message)}</p>`;
+  }
+}
+
+function watchNftFromForm(){
+  $("nftWatchErr") && ($("nftWatchErr").textContent = "");
+  try{
+    const meta = nftChainMeta();
+    if(!meta.watch) throw new Error("Watch not available on this chain");
+    const contract = ($("nftWatchContract")?.value || "").trim();
+    const tokenId = ($("nftWatchTokenId")?.value || "").trim();
+    const name = ($("nftWatchName")?.value || "").trim() || "NFT";
+    if(!contract || !tokenId) throw new Error("Contract and token id required");
+    const rec = {
+      chain: meta.id,
+      kind: meta.evmId ? "erc721" : meta.id,
+      contract,
+      tokenId,
+      name,
+      uri: "",
+      image: "",
+      id: meta.id + "_" + contract + "_" + tokenId,
+    };
+    const list = loadNftWatch().filter(n => n.id !== rec.id);
+    list.push(rec);
+    saveNftWatch(list);
+    toast("NFT added to collection");
+    refreshNfts();
+  }catch(e){
+    if($("nftWatchErr")) $("nftWatchErr").textContent = e.message;
+  }
+}
+
 function escHtml(s){ return String(s??"").replace(/[&<>"']/g,c=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c])); }
 function escAttr(s){ return String(s??"").replace(/'/g,"&#39;").replace(/"/g,"&quot;"); }
 
 async function mintNft(){
   $("nftErr").textContent=""; $("nftTx").textContent="";
   try{
+    if(nftChain !== "howl") throw new Error("Photo mint is on Howlcoin — switch chain to Howlcoin");
+    if(!keypair) throw new Error("Unlock wallet");
     const name = $("nftName").value.trim();
-    const uri = $("nftUri").value.trim();
     if(!name) throw new Error("Name required");
+    let uri = $("nftUri").value.trim();
+    if(!uri && nftImageDataUrl){
+      $("nftTx").textContent = "Uploading image…";
+      uri = await uploadNftMedia(nftImageDataUrl);
+      $("nftUri").value = uri;
+    }
+    if(!uri) throw new Error("Add a photo or media URI");
     const fee = Number(COIN); // 1 HOWL
     const addr = await api("/api/public/address/" + encodeURIComponent(keypair.address));
     const nonce = addr.nonce||0;
@@ -4325,6 +4691,9 @@ async function mintNft(){
     $("nftTx").textContent = "Mint queued " + (res.txid||"").slice(0,16) + "… — mine/wait for confirm";
     toast("NFT mint queued");
     $("nftName").value=""; $("nftUri").value="";
+    nftImageDataUrl = "";
+    if($("nftPreview")) $("nftPreview").innerHTML = "";
+    if($("nftFile")) $("nftFile").value = "";
     setTimeout(refreshNfts, 1500);
   }catch(e){ $("nftErr").textContent = e.message; }
 }
@@ -4332,23 +4701,66 @@ async function mintNft(){
 async function transferNft(){
   $("nftXferErr").textContent="";
   try{
-    const nft_id = $("nftXferId").value.trim();
+    const meta = nftChainMeta();
+    const id = $("nftXferId").value.trim();
     const to = $("nftXferTo").value.trim();
-    if(!nft_id || !to) throw new Error("NFT id and destination required");
-    if(!isValidAddress(to)) throw new Error("Invalid HOWL address");
-    const fee = Number(COIN);
-    const addr = await api("/api/public/address/" + encodeURIComponent(keypair.address));
-    const tx = await buildSignedTx({
-      keypair, to, amountHowlies: 0, feeHowlies: fee,
-      nonce: addr.nonce||0, memo: "", type: "nft_transfer",
-      extra: { nft_id },
-    });
-    const res = await api("/api/public/broadcast", {
-      method:"POST", headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ tx }),
-    });
-    toast("Transfer queued " + (res.txid||"").slice(0,12));
-    setTimeout(refreshNfts, 1500);
+    if(!id || !to) throw new Error("NFT id and destination required");
+
+    if(meta.id === "howl"){
+      if(!isValidAddress(to)) throw new Error("Invalid HOWL address");
+      const fee = Number(COIN);
+      const addr = await api("/api/public/address/" + encodeURIComponent(keypair.address));
+      const tx = await buildSignedTx({
+        keypair, to, amountHowlies: 0, feeHowlies: fee,
+        nonce: addr.nonce||0, memo: "", type: "nft_transfer",
+        extra: { nft_id: id },
+      });
+      const res = await api("/api/public/broadcast", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ tx }),
+      });
+      toast("Transfer queued " + (res.txid||"").slice(0,12));
+      setTimeout(refreshNfts, 1500);
+      return;
+    }
+
+    if(meta.id === "solana"){
+      if(!solInfo?.privateKeyHex) throw new Error("Solana key not ready");
+      toast("Sending Solana NFT…");
+      const sig = await transferSolNft({
+        privateKeyHex: solInfo.privateKeyHex,
+        mint: id,
+        toOwner: to,
+        rpc: SOL_RPC || JUP_SOL_RPC,
+      });
+      toast("Sent · " + String(sig).slice(0, 12) + "…");
+      setTimeout(refreshNfts, 2000);
+      return;
+    }
+
+    if(meta.evmId){
+      if(!ethInfo?.privateKeyHex) throw new Error("ETH key not ready");
+      const contract = ($("nftXferContract")?.value || "").trim();
+      if(!/^0x[a-fA-F0-9]{40}$/.test(contract)) throw new Error("ERC-721 contract required");
+      if(!/^0x[a-fA-F0-9]{40}$/.test(to)) throw new Error("Invalid 0x recipient");
+      const rpc = (EVM_CHAINS[meta.evmId] || {}).rpc || (meta.evmId === "eth" ? ETH_RPC : "");
+      if(!rpc) throw new Error("No RPC for " + meta.label);
+      toast("Sending ERC-721…");
+      const txHash = await sendErc721Transfer({
+        privateKeyHex: ethInfo.privateKeyHex,
+        from: ethInfo.address,
+        to,
+        contract,
+        tokenId: id,
+        rpc,
+        chainId: meta.chainId || 1,
+      });
+      toast("Sent · " + String(txHash).slice(0, 12) + "…");
+      setTimeout(refreshNfts, 2000);
+      return;
+    }
+
+    throw new Error("Send not enabled on " + meta.label + " yet — use an external wallet for this chain");
   }catch(e){ $("nftXferErr").textContent = e.message; }
 }
 
@@ -5026,6 +5438,10 @@ window.setTheme = setTheme;
 window.loadDiscover = loadDiscover;
 window.mintNft = mintNft;
 window.transferNft = transferNft;
+window.refreshNfts = refreshNfts;
+window.copyNftRecvAddr = copyNftRecvAddr;
+window.watchNftFromForm = watchNftFromForm;
+window.wireNftPage = wireNftPage;
 window.observeChains = observeChains;
 window.postOracleManual = postOracleManual;
 // expose for dapp address copy handlers
