@@ -53,7 +53,8 @@ html[data-theme="light"]{
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;min-height:100%;font-family:var(--font-ui);
-  background:var(--bg);color:var(--text);line-height:1.45}
+  background:var(--bg);color:var(--text);line-height:1.45;
+  overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch}
 body::before{
   content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:var(--fx);
   background:
@@ -160,6 +161,21 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .theme-pill small{display:block;font-weight:500;color:var(--muted);font-size:.7rem;margin-top:4px}
 .page{display:none}.page.on{display:block;animation:fadein .25s ease}
 @keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* Pull-to-refresh */
+.ptr{position:fixed;left:50%;top:calc(8px + var(--safe-t));z-index:40;transform:translate(-50%,-120%);
+  display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;
+  background:var(--card);border:1px solid var(--border);box-shadow:var(--glow);
+  color:var(--muted);font-size:.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  pointer-events:none;opacity:0;transition:opacity .15s,transform .15s;backdrop-filter:blur(12px)}
+.ptr.show{opacity:1}
+.ptr.ready{color:var(--green);border-color:color-mix(in srgb,var(--green) 45%,transparent)}
+.ptr.run{color:var(--cyan)}
+.ptr .spin{width:14px;height:14px;border:2px solid color-mix(in srgb,var(--green) 35%,transparent);
+  border-top-color:var(--green);border-radius:50%;opacity:.85}
+.ptr.run .spin{animation:ptrspin .7s linear infinite}
+.ptr .arrow{display:inline-block;font-size:.85rem;transition:transform .15s}
+.ptr.ready .arrow{transform:rotate(180deg)}
+@keyframes ptrspin{to{transform:rotate(360deg)}}
 .item{display:flex;justify-content:space-between;gap:10px;padding:11px 0;
   border-bottom:1px solid rgba(255,255,255,.05);align-items:flex-start}
 .item:last-child{border-bottom:0}
@@ -403,6 +419,11 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 </div>
 
 <div id="app" class="hidden">
+  <div class="ptr" id="pullRefresh" aria-hidden="true">
+    <span class="arrow" id="ptrArrow">↓</span>
+    <span class="spin" id="ptrSpin" hidden></span>
+    <span id="ptrLabel">Pull to refresh</span>
+  </div>
   <div class="top">
     <img src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt=""/>
     <div><div class="t">Howl<span>coin</span></div><div class="s" id="syncSub">Public chain</div></div>
@@ -1247,7 +1268,10 @@ function resetToolbar(){
   toast("Toolbar reset");
 }
 
+let currentPage = "home";
+
 function showPage(name){
+  currentPage = name || "home";
   document.querySelectorAll(".page").forEach(p=>p.classList.toggle("on", p.id==="p-"+name));
   renderToolbar(name);
   const app = $("app");
@@ -1265,6 +1289,202 @@ function showPage(name){
     setTheme(localStorage.getItem(LS_THEME)||"neo");
   }
   try{ window.scrollTo({ top:0, behavior:"instant" in window? "instant":"auto" }); }catch(_){ window.scrollTo(0,0); }
+}
+
+/* —— Pull-to-refresh (every page) + subtle tick sound —— */
+let ptrAudioCtx = null;
+let ptrPulling = false;
+let ptrStartY = 0;
+let ptrDist = 0;
+let ptrBusy = false;
+const PTR_THRESHOLD = 72;
+
+function playRefreshSound(){
+  try{
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return;
+    if(!ptrAudioCtx) ptrAudioCtx = new AC();
+    const ctx = ptrAudioCtx;
+    if(ctx.state === "suspended") ctx.resume();
+    const t0 = ctx.currentTime;
+    // soft two-tone tick (quiet)
+    const master = ctx.createGain();
+    master.gain.setValueAtTime(0.0001, t0);
+    master.gain.exponentialRampToValueAtTime(0.035, t0 + 0.012);
+    master.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.14);
+    master.connect(ctx.destination);
+    const o1 = ctx.createOscillator();
+    o1.type = "sine";
+    o1.frequency.setValueAtTime(880, t0);
+    o1.frequency.exponentialRampToValueAtTime(660, t0 + 0.1);
+    o1.connect(master);
+    o1.start(t0);
+    o1.stop(t0 + 0.15);
+    const o2 = ctx.createOscillator();
+    o2.type = "triangle";
+    o2.frequency.setValueAtTime(1320, t0 + 0.02);
+    const g2 = ctx.createGain();
+    g2.gain.setValueAtTime(0.0001, t0 + 0.02);
+    g2.gain.exponentialRampToValueAtTime(0.018, t0 + 0.03);
+    g2.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.11);
+    o2.connect(g2);
+    g2.connect(ctx.destination);
+    o2.start(t0 + 0.02);
+    o2.stop(t0 + 0.12);
+  }catch(_){}
+}
+
+function ptrEl(){ return $("pullRefresh"); }
+function ptrSet(state, dist){
+  const el = ptrEl();
+  if(!el) return;
+  const label = $("ptrLabel");
+  const arrow = $("ptrArrow");
+  const spin = $("ptrSpin");
+  el.classList.toggle("show", state !== "idle");
+  el.classList.toggle("ready", state === "ready");
+  el.classList.toggle("run", state === "run");
+  if(arrow) arrow.hidden = state === "run";
+  if(spin) spin.hidden = state !== "run";
+  if(label){
+    label.textContent = state === "run" ? "Refreshing…"
+      : state === "ready" ? "Release to refresh"
+      : "Pull to refresh";
+  }
+  const pull = Math.min(dist || 0, 110);
+  const y = state === "idle" ? -120 : Math.min(pull * 0.45 - 8, 36);
+  el.style.transform = `translate(-50%, ${y}px)`;
+  el.style.opacity = state === "idle" ? "0" : String(Math.min(1, (dist || 0) / 40));
+}
+
+function ptrCanStart(){
+  if(ptrBusy) return false;
+  if(!$("app") || $("app").classList.contains("hidden")) return false;
+  // don't fight browser iframe scrolling when browsing a site
+  if(currentPage === "browser" && typeof browserMode !== "undefined" && browserMode === "browsing") return false;
+  const y = window.scrollY || document.documentElement.scrollTop || 0;
+  return y <= 2;
+}
+
+async function refreshCurrentPage(){
+  const page = currentPage || "home";
+  try{
+    if(page === "home" || page === "send" || page === "more" || page === "recv"){
+      await refresh();
+      if(page === "recv") selectAsset(selectedAsset);
+      if(page === "more") updateSecUI();
+    } else if(page === "swap"){
+      await refresh();
+      initSwapUI();
+      if(typeof updateSwapBalances === "function") updateSwapBalances();
+    } else if(page === "discover"){
+      await loadDiscover(true);
+    } else if(page === "nft"){
+      await refreshNfts();
+    } else if(page === "oracle"){
+      await refreshOracle();
+    } else if(page === "browser"){
+      if(typeof browserMode !== "undefined" && browserMode === "results" && lastSearchQuery){
+        await runInAppSearch(lastSearchQuery);
+      } else if(typeof browserMode !== "undefined" && browserMode === "reader" && typeof reloadActiveTab === "function"){
+        reloadActiveTab();
+      } else {
+        await refresh();
+      }
+    } else if(page === "sec"){
+      await refresh();
+      updateSecUI();
+    } else if(page === "toolbar"){
+      renderToolbarEditor();
+    } else if(page === "appearance"){
+      setTheme(localStorage.getItem(LS_THEME)||"neo");
+    } else {
+      await refresh();
+    }
+  }catch(e){
+    toast(e.message || "Refresh failed");
+  }
+}
+
+async function ptrTrigger(){
+  if(ptrBusy) return;
+  ptrBusy = true;
+  ptrSet("run", PTR_THRESHOLD);
+  playRefreshSound();
+  try{
+    await refreshCurrentPage();
+    toast("Updated");
+  } finally {
+    setTimeout(()=>{
+      ptrBusy = false;
+      ptrDist = 0;
+      ptrSet("idle", 0);
+    }, 280);
+  }
+}
+
+function initPullToRefresh(){
+  if(window.__howlPtrReady) return;
+  window.__howlPtrReady = true;
+
+  document.addEventListener("touchstart", (e)=>{
+    if(!ptrCanStart() || !e.touches || !e.touches[0]) return;
+    ptrPulling = true;
+    ptrStartY = e.touches[0].clientY;
+    ptrDist = 0;
+  }, { passive: true });
+
+  document.addEventListener("touchmove", (e)=>{
+    if(!ptrPulling || ptrBusy) return;
+    const y = e.touches[0].clientY;
+    const dy = y - ptrStartY;
+    if(dy < 0 || (window.scrollY || 0) > 2){
+      ptrDist = 0;
+      ptrSet("idle", 0);
+      return;
+    }
+    ptrDist = dy;
+    const ready = ptrDist >= PTR_THRESHOLD;
+    ptrSet(ready ? "ready" : "pull", ptrDist);
+  }, { passive: true });
+
+  document.addEventListener("touchend", ()=>{
+    if(!ptrPulling) return;
+    ptrPulling = false;
+    if(ptrDist >= PTR_THRESHOLD && !ptrBusy) ptrTrigger();
+    else { ptrDist = 0; ptrSet("idle", 0); }
+  }, { passive: true });
+
+  document.addEventListener("touchcancel", ()=>{
+    ptrPulling = false;
+    ptrDist = 0;
+    if(!ptrBusy) ptrSet("idle", 0);
+  }, { passive: true });
+
+  // Desktop: drag from top with mouse (subtle)
+  let mouseDown = false;
+  document.addEventListener("mousedown", (e)=>{
+    if(e.button !== 0 || !ptrCanStart()) return;
+    if(e.clientY > 80) return;
+    mouseDown = true;
+    ptrPulling = true;
+    ptrStartY = e.clientY;
+    ptrDist = 0;
+  });
+  document.addEventListener("mousemove", (e)=>{
+    if(!mouseDown || !ptrPulling || ptrBusy) return;
+    const dy = e.clientY - ptrStartY;
+    if(dy < 8){ ptrSet("idle", 0); return; }
+    ptrDist = dy;
+    ptrSet(ptrDist >= PTR_THRESHOLD ? "ready" : "pull", ptrDist);
+  });
+  document.addEventListener("mouseup", ()=>{
+    if(!mouseDown) return;
+    mouseDown = false;
+    ptrPulling = false;
+    if(ptrDist >= PTR_THRESHOLD && !ptrBusy) ptrTrigger();
+    else { ptrDist = 0; ptrSet("idle", 0); }
+  });
 }
 
 function initSwapUI(){
@@ -2694,6 +2914,7 @@ function uiInstall(){
 function boot(skipInstallPrompt){
   loadMeta();
   applyStoredTheme();
+  initPullToRefresh();
   // Migrate old toolbars that only had Browser — surface Discover
   try{
     const raw = localStorage.getItem(LS_TOOLBAR);
@@ -2737,6 +2958,7 @@ window.addCustomToken = addCustomToken;
 window.removeCustom = removeCustom;
 window.selectAsset = selectAsset;
 window.refresh = refresh;
+window.refreshCurrentPage = refreshCurrentPage;
 window.toast = toast;
 window.getSwapQuote = getSwapQuote;
 window.doSwap = doSwap;
