@@ -1317,30 +1317,102 @@ EXPLORER_HTML = r"""<!DOCTYPE html>
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="theme-color" content="#0c0f14" id="themeColorMeta"/>
 <title>Howlscan — Howlcoin Block Explorer</title>
 <link rel="icon" href="/assets/howlcoin-logo-meme-pup-coin.jpg"/>
+<script>
+/* Apply theme before paint to avoid flash */
+(function(){
+  try{
+    var t=localStorage.getItem('howlscan_theme_v1')||'dark';
+    if(['light','dark','neo','bones'].indexOf(t)<0) t='dark';
+    document.documentElement.setAttribute('data-theme', t);
+  }catch(e){}
+})();
+</script>
 <style>
-:root{
+/* —— Themes (match wallet: Light · Dark · Neo · Bones) —— */
+html[data-theme="dark"], :root{
   --bg:#0c0f14; --bg2:#12161e; --panel:#161b26; --panel2:#1a2130;
   --border:#252d3d; --text:#e8edf7; --muted:#8b95a8; --link:#4da3ff;
   --green:#3dff9a; --amber:#ffb020; --red:#ff6b7a; --chip:#222a3a;
   --row:#121722; --rowh:#1a2233;
+  --top-bg:rgba(12,15,20,.94); --bottom-bg:rgba(12,15,20,.96);
+  --btn-bg:linear-gradient(180deg,#2f6fed,#1f55c9); --btn-fg:#fff;
+  --banner-bg:linear-gradient(135deg,rgba(61,255,154,.07),rgba(12,15,20,.95) 40%,rgba(77,163,255,.06));
+  --banner-edge:rgba(12,15,20,.95);
+  --active-bg:rgba(77,163,255,.15); --active-border:rgba(77,163,255,.45); --active-text:#9cc9ff;
+  --ok-bg:rgba(61,255,154,.12); --warn-bg:rgba(255,176,32,.12); --blue-bg:rgba(77,163,255,.12);
+  --primary-border:rgba(61,255,154,.4);
   --safe-b:env(safe-area-inset-bottom,0px);
   --safe-t:env(safe-area-inset-top,0px);
   --bottom-nav-h:64px;
+  --fx:0;
+}
+html[data-theme="light"]{
+  --bg:#f4f6fa; --bg2:#eef1f6; --panel:#ffffff; --panel2:#f0f3f8;
+  --border:#d8dee8; --text:#0f1419; --muted:#5c667a; --link:#1565c0;
+  --green:#0d9f6e; --amber:#d97706; --red:#dc2626; --chip:#e8ecf2;
+  --row:#ffffff; --rowh:#eef2f8;
+  --top-bg:rgba(255,255,255,.94); --bottom-bg:rgba(255,255,255,.96);
+  --btn-bg:#1565c0; --btn-fg:#fff;
+  --banner-bg:#eef6f2; --banner-edge:rgba(244,246,250,.95);
+  --active-bg:rgba(21,101,192,.1); --active-border:rgba(21,101,192,.4); --active-text:#1565c0;
+  --ok-bg:rgba(13,159,110,.12); --warn-bg:rgba(217,119,6,.12); --blue-bg:rgba(21,101,192,.1);
+  --primary-border:rgba(13,159,110,.45);
+  --fx:0;
+}
+html[data-theme="neo"]{
+  --bg:#03010a; --bg2:#050214; --panel:rgba(12,8,32,.88); --panel2:rgba(8,6,24,.95);
+  --border:rgba(0,255,200,.22); --text:#eef6ff; --muted:#8b9bbf; --link:#00e5ff;
+  --green:#00ffc6; --amber:#ffc14d; --red:#ff4d6d; --chip:rgba(8,6,24,.9);
+  --row:rgba(8,6,24,.75); --rowh:rgba(0,255,198,.08);
+  --top-bg:rgba(3,1,12,.9); --bottom-bg:rgba(3,1,12,.96);
+  --btn-bg:linear-gradient(135deg,#00ffc6,#00e5ff); --btn-fg:#03140f;
+  --banner-bg:linear-gradient(135deg,rgba(0,255,198,.12),rgba(3,1,10,.95) 45%,rgba(192,132,252,.1));
+  --banner-edge:rgba(3,1,12,.95);
+  --active-bg:rgba(0,255,198,.12); --active-border:rgba(0,255,198,.5); --active-text:#00ffc6;
+  --ok-bg:rgba(0,255,198,.12); --warn-bg:rgba(255,193,77,.12); --blue-bg:rgba(0,229,255,.12);
+  --primary-border:rgba(0,255,198,.45);
+  --fx:1;
+}
+html[data-theme="bones"]{
+  --bg:#000; --bg2:#000; --panel:#000; --panel2:#0a0a0a;
+  --border:#fff; --text:#fff; --muted:#a0a0a0; --link:#fff;
+  --green:#fff; --amber:#fff; --red:#fff; --chip:#0a0a0a;
+  --row:#000; --rowh:#111;
+  --top-bg:#000; --bottom-bg:#000;
+  --btn-bg:#fff; --btn-fg:#000;
+  --banner-bg:#000; --banner-edge:#000;
+  --active-bg:#fff; --active-border:#fff; --active-text:#000;
+  --ok-bg:#111; --warn-bg:#111; --blue-bg:#111;
+  --primary-border:#fff;
+  --fx:0;
 }
 *{box-sizing:border-box}
+*,*::before,*::after{border-radius:0!important} /* sharp edges */
 html{-webkit-text-size-adjust:100%}
 body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
   background:var(--bg);color:var(--text);line-height:1.45;-webkit-tap-highlight-color:transparent}
+/* Neo subtle void wash */
+html[data-theme="neo"] body::before{
+  content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:var(--fx);
+  background:
+    radial-gradient(900px 500px at 10% -10%,rgba(0,255,198,.1),transparent 55%),
+    radial-gradient(700px 400px at 100% 0%,rgba(192,132,252,.12),transparent 50%),
+    linear-gradient(180deg,#050214 0%,#03010a 50%,#02040f 100%);
+}
+html[data-theme="bones"] body::before{display:none!important}
+body > *{position:relative;z-index:1}
 a{color:var(--link);text-decoration:none}
 a:hover{text-decoration:underline}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.84rem;word-break:break-all}
 .muted{color:var(--muted)}
 .topbar{display:flex;align-items:center;gap:10px;padding:10px 14px;padding-top:calc(10px + var(--safe-t));
-  border-bottom:1px solid var(--border);background:rgba(12,15,20,.94);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);background:var(--top-bg);backdrop-filter:blur(12px);
   position:sticky;top:0;z-index:40}
-.topbar img{width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid rgba(61,255,154,.45);flex-shrink:0}
+.topbar img{width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid color-mix(in srgb,var(--green) 45%,transparent);flex-shrink:0}
+html[data-theme="bones"] .topbar img{filter:grayscale(1) contrast(1.1);border-color:#fff}
 .brand{font-weight:750;letter-spacing:.02em;min-width:0;cursor:pointer}
 .brand span{color:var(--green)}
 .brand small{display:block;font-weight:500;color:var(--muted);font-size:.72rem;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1348,10 +1420,19 @@ a:hover{text-decoration:underline}
 .nav button,.chipbtn,button.chipbtn{border:1px solid var(--border);background:var(--chip);color:var(--text);
   border-radius:10px;padding:8px 12px;cursor:pointer;font:inherit;font-size:.85rem;font-weight:600;
   min-height:40px;touch-action:manipulation}
-.nav button.active,.chipbtn.active{background:rgba(77,163,255,.15);border-color:rgba(77,163,255,.45);color:#9cc9ff}
-.nav button:hover,.chipbtn:hover{border-color:#3a4660}
+.nav button.active,.chipbtn.active{background:var(--active-bg);border-color:var(--active-border);color:var(--active-text)}
+.nav button:hover,.chipbtn:hover{border-color:var(--green)}
 .grow{flex:1}
 .top-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.theme-select{border:1px solid var(--border);background:var(--chip);color:var(--text);
+  padding:8px 10px;font:inherit;font-size:.82rem;font-weight:700;min-height:40px;cursor:pointer;
+  max-width:118px}
+.theme-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 12px}
+.theme-pill{border:1px solid var(--border);background:var(--panel);color:var(--text);
+  padding:10px 8px;font:inherit;font-weight:700;font-size:.78rem;cursor:pointer;text-align:center}
+.theme-pill small{display:block;font-weight:500;color:var(--muted);font-size:.68rem;margin-top:3px}
+.theme-pill.on{border-color:var(--green);color:var(--green);background:var(--active-bg)}
+html[data-theme="bones"] .theme-pill.on{background:#fff;color:#000}
 .iconbtn{border:1px solid var(--border);background:var(--chip);color:var(--text);border-radius:10px;
   width:42px;height:42px;padding:0;cursor:pointer;font:inherit;font-size:1.15rem;font-weight:700;
   display:none;align-items:center;justify-content:center;flex-shrink:0;touch-action:manipulation}
@@ -1360,15 +1441,19 @@ a:hover{text-decoration:underline}
 .hero h2{margin:0 0 6px;font-size:1.45rem;font-weight:750}
 .hero .muted{margin:0;font-size:.92rem}
 .ascii-banner{margin:12px 0 10px;padding:14px 0;border-radius:12px;border:1px solid var(--border);
-  background:linear-gradient(135deg,rgba(61,255,154,.07),rgba(12,15,20,.95) 40%,rgba(77,163,255,.06));
+  background:var(--banner-bg);
   overflow:hidden;position:relative;display:flex;justify-content:center;align-items:center}
 .ascii-banner::before,.ascii-banner::after{content:"";position:absolute;top:0;bottom:0;width:56px;z-index:2;pointer-events:none}
-.ascii-banner::before{left:0;background:linear-gradient(90deg,rgba(12,15,20,.95),transparent)}
-.ascii-banner::after{right:0;background:linear-gradient(270deg,rgba(12,15,20,.95),transparent)}
+.ascii-banner::before{left:0;background:linear-gradient(90deg,var(--banner-edge),transparent)}
+.ascii-banner::after{right:0;background:linear-gradient(270deg,var(--banner-edge),transparent)}
+html[data-theme="bones"] .ascii-banner::before,
+html[data-theme="bones"] .ascii-banner::after{display:none}
 .ascii-track{flex:0 0 auto;will-change:transform;animation:howl-pan 20s linear infinite}
 .ascii-track pre{margin:0;padding:0 24px;font-family:"SF Mono","Menlo","Consolas","DejaVu Sans Mono",ui-monospace,monospace;
   font-size:clamp(.58rem,1.05vw,.82rem);line-height:1.22;letter-spacing:.04em;color:var(--green);
-  white-space:pre;text-shadow:0 0 20px rgba(61,255,154,.18)}
+  white-space:pre;text-shadow:0 0 20px color-mix(in srgb,var(--green) 18%,transparent)}
+html[data-theme="bones"] .ascii-track pre{text-shadow:none}
+html[data-theme="light"] .ascii-track pre{text-shadow:none}
 @keyframes howl-pan{
   0%, 22%{transform:translateX(0)}
   48%{transform:translateX(calc(-55vw - 55%))}
@@ -1379,7 +1464,7 @@ a:hover{text-decoration:underline}
 .searchwrap{max-width:1200px;margin:0 auto;padding:8px 16px 14px}
 .searchbox{display:flex;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:6px}
 .searchbox input{flex:1;border:0;outline:0;background:transparent;color:var(--text);font:inherit;padding:12px 12px;min-width:0;font-size:16px}
-.searchbox button{border:0;border-radius:10px;background:linear-gradient(180deg,#2f6fed,#1f55c9);color:#fff;
+.searchbox button{border:0;border-radius:10px;background:var(--btn-bg);color:var(--btn-fg);
   font-weight:700;padding:12px 16px;cursor:pointer;min-height:44px;flex-shrink:0;touch-action:manipulation}
 .stats{max-width:1200px;margin:0 auto;padding:0 16px 14px;display:grid;
   grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
@@ -1402,9 +1487,9 @@ tr:last-child td{border-bottom:0}
 tbody tr{background:var(--row);cursor:pointer}
 tbody tr:hover{background:var(--rowh)}
 .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.72rem;font-weight:700}
-.badge.ok{background:rgba(61,255,154,.12);color:var(--green)}
-.badge.warn{background:rgba(255,176,32,.12);color:var(--amber)}
-.badge.blue{background:rgba(77,163,255,.12);color:#9cc9ff}
+.badge.ok{background:var(--ok-bg);color:var(--green)}
+.badge.warn{background:var(--warn-bg);color:var(--amber)}
+.badge.blue{background:var(--blue-bg);color:var(--link)}
 .detail{padding:14px}
 .kv{display:grid;grid-template-columns:140px 1fr;gap:8px 12px;margin:10px 0}
 .kv .k{color:var(--muted);font-size:.85rem}
@@ -1442,11 +1527,11 @@ tbody tr:hover{background:var(--rowh)}
 .drawer .ditem{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:1px solid var(--border);
   background:var(--panel);color:var(--text);border-radius:12px;padding:12px 14px;margin:0 0 8px;
   font:inherit;font-weight:600;font-size:.92rem;cursor:pointer;text-decoration:none;min-height:48px;touch-action:manipulation}
-.drawer .ditem.primary{border-color:rgba(61,255,154,.4);color:var(--green)}
+.drawer .ditem.primary{border-color:var(--primary-border);color:var(--green)}
 .drawer .ditem:active{background:var(--panel2)}
 .drawer .close-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
 .bottom-nav{display:none;position:fixed;left:0;right:0;bottom:0;z-index:35;
-  background:rgba(12,15,20,.96);backdrop-filter:blur(14px);border-top:1px solid var(--border);
+  background:var(--bottom-bg);backdrop-filter:blur(14px);border-top:1px solid var(--border);
   padding:6px 4px calc(6px + var(--safe-b));grid-template-columns:repeat(5,1fr);gap:0}
 .bnav-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
   border:0;background:transparent;color:var(--muted);font:inherit;font-size:.62rem;font-weight:650;
@@ -1471,7 +1556,7 @@ tbody tr:hover{background:var(--rowh)}
   .hero h2{font-size:1.2rem}
   .hero .sub-desktop{display:none}
   .ascii-banner{display:none} /* cleaner mobile: drop ascii marquee */
-  .searchwrap{padding:6px 12px 12px;position:sticky;top:52px;z-index:30;background:linear-gradient(var(--bg) 70%,transparent)}
+  .searchwrap{padding:6px 12px 12px;position:sticky;top:52px;z-index:30;background:var(--bg)}
   .searchbox{padding:4px;border-radius:12px}
   .searchbox input{padding:11px 10px;font-size:16px}
   .searchbox button{padding:10px 14px}
@@ -1510,13 +1595,20 @@ tbody tr:hover{background:var(--rowh)}
   <div class="nav" id="nav"></div>
   <div class="grow"></div>
   <div class="top-actions desktop-nav">
+    <label class="muted" for="themeSelect" style="font-size:.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin:0 2px 0 0">Look</label>
+    <select class="theme-select" id="themeSelect" title="Appearance" aria-label="Appearance theme" onchange="setTheme(this.value)">
+      <option value="dark">Dark</option>
+      <option value="light">Light</option>
+      <option value="neo">Neo</option>
+      <option value="bones">Bones</option>
+    </select>
     <button class="chipbtn" onclick="location.hash='#/'+net+'/richlist'">Richlist</button>
     <button class="chipbtn" onclick="location.hash='#/'+net+'/mempool'">Mempool</button>
     <button class="chipbtn" onclick="location.hash='#/'+net+'/block/0'">Genesis</button>
     <a class="chipbtn" href="/whitepaper" style="text-decoration:none;display:inline-flex;align-items:center">White paper</a>
     <a class="chipbtn" href="/token" style="text-decoration:none;display:inline-flex;align-items:center;color:var(--text)">Token info</a>
     <a class="chipbtn" href="/wallet" style="text-decoration:none;display:inline-flex;align-items:center">Wallet</a>
-    <button class="chipbtn" style="border-color:rgba(61,255,154,.45);color:var(--green)" onclick="location.hash='#/run'">Run a node</button>
+    <button class="chipbtn" style="border-color:var(--primary-border);color:var(--green)" onclick="location.hash='#/run'">Run a node</button>
     <button class="chipbtn" onclick="refreshData()">Refresh</button>
   </div>
   <button class="iconbtn" id="menu-btn" type="button" aria-label="Menu" onclick="toggleDrawer(true)">☰</button>
@@ -1539,7 +1631,14 @@ tbody tr:hover{background:var(--rowh)}
   <a class="ditem" href="/token">🏷 Token / contract info</a>
   <a class="ditem" href="/whitepaper">📄 White paper</a>
   <a class="ditem" href="https://github.com/happyoils710/howlcoin" target="_blank" rel="noopener">⌥ GitHub</a>
-  <h4 style="margin-top:16px">Network</h4>
+  <h4 style="margin-top:16px">Appearance</h4>
+  <div class="theme-grid" id="themeGrid">
+    <button type="button" class="theme-pill" data-theme="dark" onclick="setTheme('dark')">Dark<small>Default</small></button>
+    <button type="button" class="theme-pill" data-theme="light" onclick="setTheme('light')">Light<small>Daylight</small></button>
+    <button type="button" class="theme-pill" data-theme="neo" onclick="setTheme('neo')">Neo<small>Cyber glow</small></button>
+    <button type="button" class="theme-pill" data-theme="bones" onclick="setTheme('bones')">Bones<small>B&amp;W · no gradient</small></button>
+  </div>
+  <h4 style="margin-top:8px">Network</h4>
   <div id="drawer-nav"></div>
   <button class="ditem" type="button" onclick="toggleDrawer(false);refreshData()">↻ Refresh data</button>
 </aside>
@@ -1584,8 +1683,34 @@ tbody tr:hover{background:var(--rowh)}
 let net='public', networks=[];
 const SEED = '147.182.223.204:42069';
 const REPO = 'https://github.com/happyoils710/howlcoin';
+const LS_THEME = 'howlscan_theme_v1';
+const THEMES = ['light','dark','neo','bones'];
 const $ = s => document.querySelector(s);
 const app = () => $('#app');
+
+function setTheme(name){
+  const t = THEMES.includes(name) ? name : 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+  try{ localStorage.setItem(LS_THEME, t); }catch(e){}
+  const meta = document.getElementById('themeColorMeta');
+  if(meta){
+    meta.content = t==='light' ? '#f4f6fa'
+      : t==='neo' ? '#03010a'
+      : t==='bones' ? '#000000'
+      : '#0c0f14';
+  }
+  const sel = document.getElementById('themeSelect');
+  if(sel && sel.value !== t) sel.value = t;
+  document.querySelectorAll('.theme-pill').forEach(p=>{
+    p.classList.toggle('on', p.getAttribute('data-theme') === t);
+  });
+}
+function applyStoredTheme(){
+  let t = 'dark';
+  try{ t = localStorage.getItem(LS_THEME) || 'dark'; }catch(e){}
+  setTheme(t);
+}
+applyStoredTheme();
 async function api(p){const r=await fetch(p); const j=await r.json(); if(!r.ok) throw new Error(j.error||r.statusText); return j}
 function short(h,n=12){if(!h)return '—'; h=String(h); return h.length<=n?h:h.slice(0,n)+'…'}
 function fmtAmt(a){if(a==null||a==='')return '—'; const n=Number(a)/1e8; return n.toLocaleString(undefined,{maximumFractionDigits:8})+' HOWL'}
