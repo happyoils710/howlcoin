@@ -11,9 +11,11 @@ Run:
 
 from __future__ import annotations
 
+import html as html_lib
 import json
 import mimetypes
 import os
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -32,6 +34,90 @@ from .wallet import format_howl
 
 # Live seed node RPC (for broadcasting browser-signed txs into the public mempool)
 NODE_RPC = os.environ.get("HOWL_NODE_RPC", "http://127.0.0.1:42070").rstrip("/")
+
+
+def web_search(query: str, limit: int = 12) -> List[Dict[str, str]]:
+    """
+    Server-side web search so the wallet can show results in-app
+    (avoids third-party search pages that block iframes).
+    Uses DuckDuckGo HTML endpoint.
+    """
+    q = (query or "").strip()
+    if not q:
+        return []
+    limit = max(1, min(20, int(limit)))
+    url = "https://html.duckduckgo.com/html/?" + urllib.parse.urlencode({"q": q})
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (compatible; HowlcoinWallet/0.5; +https://howlscan.org)"
+            ),
+            "Accept": "text/html",
+        },
+        method="GET",
+    )
+    with urllib.request.urlopen(req, timeout=12) as resp:
+        page = resp.read().decode("utf-8", errors="ignore")
+
+    results: List[Dict[str, str]] = []
+    # DDG HTML result blocks
+    blocks = re.findall(
+        r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>'
+        r'.*?class="result__snippet"[^>]*>(.*?)</(?:a|td)',
+        page,
+        flags=re.I | re.S,
+    )
+    if not blocks:
+        # looser fallback: just titles + links
+        blocks = [
+            (href, title, "")
+            for href, title in re.findall(
+                r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
+                page,
+                flags=re.I | re.S,
+            )
+        ]
+
+    def clean(s: str) -> str:
+        s = re.sub(r"<[^>]+>", " ", s or "")
+        s = html_lib.unescape(s)
+        return re.sub(r"\s+", " ", s).strip()
+
+    def unwrap_ddg(href: str) -> str:
+        # //duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com&...
+        if "uddg=" in href:
+            try:
+                parsed = urllib.parse.urlparse(href if "://" in href else "https:" + href)
+                qs = urllib.parse.parse_qs(parsed.query)
+                if qs.get("uddg"):
+                    return urllib.parse.unquote(qs["uddg"][0])
+            except Exception:
+                pass
+        if href.startswith("//"):
+            return "https:" + href
+        return href
+
+    seen = set()
+    for href, title, snip in blocks:
+        link = unwrap_ddg(href)
+        if not link.startswith("http"):
+            continue
+        title_c = clean(title) or link
+        key = link.split("#", 1)[0]
+        if key in seen:
+            continue
+        seen.add(key)
+        results.append(
+            {
+                "title": title_c[:200],
+                "url": link,
+                "snippet": clean(snip)[:280],
+            }
+        )
+        if len(results) >= limit:
+            break
+    return results
 
 ASSETS_DIR = Path(__file__).resolve().parents[1] / "assets"
 
@@ -1069,6 +1155,26 @@ class ExplorerServer:
                             "note": "Fees are paid to the miner who confirms the transaction",
                         },
                     )
+
+                if path in ("/api/public/search", "/api/search"):
+                    q = (qs.get("q") or qs.get("query") or [""])[0]
+                    try:
+                        limit = int((qs.get("limit") or ["12"])[0])
+                    except ValueError:
+                        limit = 12
+                    try:
+                        results = web_search(q, limit=limit)
+                        return self._json(
+                            200,
+                            {
+                                "query": q,
+                                "count": len(results),
+                                "results": results,
+                                "in_app": True,
+                            },
+                        )
+                    except Exception as e:
+                        return self._json(502, {"error": f"search failed: {e}", "query": q})
 
                 # /api/<net>/...
                 parts = path.strip("/").split("/")

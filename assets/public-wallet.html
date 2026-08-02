@@ -216,6 +216,20 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .browser-page.browsing .browser-topbar{display:flex}
 .browser-page.browsing .dapp-frame-wrap{display:block;flex:1}
 .browser-page.browsing .browser-bottombar{display:flex}
+.browser-page.results .browser-home{display:none}
+.browser-page.results .browser-topbar{display:flex}
+.browser-page.results .search-results{display:block;flex:1}
+.browser-page.results .browser-bottombar{display:flex}
+.search-results{display:none;overflow:auto;padding:8px 12px 20px;background:var(--bg);
+  min-height:calc(100vh - 160px - var(--nav-h))}
+.search-results h3{margin:8px 4px 12px;font-size:.85rem;color:var(--muted);font-weight:600}
+.sres{display:block;width:100%;text-align:left;border:1px solid var(--border);background:var(--card);
+  border-radius:14px;padding:12px 14px;margin:0 0 10px;cursor:pointer;color:var(--text);font:inherit}
+.sres:active{border-color:var(--green)}
+.sres .st{font-weight:700;font-size:1rem;color:var(--cyan);margin:0 0 4px;line-height:1.3}
+.sres .su{font-size:.72rem;color:var(--green);word-break:break-all;margin:0 0 6px;opacity:.9}
+.sres .ss{font-size:.84rem;color:var(--muted);line-height:1.4;margin:0}
+.search-empty{text-align:center;padding:40px 16px;color:var(--muted)}
 .browser-topbar{display:none;align-items:center;gap:8px;padding:calc(8px + var(--safe-t)) 10px 8px;
   background:var(--top-bg);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);z-index:16}
 .browser-topbar .navbtn{width:36px;height:36px;border-radius:10px;border:0;background:transparent;
@@ -486,12 +500,19 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
           </div>
         </div>
 
+        <!-- In-app search results (not an external search page) -->
+        <div class="search-results" id="searchResults">
+          <h3 id="searchResultsTitle">Results</h3>
+          <div id="searchResultsList"></div>
+        </div>
+
         <div class="dapp-frame-wrap" id="dappFrameWrap">
           <iframe id="dappFrame" title="Browser" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"></iframe>
           <div class="dapp-fallback hidden" id="dappFallback">
-            <p style="font-weight:700;font-size:1.1rem;margin:0 0 8px">Open this page full screen</p>
-            <p class="hint" style="margin-bottom:14px;max-width:280px">This site blocks in-app preview (same as many banks &amp; Google pages). Continue in Safari/Chrome — your wallet stays open underneath.</p>
-            <button class="btn" type="button" id="dappOpenExt">Open in browser</button>
+            <p style="font-weight:700;font-size:1.1rem;margin:0 0 8px">Can’t show this site inside the app</p>
+            <p class="hint" style="margin-bottom:14px;max-width:280px">This website blocks in-app frames. Open it full screen — or go back and pick another result.</p>
+            <button class="btn" type="button" id="dappOpenExt">Open outside</button>
+            <button class="btn sec" type="button" onclick="showLastSearchResults()">Back to results</button>
             <button class="btn sec" type="button" onclick="browserHome()">New search</button>
           </div>
         </div>
@@ -710,8 +731,10 @@ const LS_ENGINE = "howl_search_engine_v1";
 
 let lastSwapQuote = null;
 let browserHistory = [];
-let browserMode = "home"; // home | browsing
+let browserMode = "home"; // home | results | browsing
 let searchEngineId = localStorage.getItem(LS_ENGINE) || "google";
+let lastSearchQuery = "";
+let lastSearchResults = [];
 const LS_ENC = "howl_public_wallet_v2";
 const LS_META = "howl_public_wallet_meta_v2";
 const LS_BIO = "howl_public_webauthn_v1";
@@ -1284,7 +1307,9 @@ function initBrowserUI(){
 function setBrowserMode(mode){
   browserMode = mode;
   const page = $("browserPage");
-  if(page) page.classList.toggle("browsing", mode === "browsing");
+  if(!page) return;
+  page.classList.toggle("browsing", mode === "browsing");
+  page.classList.toggle("results", mode === "results");
   const app = $("app");
   if(app && document.getElementById("p-browser")?.classList.contains("on")){
     app.classList.add("browser-focus");
@@ -1294,24 +1319,23 @@ function syncSearchToOmni(){
   const q = ($("dappSearch") && $("dappSearch").value) || "";
   if($("dappUrl")) $("dappUrl").value = q;
 }
-/** Resolve omnibox text → { embedUrl, externalUrl, display } */
+/** Resolve omnibox text → nav object */
 function resolveNavigation(input){
   let u = (input || "").trim();
   if(!u) return null;
-  const eng = getEngine();
   if(/^search:/i.test(u)){
     const q = u.replace(/^search:/i, "").trim() || "howlcoin";
-    return { embedUrl: eng.embed(q), externalUrl: eng.search(q), display: q, isSearch: true };
+    return { kind: "search", query: q, display: q };
   }
   if(/^https?:\/\//i.test(u)){
-    return { embedUrl: u, externalUrl: u, display: u.replace(/^https?:\/\//,""), isSearch: false };
+    return { kind: "url", url: u, display: u.replace(/^https?:\/\//,""), externalUrl: u, embedUrl: u };
   }
   const domainLike = /^(localhost(:\d+)?|(\d{1,3}\.){3}\d{1,3}(:\d+)?|([a-z0-9-]+\.)+[a-z]{2,})([/:?#].*)?$/i;
   if(domainLike.test(u) && !/\s/.test(u)){
     const full = "https://" + u;
-    return { embedUrl: full, externalUrl: full, display: u, isSearch: false };
+    return { kind: "url", url: full, display: u, externalUrl: full, embedUrl: full };
   }
-  return { embedUrl: eng.embed(u), externalUrl: eng.search(u), display: u, isSearch: true };
+  return { kind: "search", query: u, display: u };
 }
 function openDapp(url){
   showPage("browser");
@@ -1330,52 +1354,128 @@ function setProgress(run){
   if(!p) return;
   p.classList.toggle("run", !!run);
 }
-function browseTo(){
-  const raw = ($("dappUrl") && $("dappUrl").value.trim()) || ($("dappSearch") && $("dappSearch").value.trim()) || "";
-  const nav = resolveNavigation(raw);
-  if(!nav) return;
-  if($("dappUrl")) $("dappUrl").value = nav.display;
-  if($("dappSearch")) $("dappSearch").value = nav.display;
+function esc(s){
+  return String(s??"").replace(/[&<>"']/g,c=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
+}
+
+/** In-app search results (API) so users stay in the wallet */
+async function runInAppSearch(query){
+  lastSearchQuery = query;
+  setBrowserMode("results");
+  $("dappFallback").classList.add("hidden");
+  setProgress(true);
+  const list = $("searchResultsList");
+  const title = $("searchResultsTitle");
+  if(title) title.textContent = `Results for “${query}”`;
+  if(list) list.innerHTML = `<div class="search-empty">Searching…</div>`;
+  try{
+    const data = await api("/api/public/search?q=" + encodeURIComponent(query) + "&limit=12");
+    lastSearchResults = data.results || [];
+    if(!lastSearchResults.length){
+      if(list) list.innerHTML = `<div class="search-empty">No results. Try different words, or type a website like <b>jup.ag</b>.</div>`;
+      return;
+    }
+    if(list){
+      list.innerHTML = lastSearchResults.map((r,i)=>`
+        <button type="button" class="sres" data-i="${i}">
+          <div class="st">${esc(r.title||r.url)}</div>
+          <div class="su">${esc(r.url)}</div>
+          <div class="ss">${esc(r.snippet||"")}</div>
+        </button>`).join("");
+      list.querySelectorAll(".sres").forEach(btn=>{
+        btn.onclick = ()=>{
+          const item = lastSearchResults[Number(btn.dataset.i)];
+          if(item) openUrlInApp(item.url, item.title || item.url);
+        };
+      });
+    }
+  }catch(e){
+    if(list) list.innerHTML = `<div class="search-empty">Search unavailable (${esc(e.message)}). Opening web search…</div>`;
+    // fallback: still try to show something useful
+    const eng = getEngine();
+    openUrlInApp(eng.embed(query), query, eng.search(query));
+  }finally{
+    setProgress(false);
+  }
+}
+
+function showLastSearchResults(){
+  if(lastSearchQuery && lastSearchResults.length){
+    setBrowserMode("results");
+    $("dappFallback").classList.add("hidden");
+    if($("dappUrl")) $("dappUrl").value = lastSearchQuery;
+    return;
+  }
+  if(lastSearchQuery) runInAppSearch(lastSearchQuery);
+  else browserHome();
+}
+
+/** Load a website inside the app iframe */
+function openUrlInApp(url, display, externalUrl){
+  const nav = {
+    kind: "url",
+    url,
+    display: display || url.replace(/^https?:\/\//,""),
+    embedUrl: url,
+    externalUrl: externalUrl || url,
+  };
   browserHistory.push(nav);
   setBrowserMode("browsing");
   $("dappFallback").classList.add("hidden");
+  if($("dappUrl")) $("dappUrl").value = nav.display;
   setProgress(true);
   const frame = $("dappFrame");
-  // Prefer external for known iframe-hostile hosts (feels like real browser)
-  const hostile = /google\.|youtube\.|facebook\.|instagram\.|twitter\.|x\.com|apple\.com/i;
-  if(hostile.test(nav.externalUrl) || nav.isSearch && searchEngineId === "google"){
-    setProgress(false);
-    // try embed first for non-google search; for google open external immediately for Chrome-like feel
-    if(searchEngineId === "google" && nav.isSearch){
-      window.open(nav.externalUrl, "_blank", "noopener,noreferrer");
-      showDappFallback(nav);
-      return;
-    }
-  }
   try{
     frame.onload = ()=> setProgress(false);
+    frame.onerror = ()=> { setProgress(false); showDappFallback(nav); };
     frame.src = nav.embedUrl;
   }catch(e){
     setProgress(false);
     showDappFallback(nav);
   }
   $("dappOpenExt").onclick = ()=> window.open(nav.externalUrl, "_blank", "noopener,noreferrer");
-  setTimeout(()=> setProgress(false), 2500);
+  // If still blank-ish after delay, offer outside open (many sites block X-Frame)
+  setTimeout(()=> setProgress(false), 2800);
+}
+
+function browseTo(){
+  const raw = ($("dappUrl") && $("dappUrl").value.trim()) || ($("dappSearch") && $("dappSearch").value.trim()) || "";
+  const nav = resolveNavigation(raw);
+  if(!nav) return;
+  if($("dappUrl")) $("dappUrl").value = nav.display;
+  if($("dappSearch")) $("dappSearch").value = nav.display;
+
+  if(nav.kind === "search"){
+    browserHistory.push(nav);
+    runInAppSearch(nav.query);
+    return;
+  }
+  // direct URL / domain — open inside the app
+  openUrlInApp(nav.url || nav.embedUrl, nav.display, nav.externalUrl);
 }
 function showDappFallback(nav){
   const n = typeof nav === "string" ? { externalUrl: nav, embedUrl: nav } : nav;
   $("dappFallback").classList.remove("hidden");
-  $("dappOpenExt").onclick = ()=> window.open(n.externalUrl || n, "_blank", "noopener,noreferrer");
+  $("dappOpenExt").onclick = ()=> window.open(n.externalUrl || n.embedUrl || n, "_blank", "noopener,noreferrer");
 }
 function browserBack(){
+  if(browserMode === "browsing" && lastSearchQuery){
+    // from site → back to in-app results
+    showLastSearchResults();
+    return;
+  }
   if(browserHistory.length > 1){
     browserHistory.pop();
     const prev = browserHistory[browserHistory.length - 1];
+    if(prev.kind === "search"){
+      runInAppSearch(prev.query);
+      return;
+    }
     if($("dappUrl")) $("dappUrl").value = prev.display || prev.embedUrl || "";
     setBrowserMode("browsing");
     $("dappFallback").classList.add("hidden");
     setProgress(true);
-    $("dappFrame").src = prev.embedUrl || prev;
+    $("dappFrame").src = prev.embedUrl || prev.url || prev;
     setTimeout(()=> setProgress(false), 1500);
     return;
   }
@@ -1390,13 +1490,24 @@ function browserHome(){
   if($("dappUrl")) $("dappUrl").value = "";
 }
 function browserExitOrMore(){
-  if(browserMode === "browsing") browserHome();
+  if(browserMode === "browsing" || browserMode === "results") browserHome();
   else showPage("more");
 }
 function openCurrentExternal(){
   const raw = ($("dappUrl") && $("dappUrl").value) || ($("dappSearch") && $("dappSearch").value) || "";
+  if(browserMode === "browsing" && browserHistory.length){
+    const cur = browserHistory[browserHistory.length-1];
+    window.open(cur.externalUrl || cur.embedUrl || cur.url, "_blank", "noopener,noreferrer");
+    return;
+  }
   const nav = resolveNavigation(raw);
-  if(nav) window.open(nav.externalUrl, "_blank", "noopener,noreferrer");
+  if(!nav) return;
+  if(nav.kind === "search"){
+    const eng = getEngine();
+    window.open(eng.search(nav.query), "_blank", "noopener,noreferrer");
+  } else {
+    window.open(nav.externalUrl || nav.url, "_blank", "noopener,noreferrer");
+  }
 }
 
 function renderAssetSeg(){
@@ -2045,6 +2156,7 @@ window.browserExitOrMore = browserExitOrMore;
 window.syncSearchToOmni = syncSearchToOmni;
 window.openDapp = openDapp;
 window.openCurrentExternal = openCurrentExternal;
+window.showLastSearchResults = showLastSearchResults;
 window.resetToolbar = resetToolbar;
 window.saveToolbarFromEditor = saveToolbarFromEditor;
 window.setTheme = setTheme;
