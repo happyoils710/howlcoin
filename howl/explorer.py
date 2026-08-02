@@ -2198,15 +2198,25 @@ async function showBlock(id){
   const cb=txs.find(t=>t.type==='coinbase');
   const h=b.height;
   const prev = h>0 ? h-1 : null;
+  const fees = txs.filter(t=>t.type!=='coinbase').reduce((s,t)=>s+(Number(t.fee)||0),0);
+  const xferN = txs.filter(t=>t.type!=='coinbase').length;
   app().innerHTML=`<div class="main" style="padding-top:12px">
     ${crumbs([{label:'Home',href:'#/'+net},{label:'Block #'+h}])}
     <div class="page-actions">
       <button class="back" onclick="location.hash='#/${net}'">← Home</button>
       ${prev!=null?`<button class="chipbtn" onclick="location.hash='#/${net}/block/${prev}'">← #${prev}</button>`:''}
       <button class="chipbtn" onclick="location.hash='#/${net}/block/${h+1}'">#${h+1} →</button>
+      <button class="chipbtn" onclick="copyText(${JSON.stringify(String(b.hash||''))}, this)">Copy hash</button>
+    </div>
+    <div class="stats" style="margin-bottom:10px">
+      <div class="stat"><div class="k">Height</div><div class="v">#${b.height}</div><div class="s">${esc(ago(b.header.timestamp))}</div></div>
+      <div class="stat"><div class="k">Mined</div><div class="v" style="font-size:.9rem">${esc(fmtTime(b.header.timestamp))}</div><div class="s">block time</div></div>
+      <div class="stat"><div class="k">Txs</div><div class="v">${txs.length}</div><div class="s">${xferN} transfer · fees ${fmtAmt(fees)}</div></div>
+      <div class="stat"><div class="k">Reward</div><div class="v" style="font-size:.95rem">${fmtAmt(cb&&cb.amount)}</div><div class="s">miner ${cb&&cb.to?esc(short(cb.to,10)):'—'}</div></div>
     </div>
     <div class="card detail">
       <div class="badge blue">Block</div>
+      <span class="badge ok" style="margin-left:6px">Verified on Howlcoin</span>
       <h2 style="margin:8px 0 4px;font-size:1.25rem">Block #${b.height}</h2>
       <div class="mono">${esc(b.hash)}${copyBtn(b.hash)}</div>
       <div class="kv" style="margin-top:12px">
@@ -2216,8 +2226,9 @@ async function showBlock(id){
         <div class="k">Nonce</div><div class="mono">${b.header.nonce}</div>
         <div class="k">Merkle root</div><div class="mono">${esc(b.header.merkle_root||'—')}</div>
         <div class="k">Previous</div><div class="mono">${b.height>0?linkBlock(b.header.prev_hash)+copyBtn(b.header.prev_hash):'— genesis'}</div>
-        <div class="k">Miner</div><div>${linkAddr(cb&&cb.to)}</div>
+        <div class="k">Miner</div><div>${linkAddr(cb&&cb.to)}${cb&&cb.to?copyBtn(cb.to):''}</div>
         <div class="k">Reward</div><div class="amount">${fmtAmt(cb&&cb.amount)}</div>
+        <div class="k">Fees in block</div><div>${fmtAmt(fees)}</div>
         <div class="k">Transactions</div><div>${txs.length}</div>
       </div>
     </div>
@@ -2292,16 +2303,37 @@ async function showAddr(addr){
   await loadNetworks();
   const d=await api(`/api/${net}/address/${encodeURIComponent(addr)}`);
   const hist = d.transactions||[];
+  const known = {
+    'HOWL_GENESIS_BURN': 'Genesis burn',
+  };
+  const tag = known[d.address] || (String(d.address||'').startsWith('H') ? 'Howlcoin address' : 'Address');
+  // mini activity strip (heights)
+  const heights = hist.map(t=>t.block_height).filter(h=>h!=null).slice(0,24);
+  const maxH = heights.length ? Math.max(...heights) : 1;
+  const spark = heights.length
+    ? `<div style="display:flex;align-items:flex-end;gap:3px;height:36px;margin:10px 0 4px">${heights.map(h=>{
+        const pct = Math.max(8, Math.round(100 * (Number(h)||0) / maxH));
+        return `<div title="#${h}" style="flex:1;min-width:4px;height:${pct}%;background:var(--green);opacity:.75"></div>`;
+      }).join('')}</div><div class="muted" style="font-size:.72rem">Recent activity heights (newest left)</div>`
+    : `<p class="muted" style="font-size:.85rem;margin:8px 0">No activity spark yet</p>`;
   app().innerHTML=`<div class="main" style="padding-top:12px">
     ${crumbs([{label:'Home',href:'#/'+net},{label:'Richlist',href:'#/'+net+'/richlist'},{label:'Address'}])}
     <div class="page-actions">
       <button class="back" onclick="location.hash='#/${net}'">← Home</button>
       <button class="chipbtn" onclick="location.hash='#/${net}/richlist'">Richlist</button>
+      <button class="chipbtn" onclick="copyText(${JSON.stringify(String(d.address||''))}, this)">Copy address</button>
+    </div>
+    <div class="stats" style="margin-bottom:10px">
+      <div class="stat"><div class="k">Balance</div><div class="v" style="font-size:1rem">${esc(d.balance_fmt)}</div><div class="s">HOWL</div></div>
+      <div class="stat"><div class="k">Nonce</div><div class="v">${d.nonce}</div><div class="s">next send</div></div>
+      <div class="stat"><div class="k">Txs shown</div><div class="v">${d.tx_count}</div><div class="s">history</div></div>
     </div>
     <div class="card detail" style="margin-top:4px">
-      <div class="badge blue">Address</div>
+      <div class="badge blue">${esc(tag)}</div>
+      <span class="badge ok" style="margin-left:6px">Verified on Howlcoin</span>
       <h2 style="margin:8px 0 4px;font-size:1.25rem">Wallet</h2>
       <div class="mono">${esc(d.address)}${copyBtn(d.address)}</div>
+      ${spark}
       <div class="kv" style="margin-top:12px">
         <div class="k">Balance</div><div class="amount" style="font-size:1.25rem">${esc(d.balance_fmt)}</div>
         <div class="k">Nonce</div><div>${d.nonce}</div>
