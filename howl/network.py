@@ -94,10 +94,22 @@ class Node:
         self._server_sock: Optional[socket.socket] = None
         self._seen_blocks: Set[str] = set()
         self._seen_txs: Set[str] = set()
+        self._fail_counts: Dict[str, int] = {}
+        self._next_try: Dict[str, float] = {}
         self.peer_file = chain.data_dir / PEER_FILE
         self._load_peers_file()
 
     # ----- peer persistence -----
+
+    def _seed_keys(self) -> Set[str]:
+        out: Set[str] = set()
+        for s in self.seeds:
+            try:
+                h, p = parse_peer(s)
+                out.add(_addr_key(h, p))
+            except ValueError:
+                continue
+        return out
 
     def _load_peers_file(self) -> None:
         self.known_peers: Set[str] = set(self.seeds)
@@ -110,11 +122,19 @@ class Node:
                 pass
 
     def _save_peers_file(self) -> None:
+        seeds = self._seed_keys()
         with self.peers_lock:
             active = [p.key for p in self.peers.values() if p.alive]
-        all_peers = sorted(set(active) | self.known_peers)
+        # Never persist peers that have failed repeatedly (keeps dead IPs out of peers.json)
+        keep = set(active) | seeds
+        for p in list(self.known_peers):
+            if p in seeds or p in active:
+                keep.add(p)
+            elif self._fail_counts.get(p, 0) < 3:
+                keep.add(p)
+        self.known_peers = keep
         self.peer_file.parent.mkdir(parents=True, exist_ok=True)
-        self.peer_file.write_text(json.dumps({"peers": all_peers}, indent=2))
+        self.peer_file.write_text(json.dumps({"peers": sorted(keep)}, indent=2))
 
     def log(self, msg: str) -> None:
         self.on_event(f"[p2p] {msg}")
@@ -191,6 +211,7 @@ class Node:
             targets = set(self.known_peers)
             for seed in self.seeds:
                 targets.add(seed)
+            now = time.time()
             for target in list(targets):
                 if self._stop.is_set():
                     break
@@ -207,17 +228,35 @@ class Node:
                 with self.peers_lock:
                     if key in self.peers and self.peers[key].alive:
                         continue
+                # back off dead peers (do not spam "timed out" every few seconds)
+                nxt = self._next_try.get(key, 0.0)
+                if now < nxt:
+                    continue
                 self.connect(host, port)
-            time.sleep(8)
+            time.sleep(12)
 
     def connect(self, host: str, port: int) -> bool:
         key = _addr_key(host, port)
+        seeds = self._seed_keys()
         try:
             sock = socket.create_connection((host, port), timeout=5)
             sock.settimeout(30)
         except OSError as e:
-            self.log(f"dial {key} failed: {e}")
+            fails = self._fail_counts.get(key, 0) + 1
+            self._fail_counts[key] = fails
+            # 30s, 60s, 2m … up to 1h
+            delay = min(3600.0, 30.0 * (2 ** min(fails - 1, 6)))
+            self._next_try[key] = time.time() + delay
+            if key not in seeds and fails >= 3:
+                self.known_peers.discard(key)
+                self._save_peers_file()
+                self.log(f"dropped unreachable peer {key} after {fails} fails")
+            elif fails <= 2 or fails % 5 == 0:
+                # reduce log spam — first two fails + every 5th
+                self.log(f"dial {key} failed: {e} (retry in {int(delay)}s)")
             return False
+        self._fail_counts[key] = 0
+        self._next_try.pop(key, None)
         peer = PeerConnection(sock, host, port, inbound=False)
         with self.peers_lock:
             self.peers[key] = peer

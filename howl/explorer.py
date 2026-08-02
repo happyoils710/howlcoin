@@ -1032,6 +1032,8 @@ class ExplorerHub:
                 except Exception:
                     pass
                 s = c.summary()
+                tip_age = s.get("tip_age_seconds")
+                # "live" = chain data present. Slow block times at high diff are normal.
                 out.append(
                     {
                         "id": name,
@@ -1040,9 +1042,23 @@ class ExplorerHub:
                         "online": True,
                         "height": s["height"],
                         "tip": s["tip"],
+                        "tip_timestamp": s.get("tip_timestamp"),
+                        "tip_age_seconds": tip_age,
                         "circulating": s["circulating"],
                         "difficulty": s["difficulty"],
                         "mempool": s["mempool"],
+                        "status": "live",
+                        "status_note": (
+                            "Network online · last block "
+                            + (
+                                f"{int(tip_age // 3600)}h ago"
+                                if tip_age is not None and tip_age >= 3600
+                                else f"{int((tip_age or 0) // 60)}m ago"
+                                if tip_age is not None
+                                else "—"
+                            )
+                            + f" · diff {s['difficulty']} (CPU mining can take hours)"
+                        ),
                     }
                 )
             else:
@@ -1484,11 +1500,33 @@ async function loadHome(){
   ]);
   const bl = blocks.blocks||[];
   const tl = txs.transactions||[];
+  const tipTs = s.tip_timestamp || (bl[0] && bl[0].timestamp) || 0;
+  const tipAge = tipTs ? ago(tipTs) : '—';
+  const ageSec = s.tip_age_seconds != null ? s.tip_age_seconds : (tipTs ? Math.max(0, Math.floor(Date.now()/1000 - tipTs)) : 0);
+  // High difficulty → hours between blocks is normal; do not imply the network is down
+  const slowMining = (s.difficulty||0) >= 5 || ageSec > 600;
+  const liveNote = slowMining
+    ? `Seed online · last block ${tipAge} · diff ${s.difficulty} — CPU mining is slow (hours per block is normal). Chain is live.`
+    : `Seed online · last block ${tipAge} · network live`;
   // Only replace #app — hero/banner stay mounted so animation never restarts
   app().innerHTML = `
+  <div class="main" style="padding-top:4px;padding-bottom:4px">
+    <div class="card" style="padding:12px 14px;border-color:rgba(61,255,154,.35);background:rgba(61,255,154,.06)">
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+        <span class="badge ok">LIVE</span>
+        <span style="font-weight:700;color:var(--green)">Howlcoin public network</span>
+        <span class="muted" style="font-size:.88rem">${esc(liveNote)}</span>
+      </div>
+      <p class="muted" style="margin:8px 0 0;font-size:.82rem;line-height:1.4">
+        Seed <span class="mono">147.182.223.204:42069</span> · height <b>${s.height}</b>.
+        If blocks look “stuck”, miners are still working — at high difficulty a laptop may need ~hours per block.
+        <a href="#/run">Run a node / mine</a>
+      </p>
+    </div>
+  </div>
   <div class="stats">
     <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/block/${s.height}'">
-      <div class="k">Height</div><div class="v">${s.height}</div><div class="s">tap → tip block</div></div>
+      <div class="k">Height</div><div class="v">${s.height}</div><div class="s">last ${esc(tipAge)}</div></div>
     <div class="stat"><div class="k">Difficulty</div><div class="v">${s.difficulty}</div><div class="s">Scrypt PoW</div></div>
     <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/richlist'" title="${esc(String(s.circulating||''))}">
       <div class="k">Circulating</div><div class="v">${esc(circulatingShort(s))}</div><div class="s">HOWL · richlist</div></div>

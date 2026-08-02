@@ -601,13 +601,22 @@ class Blockchain:
 
     def summary(self) -> Dict[str, Any]:
         supply = sum(self.balances.values())
+        tip = self.tip()
+        tip_ts = 0
+        try:
+            tip_ts = int((tip.get("header") or {}).get("timestamp") or 0)
+        except (TypeError, ValueError):
+            tip_ts = 0
+        tip_age = max(0, int(time.time()) - tip_ts) if tip_ts else None
         return {
             "name": "Howlcoin",
             "ticker": "HOWL",
             "height": self.height(),
             "difficulty": self.current_difficulty(),
             "next_difficulty": self.next_difficulty(),
-            "tip": self.tip()["hash"],
+            "tip": tip["hash"],
+            "tip_timestamp": tip_ts or None,
+            "tip_age_seconds": tip_age,
             "mempool": len(self.mempool),
             "addresses": len(self.balances),
             "circulating_howlies": supply,
