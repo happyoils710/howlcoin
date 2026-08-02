@@ -193,8 +193,9 @@ class HowlBot:
             "/start /wallet /receive — your address\n"
             "/send `ADDRESS` `AMOUNT` — e.g. `/send Hxxx… 1000`\n"
             "/mnemonic /mine /newwallet\n\n"
-            "*Anywhere*\n"
-            "/status /seed /help\n\n"
+            "*Explorer (anywhere)*\n"
+            "/status /seed /explorer\n"
+            "/blocks · /block `N` · /tx `id` · /addr `H…`\n\n"
             "Sends sit in the mempool until someone `/mine`s a block.\n\n"
             f"*Public seed*\n`{self.seed}`\n"
             "Desktop: github.com/happyoils710/howlcoin"
@@ -210,21 +211,219 @@ class HowlBot:
             parse_mode=ParseMode.MARKDOWN,
         )
 
+    def _fmt_status(self, label: str, s: Dict[str, Any]) -> str:
+        return (
+            f"*{label}*\n"
+            f"Height: `{s['height']}` · Diff: `{s['difficulty']}`\n"
+            f"Supply: `{s['circulating']}`\n"
+            f"Mempool: `{s['mempool']}`\n"
+            f"Tip: `{s['tip'][:24]}…`"
+        )
+
     async def cmd_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not update.message:
             return
         with self.chain_lock:
+            try:
+                self.chain.reload_from_disk()
+            except Exception:
+                pass
             s = self.chain.summary()
-        await update.message.reply_text(
-            f"🐺 *Howlcoin status*\n"
-            f"Height: `{s['height']}`\n"
-            f"Diff: `{s['difficulty']}`\n"
-            f"Supply: `{s['circulating']}`\n"
-            f"Tip: `{s['tip'][:20]}…`\n"
-            f"Algo: `{s['algo']}`\n"
-            f"Seed: `{self.seed}`",
-            parse_mode=ParseMode.MARKDOWN,
-        )
+        parts = ["🐺 *Howlcoin status*\n\n", self._fmt_status("Telegram bot chain", s)]
+        if self.public_chain:
+            try:
+                self.public_chain.reload_from_disk()
+                ps = self.public_chain.summary()
+                parts.append("\n\n" + self._fmt_status("Public / seed chain", ps))
+            except Exception:
+                pass
+        parts.append(f"\n\nSeed: `{self.seed}`")
+        if self.explorer_url:
+            parts.append(f"\nWeb explorer: {self.explorer_url}")
+        parts.append("\n\n/block /tx /addr /blocks /explorer")
+        await update.message.reply_text("".join(parts), parse_mode=ParseMode.MARKDOWN)
+
+    def _pick_chain(self, name: Optional[str] = None):
+        n = (name or "bot").lower()
+        if n in ("public", "pub", "seed", "main") and self.public_chain:
+            try:
+                self.public_chain.reload_from_disk()
+            except Exception:
+                pass
+            return "public", self.public_chain
+        with self.chain_lock:
+            try:
+                self.chain.reload_from_disk()
+            except Exception:
+                pass
+            return "telegram", self.chain
+
+    async def cmd_explorer(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not update.message:
+            return
+        lines = [
+            "🔍 *Howlcoin explorer*\n\n",
+            "*In this bot*\n",
+            "`/blocks` — recent blocks\n",
+            "`/block 81` — by height or hash\n",
+            "`/tx <txid>` — transaction\n",
+            "`/addr H…` — address balance + history\n",
+            "`/status` — tip(s)\n",
+        ]
+        if self.public_chain:
+            lines.append(
+                "\n*Public chain*\n"
+                "`/block 81 public` · `/blocks public` · `/addr H… public`\n"
+            )
+        if self.explorer_url:
+            lines.append(f"\n*Web UI*\n{self.explorer_url}\n")
+        else:
+            lines.append(
+                "\n*Web UI (desktop)*\n"
+                "`python3 -m howl explorer` → http://127.0.0.1:42080/\n"
+            )
+        await update.message.reply_text("".join(lines), parse_mode=ParseMode.MARKDOWN)
+
+    async def cmd_blocks(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not update.message:
+            return
+        args = context.args or []
+        net = args[0] if args and args[0].isalpha() else None
+        label, chain = self._pick_chain(net)
+        recent = chain.recent_blocks(10)
+        lines = [f"📦 *Recent blocks* ({label})\n"]
+        for b in recent:
+            lines.append(
+                f"`#{b['height']}` `{b['hash'][:14]}…` · "
+                f"{b['tx_count']} tx · {format_howl(int(b.get('reward') or 0))}\n"
+            )
+        lines.append("\n`/block <height>` for detail")
+        await update.message.reply_text("".join(lines), parse_mode=ParseMode.MARKDOWN)
+
+    async def cmd_block(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not update.message:
+            return
+        args = list(context.args or [])
+        if not args:
+            await update.message.reply_text(
+                "Usage: `/block 81` or `/block <hash>`\nOptional: `/block 81 public`",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
+        net = None
+        if len(args) >= 2 and args[-1].lower() in ("public", "pub", "seed", "main", "telegram", "bot"):
+            net = args.pop()
+        label, chain = self._pick_chain(net)
+        b = chain.get_block(args[0])
+        if not b:
+            await update.message.reply_text(
+                f"Block not found on *{label}*: `{args[0]}`",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
+        txs = b.get("transactions") or []
+        cb = next((t for t in txs if t.get("type") == "coinbase"), None)
+        lines = [
+            f"📦 *Block #{b['height']}* ({label})\n",
+            f"`{b['hash']}`\n",
+            f"Diff `{b['header'].get('difficulty')}` · nonce `{b['header'].get('nonce')}`\n",
+            f"Txs: `{len(txs)}`\n",
+        ]
+        if cb:
+            lines.append(
+                f"Miner: `{cb.get('to')}`\n"
+                f"Reward: *{format_howl(int(cb.get('amount') or 0))}*\n"
+            )
+        lines.append("\n*Transactions*\n")
+        for t in txs[:12]:
+            if t.get("type") == "coinbase":
+                lines.append(
+                    f"· coinbase → `{str(t.get('to'))[:14]}…` "
+                    f"{format_howl(int(t.get('amount') or 0))}\n"
+                )
+            else:
+                tid = (t.get("txid") or "")[:14]
+                lines.append(
+                    f"· `{tid}…` {format_howl(int(t.get('amount') or 0))}\n"
+                    f"  `{str(t.get('from'))[:10]}…` → `{str(t.get('to'))[:10]}…`\n"
+                )
+        await update.message.reply_text("".join(lines), parse_mode=ParseMode.MARKDOWN)
+
+    async def cmd_tx(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not update.message:
+            return
+        args = list(context.args or [])
+        if not args:
+            await update.message.reply_text("Usage: `/tx <txid>`", parse_mode=ParseMode.MARKDOWN)
+            return
+        net = None
+        if len(args) >= 2 and args[-1].lower() in ("public", "pub", "seed", "main", "telegram", "bot"):
+            net = args.pop()
+        label, chain = self._pick_chain(net)
+        found = chain.find_tx(args[0])
+        if not found:
+            await update.message.reply_text(f"Tx not found on *{label}*", parse_mode=ParseMode.MARKDOWN)
+            return
+        t = found["tx"]
+        conf = "confirmed" if found.get("confirmed") else "mempool (unconfirmed)"
+        lines = [
+            f"🧾 *Transaction* ({label})\n",
+            f"`{t.get('txid')}`\n",
+            f"Status: *{conf}*\n",
+        ]
+        if found.get("block_height") is not None:
+            lines.append(f"Block: `#{found['block_height']}`\n")
+        if t.get("type") == "coinbase":
+            lines.append(
+                f"Coinbase → `{t.get('to')}`\n*{format_howl(int(t.get('amount') or 0))}*\n"
+            )
+        else:
+            lines.append(
+                f"From: `{t.get('from')}`\n"
+                f"To: `{t.get('to')}`\n"
+                f"Amount: *{format_howl(int(t.get('amount') or 0))}*\n"
+                f"Fee: {format_howl(int(t.get('fee') or 0))}\n"
+            )
+            if t.get("memo"):
+                lines.append(f"Memo: {t.get('memo')}\n")
+        await update.message.reply_text("".join(lines), parse_mode=ParseMode.MARKDOWN)
+
+    async def cmd_addr_lookup(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not update.message:
+            return
+        args = list(context.args or [])
+        if not args:
+            await update.message.reply_text(
+                "Usage: `/addr HYourAddress…`\nYour deposit address: /receive",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
+        net = None
+        if len(args) >= 2 and args[-1].lower() in ("public", "pub", "seed", "main", "telegram", "bot"):
+            net = args.pop()
+        addr = args[0].strip()
+        label, chain = self._pick_chain(net)
+        hist = chain.address_history(addr, limit=12)
+        lines = [
+            f"💼 *Address* ({label})\n",
+            f"`{hist['address']}`\n",
+            f"Balance: *{hist['balance_fmt']}*\n",
+            f"Nonce: `{hist['nonce']}`\n\n*Recent activity*\n",
+        ]
+        for t in hist.get("transactions") or []:
+            if t.get("type") == "coinbase":
+                lines.append(
+                    f"· in coinbase #{t.get('block_height')} "
+                    f"{format_howl(int(t.get('amount') or 0))}\n"
+                )
+            else:
+                lines.append(
+                    f"· {t.get('direction')} #{t.get('block_height')} "
+                    f"{format_howl(int(t.get('amount') or 0))}\n"
+                )
+        if not hist.get("transactions"):
+            lines.append("_no txs_\n")
+        await update.message.reply_text("".join(lines), parse_mode=ParseMode.MARKDOWN)
 
     async def cmd_wallet(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not update.message or not update.effective_user:
