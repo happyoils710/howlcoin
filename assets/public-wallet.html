@@ -189,6 +189,26 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
   background:rgba(0,255,198,.1);color:var(--green);font-size:1.1rem;cursor:pointer;font-weight:800}
 .quote-card{margin-top:10px;padding:12px;border-radius:12px;border:1px solid rgba(192,132,252,.25);
   background:rgba(192,132,252,.06);font-size:.9rem}
+/* More hub */
+.menu-list{display:flex;flex-direction:column;gap:0}
+.menu-row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px 12px;
+  border:0;border-bottom:1px solid rgba(255,255,255,.06);background:transparent;color:var(--text);
+  font:inherit;cursor:pointer;border-radius:0}
+.menu-row:last-child{border-bottom:0}
+.menu-row:active{background:rgba(0,255,198,.06)}
+.menu-row .mi{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  font-size:1.15rem;background:rgba(0,255,198,.08);border:1px solid rgba(0,255,198,.2);flex-shrink:0}
+.menu-row .mt{font-weight:700;font-size:1rem;letter-spacing:.02em}
+.menu-row .ms{font-size:.78rem;color:var(--muted);margin-top:2px}
+.menu-row .chev{margin-left:auto;color:var(--muted);font-size:1.1rem;opacity:.7}
+.page-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.page-head .back{border:1px solid rgba(0,255,200,.2);background:rgba(0,0,0,.35);color:var(--cyan);
+  border-radius:12px;padding:8px 12px;font:inherit;font-weight:700;cursor:pointer;min-height:40px}
+.page-head h1{margin:0;font-family:Orbitron,sans-serif;font-size:.85rem;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--cyan);font-weight:700}
+.sec-block{padding:12px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.sec-block:last-child{border-bottom:0}
+.sec-block h3{margin:0 0 8px;font-size:.85rem;font-weight:700;color:var(--text);letter-spacing:.03em}
 </style>
 </head>
 <body>
@@ -212,24 +232,18 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       <div class="bal">
         <div class="lbl">HOWL · neural public net</div>
         <div class="amt" id="bal">—</div>
-        <div class="addr" id="addr">—</div>
+        <div class="addr" id="addr" onclick="copyText(keypair&&keypair.address)" style="cursor:pointer" title="Copy">—</div>
       </div>
       <div class="actions">
-        <button class="action" type="button" onclick="showPage('swap')"><span class="ico">⇄</span><span class="n">Swap</span></button>
-        <button class="action" type="button" onclick="showPage('nft')"><span class="ico">◆</span><span class="n">NFT</span></button>
-        <button class="action" type="button" onclick="showPage('oracle')"><span class="ico">◎</span><span class="n">Oracle</span></button>
+        <button class="action" type="button" onclick="showPage('send')"><span class="ico">↑</span><span class="n">Send</span></button>
         <button class="action" type="button" onclick="showPage('recv')"><span class="ico">↓</span><span class="n">Deposit</span></button>
-      </div>
-      <div class="panel">
-        <h2>Multi-chain deposits</h2>
-        <div id="assetPreview"><p class="hint">SOL · XTZ · ETH · stables · custom</p></div>
+        <button class="action" type="button" onclick="showPage('swap')"><span class="ico">⇄</span><span class="n">Swap</span></button>
+        <button class="action" type="button" onclick="showPage('more')"><span class="ico">☰</span><span class="n">More</span></button>
       </div>
       <div class="panel">
         <h2>Network</h2>
         <div class="item"><div>Height</div><div class="r" id="height" style="color:var(--text)">—</div></div>
         <div class="item"><div>Min fee</div><div class="r" id="minFee" style="color:var(--amber)">1 HOWL</div></div>
-        <div class="item"><div>NFTs owned</div><div class="r" id="nftCount" style="color:var(--text)">—</div></div>
-        <div class="item"><div>Oracle keys</div><div class="r" id="oracleCount" style="color:var(--text)">—</div></div>
         <div class="item"><div>Security</div><div class="r" id="secStatus" style="color:var(--text);font-size:.8rem">PIN</div></div>
       </div>
       <div class="panel">
@@ -238,8 +252,39 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       </div>
     </div>
 
+    <!-- MORE HUB -->
+    <div class="page" id="p-more">
+      <div class="panel">
+        <h2>Apps</h2>
+        <div class="menu-list">
+          <button type="button" class="menu-row" onclick="showPage('swap')"><span class="mi">⇄</span><div><div class="mt">Swap</div><div class="ms">Solana · Jupiter</div></div><span class="chev">›</span></button>
+          <button type="button" class="menu-row" onclick="showPage('browser')"><span class="mi">◈</span><div><div class="mt">DApp browser</div><div class="ms">Jupiter, Raydium, Uniswap…</div></div><span class="chev">›</span></button>
+          <button type="button" class="menu-row" onclick="showPage('nft')"><span class="mi">◆</span><div><div class="mt">NFTs</div><div class="ms">Mint &amp; transfer on Howlcoin</div></div><span class="chev">›</span></button>
+          <button type="button" class="menu-row" onclick="showPage('oracle')"><span class="mi">◎</span><div><div class="mt">Oracle</div><div class="ms">Multi-chain observations</div></div><span class="chev">›</span></button>
+          <button type="button" class="menu-row" onclick="showPage('recv')"><span class="mi">↓</span><div><div class="mt">Deposits</div><div class="ms">HOWL · SOL · XTZ · ETH · tokens</div></div><span class="chev">›</span></button>
+          <button type="button" class="menu-row" onclick="showPage('send')"><span class="mi">↑</span><div><div class="mt">Send HOWL</div><div class="ms">Transfer on public chain</div></div><span class="chev">›</span></button>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Settings</h2>
+        <div class="menu-list">
+          <button type="button" class="menu-row" onclick="showPage('sec')"><span class="mi">🛡</span><div><div class="mt">Security</div><div class="ms" id="moreSecHint">Face ID · 2FA · recovery</div></div><span class="chev">›</span></button>
+          <button type="button" class="menu-row" onclick="refresh();toast('Synced')"><span class="mi">↻</span><div><div class="mt">Refresh data</div><div class="ms">Reload balances &amp; chain</div></div><span class="chev">›</span></button>
+          <button type="button" class="menu-row" onclick="window.open('https://howlscan.org/','_blank')"><span class="mi">⎋</span><div><div class="mt">Howlscan</div><div class="ms">Block explorer</div></div><span class="chev">›</span></button>
+          <button type="button" class="menu-row" onclick="lockWallet()"><span class="mi">🔒</span><div><div class="mt">Lock wallet</div><div class="ms">Require unlock again</div></div><span class="chev">›</span></button>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Snapshot</h2>
+        <div class="item"><div>NFTs owned</div><div class="r" id="nftCount" style="color:var(--text)">—</div></div>
+        <div class="item"><div>Oracle keys</div><div class="r" id="oracleCount" style="color:var(--text)">—</div></div>
+        <div class="item"><div>Assets</div><div class="r" style="color:var(--text);font-size:.75rem">SOL · XTZ · ETH</div></div>
+      </div>
+    </div>
+
     <!-- SEND HOWL -->
     <div class="page" id="p-send">
+      <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>Send</h1></div>
       <div class="panel">
         <h2>Send HOWL</h2>
         <label>To address</label>
@@ -261,6 +306,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 
     <!-- SWAP (Solana / Jupiter) -->
     <div class="page" id="p-swap">
+      <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>Swap</h1></div>
       <div class="panel">
         <h2>Swap · Solana</h2>
         <p class="hint">Powered by Jupiter aggregator. Signs with your Solana key from this wallet.</p>
@@ -305,6 +351,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 
     <!-- DAPP BROWSER -->
     <div class="page" id="p-browser">
+      <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>DApps</h1></div>
       <div class="panel">
         <h2>DApp browser</h2>
         <div class="browser-bar">
@@ -334,6 +381,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 
     <!-- NFT MINT / GALLERY -->
     <div class="page" id="p-nft">
+      <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>NFTs</h1></div>
       <div class="panel">
         <h2>Mint NFT on Howlcoin</h2>
         <p class="hint">Creates an on-chain NFT record (name + media URI). Costs network fee (1 HOWL min) paid to miners.</p>
@@ -364,6 +412,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 
     <!-- ORACLE -->
     <div class="page" id="p-oracle">
+      <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>Oracle</h1></div>
       <div class="panel">
         <h2>Little multi-chain oracle</h2>
         <p class="hint">Post observations about other chains onto Howlcoin. Anyone can read the feed — a lightweight, on-chain notice board (not a trustless bridge).</p>
@@ -389,6 +438,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 
     <!-- DEPOSIT / MULTI-ASSET -->
     <div class="page" id="p-recv">
+      <div class="page-head"><button type="button" class="back" onclick="showPage('home')">‹ Home</button><h1>Deposit</h1></div>
       <div class="panel">
         <h2>Deposit asset</h2>
         <div class="warnbox">Assets stay on their own chain (Solana / Tezos / Ethereum / Howlcoin) — not auto-swapped to HOWL. Always match the network badge.</div>
@@ -406,50 +456,53 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       </div>
     </div>
 
-    <!-- SECURITY -->
+    <!-- SECURITY (single settings screen) -->
     <div class="page" id="p-sec">
+      <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>Security</h1></div>
       <div class="panel">
-        <h2>Face ID / Touch ID</h2>
-        <p class="hint">When enabled, unlock with Face ID / Touch ID / Windows Hello only — no PIN each time. PIN remains as a backup if biometrics fail.</p>
-        <p id="bioStatus" class="hint"></p>
-        <button class="btn sec" type="button" id="bioBtn" onclick="setupBiometric()">Enable Face ID / Touch ID</button>
-      </div>
-      <div class="panel">
-        <h2>Google Authenticator (2FA)</h2>
-        <p class="hint">Require a 6-digit code from Google Authenticator (or Authy) when unlocking and sending HOWL.</p>
-        <p id="totpStatus" class="hint"></p>
-        <div id="totpSetup" class="hidden">
-          <p class="hint">Scan with Google Authenticator:</p>
-          <div class="qr"><img id="totpQr" alt="TOTP QR"/></div>
-          <div class="mono" id="totpSecret" style="margin-bottom:8px"></div>
-          <label>Enter code to confirm</label>
-          <input class="field" id="totpConfirm" inputmode="numeric" maxlength="6" placeholder="000000"/>
-          <button class="btn" type="button" onclick="confirmTotpSetup()">Confirm 2FA</button>
+        <div class="sec-block">
+          <h3>Face ID / Touch ID</h3>
+          <p class="hint">Unlock with biometrics only — PIN is backup if Face ID fails.</p>
+          <p id="bioStatus" class="hint"></p>
+          <button class="btn sec" type="button" id="bioBtn" onclick="setupBiometric()">Enable Face ID / Touch ID</button>
         </div>
-        <button class="btn sec" type="button" id="totpBtn" onclick="startTotpSetup()">Set up Authenticator</button>
-        <button class="btn danger hidden" type="button" id="totpOffBtn" onclick="disableTotp()">Turn off 2FA</button>
-      </div>
-      <div class="panel">
-        <h2>Recovery phrase</h2>
-        <button class="btn sec" type="button" onclick="revealSeed()">Reveal recovery phrase</button>
-        <div id="seedBox" class="hidden">
-          <div class="words" id="seedWords"></div>
-          <button class="btn sec" type="button" onclick="hideSeed()">Hide</button>
+        <div class="sec-block">
+          <h3>Google Authenticator (2FA)</h3>
+          <p class="hint">Extra code when unlocking and sending HOWL.</p>
+          <p id="totpStatus" class="hint"></p>
+          <div id="totpSetup" class="hidden">
+            <p class="hint">Scan with Google Authenticator:</p>
+            <div class="qr"><img id="totpQr" alt="TOTP QR"/></div>
+            <div class="mono" id="totpSecret" style="margin-bottom:8px"></div>
+            <label>Enter code to confirm</label>
+            <input class="field" id="totpConfirm" inputmode="numeric" maxlength="6" placeholder="000000"/>
+            <button class="btn" type="button" onclick="confirmTotpSetup()">Confirm 2FA</button>
+          </div>
+          <button class="btn sec" type="button" id="totpBtn" onclick="startTotpSetup()">Set up Authenticator</button>
+          <button class="btn danger hidden" type="button" id="totpOffBtn" onclick="disableTotp()">Turn off 2FA</button>
         </div>
-      </div>
-      <div class="panel">
-        <h2>Session</h2>
-        <button class="btn sec" type="button" onclick="lockWallet()">Lock wallet</button>
-        <button class="btn danger" type="button" onclick="wipeWallet()">Remove wallet from this device</button>
+        <div class="sec-block">
+          <h3>Recovery phrase</h3>
+          <p class="hint">12 words restore this wallet on any device. Never share them.</p>
+          <button class="btn sec" type="button" onclick="revealSeed()">Reveal recovery phrase</button>
+          <div id="seedBox" class="hidden">
+            <div class="words" id="seedWords"></div>
+            <button class="btn sec" type="button" onclick="hideSeed()">Hide</button>
+          </div>
+        </div>
+        <div class="sec-block">
+          <h3>Session &amp; device</h3>
+          <button class="btn sec" type="button" onclick="lockWallet()">Lock wallet</button>
+          <button class="btn danger" type="button" onclick="wipeWallet()">Remove wallet from this device</button>
+        </div>
       </div>
     </div>
   </div>
   <nav class="bottom">
     <button type="button" class="tab on" data-p="home" onclick="showPage('home')"><span>⌂</span>Home</button>
-    <button type="button" class="tab" data-p="nft" onclick="showPage('nft')"><span>◆</span>NFT</button>
-    <button type="button" class="tab" data-p="oracle" onclick="showPage('oracle')"><span>◎</span>Oracle</button>
+    <button type="button" class="tab" data-p="send" onclick="showPage('send')"><span>↑</span>Send</button>
     <button type="button" class="tab" data-p="recv" onclick="showPage('recv')"><span>↓</span>Deposit</button>
-    <button type="button" class="tab" data-p="sec" onclick="showPage('sec')"><span>☰</span>More</button>
+    <button type="button" class="tab" data-p="more" onclick="showPage('more')"><span>☰</span>More</button>
   </nav>
 </div>
 <div class="toast" id="toast"></div>
@@ -746,22 +799,29 @@ function updateSecUI(){
   $("totpBtn").classList.toggle("hidden", tOn);
   $("totpOffBtn").classList.toggle("hidden", !tOn);
   $("send2faBox").classList.toggle("hidden", !tOn);
-  $("secStatus").textContent = [
+  const status = [
     bio ? "Face ID" : "PIN",
     !bio ? null : "PIN backup",
     tOn ? "2FA" : null,
   ].filter(Boolean).join(" · ");
+  $("secStatus").textContent = status;
+  const hint = $("moreSecHint");
+  if(hint) hint.textContent = status || "Face ID · 2FA · recovery";
 }
 
 function showPage(name){
   document.querySelectorAll(".page").forEach(p=>p.classList.toggle("on", p.id==="p-"+name));
-  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on", t.dataset.p===name));
+  // Bottom tabs only for primary destinations
+  const tabMap = { home:"home", send:"send", recv:"recv", more:"more", sec:"more", swap:"more", browser:"more", nft:"more", oracle:"more" };
+  const tab = tabMap[name] || "more";
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on", t.dataset.p===tab));
   if(name==="recv") selectAsset(selectedAsset);
-  if(name==="sec") updateSecUI();
+  if(name==="sec" || name==="more") updateSecUI();
   if(name==="swap") initSwapUI();
   if(name==="browser") initBrowserUI();
   if(name==="nft") refreshNfts();
   if(name==="oracle") refreshOracle();
+  try{ window.scrollTo({ top:0, behavior:"instant" in window? "instant":"auto" }); }catch(_){ window.scrollTo(0,0); }
 }
 
 function initSwapUI(){
@@ -1029,20 +1089,6 @@ async function refreshEthBalances(){
       } else ethBalances.xtz = "—";
     }catch{ ethBalances.xtz = "—"; }
   }
-  // home preview
-  $("assetPreview").innerHTML = allAssets().filter(a=>a.id!=="howl").slice(0,7).map(a=>{
-    let net = a.network.split(" ")[0];
-    let short = "";
-    let badge = "";
-    if(a.kind==="sol"||a.kind==="spl"){ net="SOL"; short=(solInfo?.address||"").slice(0,8)+"…"; badge="sol"; }
-    else if(a.kind==="xtz"){ net="XTZ"; short=(xtzInfo?.address||"").slice(0,10)+"…"; }
-    else { short=(ethInfo?.address||"").slice(0,10)+"…"; }
-    return `<div class="item click" onclick="showPage('recv');selectAsset('${a.id}')">
-      <div><div>${a.symbol} <span class="badge ${badge}">${net}</span></div>
-      <div class="m">${short}</div></div>
-      <div class="r" style="font-size:.85rem">${ethBalances[a.id]??ethBalances.xtz??"…"}</div>
-    </div>`;
-  }).join("") + `<p class="hint" style="margin-top:8px">Deposit · SOL · XTZ · ETH · stables · custom</p>`;
   if($("p-recv").classList.contains("on")) selectAsset(selectedAsset);
 }
 
