@@ -347,10 +347,45 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .wa-act{flex:1;border:0;background:transparent;color:var(--text);font:inherit;cursor:pointer;padding:0;
   display:flex;flex-direction:column;align-items:center;gap:8px;max-width:88px}
 .wa-act .wa-ico{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-  font-size:1.25rem;font-weight:700;background:linear-gradient(145deg,color-mix(in srgb,var(--green) 28%,var(--card2)),color-mix(in srgb,var(--cyan) 18%,var(--card)));
+  font-size:1.15rem;font-weight:700;background:linear-gradient(145deg,color-mix(in srgb,var(--green) 28%,var(--card2)),color-mix(in srgb,var(--cyan) 18%,var(--card)));
   color:var(--text);border:1px solid color-mix(in srgb,var(--green) 25%,var(--border));box-shadow:0 4px 16px rgba(0,0,0,.18)}
+.wa-act .wa-ico .ico-svg{width:22px;height:22px}
 .wa-act:active .wa-ico{transform:scale(.94);opacity:.9}
 .wa-act .wa-lab{font-size:.7rem;font-weight:700;color:var(--muted);letter-spacing:.02em}
+/* Unified stroke icons */
+.ico-svg{display:block;flex-shrink:0}
+.tab .ico-svg{width:22px;height:22px;opacity:.9}
+.tab.on .ico-svg{opacity:1}
+.menu-row .mi{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  background:color-mix(in srgb,var(--green) 10%,var(--card2));color:var(--green);flex-shrink:0}
+.menu-row .mi .ico-svg{width:20px;height:20px}
+.jump-grid button .ji{display:flex;align-items:center;justify-content:center;width:36px;height:36px;
+  border-radius:50%;background:color-mix(in srgb,var(--green) 12%,var(--card2));color:var(--green)}
+.jump-grid button .ji .ico-svg{width:20px;height:20px}
+/* Howl Charts */
+.chart-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:12px}
+.chart-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
+.chart-head .ch-title{font-weight:800;font-size:1.05rem}
+.chart-head .ch-price{font-weight:800;font-size:1.35rem;letter-spacing:-.02em}
+.chart-head .ch-chg{font-size:.85rem;font-weight:700;margin-top:2px}
+.chart-head .ch-chg.up{color:var(--green)}
+.chart-head .ch-chg.dn{color:var(--danger)}
+.chart-canvas-wrap{position:relative;width:100%;height:220px;margin:8px 0 4px;touch-action:none}
+.chart-canvas-wrap canvas{width:100%;height:100%;display:block}
+.chart-cross{position:absolute;pointer-events:none;font-size:.72rem;font-weight:700;background:var(--card2);
+  border:1px solid var(--border);padding:4px 8px;color:var(--text);display:none;white-space:nowrap;z-index:2}
+.chart-ranges{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.chart-ranges button{border:1px solid var(--border);background:var(--card2);color:var(--muted);font:inherit;font-size:.72rem;font-weight:700;
+  padding:7px 12px;cursor:pointer}
+.chart-ranges button.on{color:var(--green);border-color:color-mix(in srgb,var(--green) 50%,var(--border));
+  background:color-mix(in srgb,var(--green) 12%,var(--card2))}
+.chart-coins{display:flex;gap:8px;overflow-x:auto;padding:0 0 10px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.chart-coins::-webkit-scrollbar{display:none}
+.chart-coins button{flex:0 0 auto;border:1px solid var(--border);background:var(--card2);color:var(--muted);font:inherit;
+  font-size:.78rem;font-weight:700;padding:10px 14px;cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:88px}
+.chart-coins button.on{border-color:var(--green);color:var(--text);background:color-mix(in srgb,var(--green) 10%,var(--card))}
+.chart-coins button small{font-weight:600;font-size:.68rem;color:var(--muted)}
+.chart-meta{font-size:.72rem;color:var(--muted);margin-top:6px}
 .wa-section{display:flex;align-items:center;justify-content:space-between;margin:4px 0 10px}
 .wa-section h2{margin:0;font-family:var(--font-ui);font-size:.95rem;font-weight:800;color:var(--text);text-transform:none;letter-spacing:0}
 .wa-section .wa-link{border:0;background:0;color:var(--cyan);font:inherit;font-size:.8rem;font-weight:700;cursor:pointer;padding:4px 0}
@@ -548,8 +583,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .jump-sheet .js-title{display:flex;align-items:center;justify-content:space-between;margin:0 0 10px;font-family:var(--font-display);font-size:.85rem;letter-spacing:.06em}
 .jump-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .jump-grid button{border:1px solid var(--border);background:var(--card);color:var(--text);font:inherit;padding:14px 8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;min-height:76px}
-.jump-grid button .ji{font-size:1.35rem;line-height:1}
-.jump-grid button .jl{font-size:.68rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;text-align:center}
+.jump-grid button .jl{font-size:.68rem;font-weight:700;letter-spacing:.02em;text-align:center}
 .jump-grid button:active{border-color:var(--green);color:var(--green)}
 .toolbar-edit .menu-row .mi{font-size:1rem}
 .toolbar-edit .chk{width:22px;height:22px;accent-color:var(--green);flex-shrink:0}
@@ -840,10 +874,10 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       </div>
 
       <div class="wa-actions" role="navigation" aria-label="Quick actions">
-        <button class="wa-act" type="button" onclick="showPage('recv')"><span class="wa-ico">↓</span><span class="wa-lab">Receive</span></button>
-        <button class="wa-act" type="button" onclick="showPage('send')"><span class="wa-ico">↑</span><span class="wa-lab">Send</span></button>
-        <button class="wa-act" type="button" onclick="showPage('swap')"><span class="wa-ico">⇄</span><span class="wa-lab">Swap</span></button>
-        <button class="wa-act" type="button" onclick="showPage('nft')"><span class="wa-ico">◆</span><span class="wa-lab">NFTs</span></button>
+        <button class="wa-act" type="button" onclick="showPage('recv')"><span class="wa-ico" data-icon="recv"></span><span class="wa-lab">Receive</span></button>
+        <button class="wa-act" type="button" onclick="showPage('send')"><span class="wa-ico" data-icon="send"></span><span class="wa-lab">Send</span></button>
+        <button class="wa-act" type="button" onclick="showPage('swap')"><span class="wa-ico" data-icon="swap"></span><span class="wa-lab">Swap</span></button>
+        <button class="wa-act" type="button" onclick="showPage('markets')"><span class="wa-ico" data-icon="chart"></span><span class="wa-lab">Charts</span></button>
       </div>
 
       <div class="wa-section">
@@ -887,6 +921,38 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
           <div id="activity"><p class="hint">Syncing…</p></div>
         </div>
       </details>
+    </div>
+
+    <!-- MARKETS / HOWL CHARTS -->
+    <div class="page" id="p-markets">
+      <div class="page-head"><button type="button" class="back" onclick="showPage('home')">‹ Home</button><h1>Markets</h1></div>
+      <div class="chart-card">
+        <div class="chart-head">
+          <div>
+            <div class="ch-title" id="chartCoinName">Bitcoin</div>
+            <div class="ch-price" id="chartPrice">—</div>
+            <div class="ch-chg" id="chartChg">—</div>
+          </div>
+          <button type="button" class="chip" style="cursor:pointer" onclick="refreshHowlChart(true)">↻</button>
+        </div>
+        <div class="chart-ranges" id="chartRanges">
+          <button type="button" data-d="1">1D</button>
+          <button type="button" data-d="7" class="on">7D</button>
+          <button type="button" data-d="30">30D</button>
+          <button type="button" data-d="90">90D</button>
+          <button type="button" data-d="365">1Y</button>
+        </div>
+        <div class="chart-canvas-wrap" id="chartWrap">
+          <canvas id="howlChart" width="400" height="220" aria-label="Price chart"></canvas>
+          <div class="chart-cross" id="chartCross"></div>
+        </div>
+        <p class="chart-meta" id="chartMeta">Howl Charts · live market series</p>
+      </div>
+      <div class="wa-section"><h2>Watchlist</h2></div>
+      <div class="chart-coins" id="chartCoins"></div>
+      <div class="panel">
+        <p class="hint" style="margin:0">Custom charts for majors — no third-party chart embeds. Tap a coin, scrub the line for price at time. Data refreshes about every few minutes.</p>
+      </div>
     </div>
 
     <!-- ACTIVITY FEED -->
@@ -1217,8 +1283,8 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <h2>Corners</h2>
         <p class="hint">Sharp is the Howl default. Soft feels more like a bank app.</p>
         <div class="unit-toggle" id="cornerToggle" role="group">
-          <button type="button" data-c="sharp" class="on" id="cornerSharpBtn" onclick="setCorners('sharp')">Sharp</button>
-          <button type="button" data-c="soft" id="cornerSoftBtn" onclick="setCorners('soft')">Soft</button>
+          <button type="button" data-c="soft" class="on" id="cornerSoftBtn" onclick="setCorners('soft')">Soft</button>
+          <button type="button" data-c="sharp" id="cornerSharpBtn" onclick="setCorners('sharp')">Sharp</button>
         </div>
       </div>
       <div class="panel">
@@ -1753,57 +1819,99 @@ const LS_NICKS = "howl_addr_nicks_v1";
 const LS_LAST_TIP = "howl_last_tip_v1";
 const LS_CELEB = "howl_celeb_seen_v1";
 
-/** All items that can appear on the bottom bar */
+/** Unified stroke-icon ids (see iconSvg) */
 const TOOLBAR_CATALOG = [
-  { id: "home", label: "Home", icon: "⌂", page: "home", fixed: true },
-  { id: "send", label: "Send", icon: "↑", page: "send" },
-  { id: "recv", label: "Deposit", icon: "↓", page: "recv" },
-  { id: "assets", label: "Assets", icon: "◈", page: "assets" },
-  { id: "browser", label: "Search", icon: "⌕", page: "browser" },
-  { id: "discover", label: "Discover", icon: "✦", page: "discover" },
-  { id: "swap", label: "Swap", icon: "⇄", page: "swap" },
-  { id: "activity", label: "Activity", icon: "☰", page: "activity" },
-  { id: "play", label: "Play", icon: "✦", page: "play" },
-  { id: "nft", label: "NFT", icon: "◆", page: "nft" },
-  { id: "oracle", label: "Oracle", icon: "◎", page: "oracle" },
-  { id: "contracts", label: "Contracts", icon: "⚙", page: "contracts" },
-  { id: "names", label: "Names", icon: "@", page: "names" },
-  { id: "more", label: "More", icon: "☰", page: "more", fixed: true },
+  { id: "home", label: "Wallet", icon: "home", page: "home", fixed: true },
+  { id: "markets", label: "Markets", icon: "chart", page: "markets" },
+  { id: "send", label: "Send", icon: "send", page: "send" },
+  { id: "recv", label: "Receive", icon: "recv", page: "recv" },
+  { id: "assets", label: "Assets", icon: "assets", page: "assets" },
+  { id: "browser", label: "Browser", icon: "globe", page: "browser" },
+  { id: "discover", label: "Discover", icon: "spark", page: "discover" },
+  { id: "swap", label: "Swap", icon: "swap", page: "swap" },
+  { id: "activity", label: "History", icon: "list", page: "activity" },
+  { id: "play", label: "Play", icon: "spark", page: "play" },
+  { id: "nft", label: "NFTs", icon: "nft", page: "nft" },
+  { id: "oracle", label: "Oracle", icon: "oracle", page: "oracle" },
+  { id: "contracts", label: "Contracts", icon: "contract", page: "contracts" },
+  { id: "names", label: "Names", icon: "at", page: "names" },
+  { id: "more", label: "Me", icon: "user", page: "more", fixed: true },
 ];
-/** Four-tab wallet chrome (customize under More → Toolbar) */
-const DEFAULT_TOOLBAR = ["home", "discover", "browser", "more"];
+/** Wallet · Markets · Browser · Me */
+const DEFAULT_TOOLBAR = ["home", "markets", "browser", "more"];
 
 /** Structured More menu + jump sheet destinations */
 const MORE_MENU = [
   { section: "Money", items: [
-    { id: "send", icon: "↑", title: "Send HOWL", sub: "Transfer · address book · QR", page: "send" },
-    { id: "recv", icon: "↓", title: "Deposit", sub: "HOWL · SOL · XTZ · ETH · tokens", page: "recv" },
-    { id: "assets", icon: "◈", title: "Assets", sub: "By chain · balances · history", page: "assets" },
-    { id: "swap", icon: "⇄", title: "Swap", sub: "Jupiter · Howl Swap → HOWL", page: "swap" },
-    { id: "activity", icon: "☰", title: "Activity", sub: "History · pending · mints", page: "activity" },
+    { id: "send", icon: "send", title: "Send", sub: "HOWL · address book · QR", page: "send" },
+    { id: "recv", icon: "recv", title: "Receive", sub: "HOWL · SOL · XTZ · ETH", page: "recv" },
+    { id: "assets", icon: "assets", title: "Assets", sub: "Balances by chain", page: "assets" },
+    { id: "swap", icon: "swap", title: "Swap", sub: "Jupiter · Howl Swap", page: "swap" },
+    { id: "markets", icon: "chart", title: "Markets", sub: "Live charts", page: "markets" },
+    { id: "activity", icon: "list", title: "History", sub: "Txs · pending", page: "activity" },
   ]},
   { section: "Collectibles", items: [
-    { id: "nft", icon: "◆", title: "NFTs", sub: "Howl · Tezos · mint · send", page: "nft" },
-    { id: "names", icon: "@", title: "On-chain names", sub: "Claim @name · send by name", page: "names" },
-    { id: "contracts", icon: "⚙", title: "Smart contracts", sub: "Pack pot · bark bond · tip jar", page: "contracts" },
+    { id: "nft", icon: "nft", title: "NFTs", sub: "Howl · Tezos · mint", page: "nft" },
+    { id: "names", icon: "at", title: "Names", sub: "Claim @name", page: "names" },
+    { id: "contracts", icon: "contract", title: "Contracts", sub: "Pack pot · bonds", page: "contracts" },
   ]},
   { section: "Apps", items: [
-    { id: "browser", icon: "⌕", title: "Howl Search", sub: "Web · dApps", page: "browser" },
-    { id: "discover", icon: "✦", title: "Discover", sub: "New crypto tech", page: "discover" },
-    { id: "wc", icon: "🔗", title: "WalletConnect", sub: "External dApps", page: "wc", hintId: "moreWcHint" },
-    { id: "oracle", icon: "◎", title: "Oracle", sub: "Post chain tips on HOWL", page: "oracle" },
-    { id: "play", icon: "✦", title: "Play & social", sub: "Request · howl · QR duel", page: "play" },
-    { id: "share", icon: "⇪", title: "Share card", sub: "Address · social image", action: "share" },
+    { id: "browser", icon: "globe", title: "Browser", sub: "Search · dApps", page: "browser" },
+    { id: "discover", icon: "spark", title: "Discover", sub: "Crypto radar", page: "discover" },
+    { id: "wc", icon: "link", title: "Connect", sub: "WalletConnect", page: "wc", hintId: "moreWcHint" },
+    { id: "oracle", icon: "oracle", title: "Oracle", sub: "On-chain posts", page: "oracle" },
+    { id: "play", icon: "spark", title: "Social", sub: "Howl · request · duel", page: "play" },
+    { id: "share", icon: "share", title: "Share", sub: "Address card", action: "share" },
   ]},
   { section: "Settings", items: [
-    { id: "sec", icon: "🛡", title: "Security", sub: "Face ID · 2FA · recovery", page: "sec", hintId: "moreSecHint" },
-    { id: "toolbar", icon: "☰", title: "Customize toolbar", sub: "Bottom bar icons", page: "toolbar" },
-    { id: "appearance", icon: "◐", title: "Appearance", sub: "Theme · corners", page: "appearance", hintId: "themeHint" },
-    { id: "refresh", icon: "↻", title: "Refresh data", sub: "Balances & chain", action: "refresh" },
-    { id: "explorer", icon: "⎋", title: "Howlscan", sub: "Block explorer", action: "explorer" },
-    { id: "lock", icon: "🔒", title: "Lock wallet", sub: "Require unlock again", action: "lock" },
+    { id: "sec", icon: "shield", title: "Security", sub: "PIN · Face ID · 2FA", page: "sec", hintId: "moreSecHint" },
+    { id: "toolbar", icon: "grid", title: "Tab bar", sub: "Customize bottom icons", page: "toolbar" },
+    { id: "appearance", icon: "palette", title: "Appearance", sub: "Theme · corners", page: "appearance", hintId: "themeHint" },
+    { id: "refresh", icon: "refresh", title: "Refresh", sub: "Reload balances", action: "refresh" },
+    { id: "explorer", icon: "external", title: "Explorer", sub: "howlscan.org", action: "explorer" },
+    { id: "lock", icon: "lock", title: "Lock", sub: "Require unlock", action: "lock" },
   ]},
 ];
+
+/** Simple line icons (24×24 stroke) — shared across menu / tabs / actions */
+const ICON_PATHS = {
+  home: "M4 10.5 12 3l8 7.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5z",
+  chart: "M4 19V5M4 19h16M8 15l3-4 3 2 4-6",
+  send: "M12 19V5M12 5l-5 5M12 5l5 5",
+  recv: "M12 5v14M12 19l-5-5M12 19l5-5",
+  assets: "M4 7h16M4 12h16M4 17h10",
+  globe: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm-7 9h14M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18",
+  spark: "M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8",
+  swap: "M7 7h11l-3-3M17 17H6l3 3",
+  list: "M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01",
+  nft: "M4 6h16v12H4zM4 14l4-4 3 3 3-4 6 5",
+  oracle: "M12 3v3M12 18v3M5 8l2 1.5M17 14.5l2 1.5M5 16l2-1.5M17 9.5l2-1.5M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8z",
+  contract: "M7 3h7l4 4v14H7V3zm7 0v4h4M9 12h6M9 16h6",
+  at: "M16 12a4 4 0 1 1-4-4 4 4 0 0 1 4 4zm0 0v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-3.5 7",
+  user: "M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm-7 9a7 7 0 0 1 14 0",
+  link: "M10 13a5 5 0 0 0 7.07 0l2.12-2.12a5 5 0 0 0-7.07-7.07L10.5 5.5M14 11a5 5 0 0 0-7.07 0L4.8 13.12a5 5 0 1 0 7.07 7.07L13.5 18.5",
+  share: "M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M16 6l-4-4-4 4M12 2v14",
+  shield: "M12 3 4 6v6c0 5 3.5 8.5 8 10 4.5-1.5 8-5 8-10V6l-8-3z",
+  grid: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z",
+  palette: "M12 3a9 9 0 0 0 0 18h1.5a2.5 2.5 0 0 0 0-5H12a3 3 0 1 1 0-6 3 3 0 0 0 0-6h.5",
+  refresh: "M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M20 5v5h-5M4 19v-5h5",
+  external: "M14 4h6v6M10 14 20 4M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5",
+  lock: "M8 10V7a4 4 0 0 1 8 0v3M6 10h12v10H6V10z",
+  more: "M6 12h.01M12 12h.01M18 12h.01",
+};
+
+function iconSvg(name, size = 22){
+  const d = ICON_PATHS[name] || ICON_PATHS.more;
+  return `<svg class="ico-svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+}
+function paintIcons(root){
+  const el = root || document;
+  el.querySelectorAll("[data-icon]").forEach(node=>{
+    const n = node.getAttribute("data-icon");
+    if(!n) return;
+    node.innerHTML = iconSvg(n, Number(node.getAttribute("data-size") || 22));
+  });
+}
 
 /** Chains for asset browser */
 const ASSET_CHAINS = [
@@ -2606,8 +2714,12 @@ function setCorners(mode){
   if($("cornerSoftBtn")) $("cornerSoftBtn").classList.toggle("on", m === "soft");
 }
 function applyStoredCorners(){
-  let m = "sharp";
-  try{ m = localStorage.getItem(LS_CORNERS) === "soft" ? "soft" : "sharp"; }catch(_){}
+  let m = "soft";
+  try{
+    const raw = localStorage.getItem(LS_CORNERS);
+    if(raw === "sharp") m = "sharp";
+    else if(raw === "soft") m = "soft";
+  }catch(_){}
   setCorners(m);
 }
 
@@ -4109,6 +4221,7 @@ function showApp(){
   renderHomeAssets();
   renderAssetSeg();
   renderToolbar("home");
+  paintIcons(document);
   refresh();
   setInterval(refresh, 15000);
   // WalletConnect + injected provider after unlock
@@ -4210,7 +4323,8 @@ function renderToolbar(activePage){
     const t = cat[id];
     if(!t) return "";
     const on = t.id === active || t.page === active;
-    return `<button type="button" class="tab ${on?"on":""}" data-p="${t.page}" onclick="showPage('${t.page}')"><span class="ico">${t.icon}</span>${t.label}</button>`;
+    const ico = ICON_PATHS[t.icon] ? iconSvg(t.icon, 22) : `<span class="ico">${t.icon}</span>`;
+    return `<button type="button" class="tab ${on?"on":""}" data-p="${t.page}" onclick="showPage('${t.page}')"><span class="ico">${ico}</span>${t.label}</button>`;
   }).join("");
 }
 
@@ -4245,8 +4359,9 @@ function renderMoreMenu(filter){
       const ms = it.hintId
         ? `<div class="ms"${hintAttr}>${escHtml(it.sub)}</div>`
         : `<div class="ms">${escHtml(it.sub)}</div>`;
+      const mi = ICON_PATHS[it.icon] ? iconSvg(it.icon, 20) : escHtml(it.icon);
       html += `<button type="button" class="menu-row" data-more-id="${escAttr(it.id)}" onclick="${click}">
-        <span class="mi">${it.icon}</span>
+        <span class="mi">${mi}</span>
         <div style="min-width:0;flex:1"><div class="mt">${escHtml(it.title)}</div>${ms}</div>
         <span class="chev">›</span>
       </button>`;
@@ -4286,7 +4401,8 @@ function openJumpSheet(){
     const click = it.page
       ? `closeJumpSheet();showPage('${it.page}')`
       : `closeJumpSheet();runMoreAction('${it.action}')`;
-    return `<button type="button" onclick="${click}"><span class="ji">${it.icon}</span><span class="jl">${escHtml(it.title)}</span></button>`;
+    const ji = ICON_PATHS[it.icon] ? iconSvg(it.icon, 20) : escHtml(it.icon || "·");
+    return `<button type="button" onclick="${click}"><span class="ji">${ji}</span><span class="jl">${escHtml(it.title)}</span></button>`;
   }).join("");
   sheet.classList.add("on");
   sheet.setAttribute("aria-hidden", "false");
@@ -4306,9 +4422,10 @@ function renderToolbarEditor(){
     const checked = selected.includes(t.id);
     const fixed = !!t.fixed;
     const midIdx = orderMid.indexOf(t.id);
+    const mi = ICON_PATHS[t.icon] ? iconSvg(t.icon, 20) : escHtml(t.icon);
     return `<div class="menu-row" style="cursor:default" data-id="${t.id}">
       <input class="chk" type="checkbox" ${checked?"checked":""} ${fixed?"disabled":""} data-id="${t.id}" id="tb_${t.id}"/>
-      <span class="mi">${t.icon}</span>
+      <span class="mi">${mi}</span>
       <div style="flex:1;min-width:0"><div class="mt">${t.label}${fixed?" · pinned":""}</div>
       <div class="ms">${t.page === "browser" ? "Web search &amp; dapps" : "Opens "+t.label}</div></div>
       ${!fixed && checked ? `<div class="ord">
@@ -4396,6 +4513,7 @@ function showPage(name){
     renderMoreMenu($("moreSearch")?.value || "");
   }
   if(name==="swap"){ initSwapUI(); if(swapMode==="howl") initBridgeUI(); }
+  if(name==="markets"){ initHowlCharts(); }
   if(name==="browser") initBrowserUI();
   if(name==="discover") loadDiscover(false);
   if(name==="nft"){ wireNftPage(); setNftDashTab(nftDashTab || "mine"); }
@@ -9462,6 +9580,228 @@ function uiUnlock(){
   $("btnRest2").onclick = uiCreate;
 }
 
+/* —— Howl Charts (custom canvas, not a third-party embed) —— */
+const CHART_COINS = [
+  { id: "bitcoin", symbol: "BTC", name: "Bitcoin" },
+  { id: "ethereum", symbol: "ETH", name: "Ethereum" },
+  { id: "solana", symbol: "SOL", name: "Solana" },
+  { id: "tezos", symbol: "XTZ", name: "Tezos" },
+  { id: "dogecoin", symbol: "DOGE", name: "Dogecoin" },
+  { id: "litecoin", symbol: "LTC", name: "Litecoin" },
+  { id: "ripple", symbol: "XRP", name: "XRP" },
+  { id: "cardano", symbol: "ADA", name: "Cardano" },
+  { id: "avalanche-2", symbol: "AVAX", name: "Avalanche" },
+  { id: "binancecoin", symbol: "BNB", name: "BNB" },
+];
+let chartState = { id: "bitcoin", days: "7", points: [], wired: false };
+
+function initHowlCharts(){
+  if(!chartState.wired){
+    chartState.wired = true;
+    const coins = $("chartCoins");
+    if(coins){
+      coins.innerHTML = CHART_COINS.map(c =>
+        `<button type="button" data-id="${c.id}" class="${c.id===chartState.id?"on":""}">
+          <b>${escHtml(c.symbol)}</b><small>${escHtml(c.name)}</small>
+        </button>`
+      ).join("");
+      coins.querySelectorAll("button").forEach(btn=>{
+        btn.onclick = ()=>{
+          chartState.id = btn.dataset.id;
+          coins.querySelectorAll("button").forEach(b=>b.classList.toggle("on", b===btn));
+          refreshHowlChart(false);
+        };
+      });
+    }
+    const ranges = $("chartRanges");
+    if(ranges){
+      ranges.querySelectorAll("button").forEach(btn=>{
+        btn.onclick = ()=>{
+          chartState.days = btn.dataset.d || "7";
+          ranges.querySelectorAll("button").forEach(b=>b.classList.toggle("on", b===btn));
+          refreshHowlChart(false);
+        };
+      });
+    }
+    const wrap = $("chartWrap");
+    const canvas = $("howlChart");
+    if(wrap && canvas){
+      const onMove = (clientX)=>{
+        const rect = canvas.getBoundingClientRect();
+        const x = clientX - rect.left;
+        drawHowlChart(chartState.points, { hoverX: x, width: rect.width, height: rect.height });
+      };
+      wrap.addEventListener("pointerdown", (e)=>{ wrap.setPointerCapture(e.pointerId); onMove(e.clientX); });
+      wrap.addEventListener("pointermove", (e)=>{ if(e.buttons || e.pressure) onMove(e.clientX); });
+      wrap.addEventListener("pointerup", ()=> drawHowlChart(chartState.points));
+      window.addEventListener("resize", ()=>{ if(currentPage==="markets") drawHowlChart(chartState.points); });
+    }
+  }
+  // sync live prices into coin chips when available
+  refreshHowlChart(false);
+}
+
+async function refreshHowlChart(force){
+  const meta = $("chartMeta");
+  if(meta) meta.textContent = "Loading series…";
+  try{
+    const id = chartState.id || "bitcoin";
+    const days = chartState.days || "7";
+    const j = await api(`/api/public/chart?id=${encodeURIComponent(id)}&days=${encodeURIComponent(days)}${force?"&force=1":""}`);
+    if(j.error && !(j.points||[]).length) throw new Error(j.error);
+    chartState.points = j.points || [];
+    const coin = CHART_COINS.find(c=>c.id===id) || { symbol: id, name: id };
+    if($("chartCoinName")) $("chartCoinName").textContent = coin.name + " · " + coin.symbol;
+    const close = j.close != null ? j.close : (chartState.points.slice(-1)[0]?.p);
+    const chg = j.change_pct;
+    if($("chartPrice")){
+      $("chartPrice").textContent = close != null
+        ? (close >= 1 ? "$" + Number(close).toLocaleString(undefined,{maximumFractionDigits:2})
+          : "$" + Number(close).toPrecision(4))
+        : "—";
+    }
+    if($("chartChg")){
+      const up = Number(chg) >= 0;
+      $("chartChg").className = "ch-chg " + (up ? "up" : "dn");
+      $("chartChg").textContent = chg == null ? "—" : ((up?"+":"") + Number(chg).toFixed(2) + "% · " + days + "d");
+    }
+    if(meta){
+      meta.textContent = `Howl Charts · ${j.count||chartState.points.length} pts · ${j.cached?"cached · ":""}${j.source||"live"}`
+        + (j.high != null ? ` · H ${Number(j.high).toLocaleString(undefined,{maximumFractionDigits:2})}` : "")
+        + (j.low != null ? ` · L ${Number(j.low).toLocaleString(undefined,{maximumFractionDigits:2})}` : "");
+    }
+    // update watchlist spot prices from marketPrices if present
+    const coins = $("chartCoins");
+    if(coins && marketPrices){
+      coins.querySelectorAll("button").forEach(btn=>{
+        const row = marketPrices[btn.dataset.id];
+        const sm = btn.querySelector("small");
+        if(sm && row?.usd != null) sm.textContent = "$" + Number(row.usd).toLocaleString(undefined,{maximumFractionDigits: row.usd < 1 ? 4 : 2});
+      });
+    }
+    drawHowlChart(chartState.points);
+  }catch(e){
+    if(meta) meta.textContent = "Chart unavailable · " + (e.message || e);
+    drawHowlChart([]);
+  }
+}
+
+function drawHowlChart(points, opts){
+  const canvas = $("howlChart");
+  const wrap = $("chartWrap");
+  const tip = $("chartCross");
+  if(!canvas || !wrap) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const cssW = opts?.width || wrap.clientWidth || 360;
+  const cssH = opts?.height || wrap.clientHeight || 220;
+  canvas.width = Math.floor(cssW * dpr);
+  canvas.height = Math.floor(cssH * dpr);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  const style = getComputedStyle(document.documentElement);
+  const green = style.getPropertyValue("--green").trim() || "#00ffc6";
+  const muted = style.getPropertyValue("--muted").trim() || "#8b9bbf";
+  const border = style.getPropertyValue("--border").trim() || "rgba(255,255,255,.12)";
+  const text = style.getPropertyValue("--text").trim() || "#eef6ff";
+
+  const pad = { l: 8, r: 8, t: 12, b: 22 };
+  const w = cssW - pad.l - pad.r;
+  const h = cssH - pad.t - pad.b;
+
+  // grid
+  ctx.strokeStyle = border;
+  ctx.lineWidth = 1;
+  for(let i = 0; i <= 4; i++){
+    const y = pad.t + (h * i) / 4;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l + w, y); ctx.stroke();
+  }
+
+  if(!points || points.length < 2){
+    ctx.fillStyle = muted;
+    ctx.font = "600 13px system-ui,sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("No chart data", cssW / 2, cssH / 2);
+    if(tip) tip.style.display = "none";
+    return;
+  }
+
+  const prices = points.map(p => p.p);
+  let min = Math.min(...prices);
+  let max = Math.max(...prices);
+  if(min === max){ min *= 0.99; max *= 1.01; }
+  const span = max - min || 1;
+  const n = points.length;
+  const xAt = (i) => pad.l + (w * i) / (n - 1);
+  const yAt = (p) => pad.t + h - ((p - min) / span) * h;
+
+  const up = points[n-1].p >= points[0].p;
+  const stroke = up ? green : (style.getPropertyValue("--danger").trim() || "#ff4d6d");
+
+  // area fill
+  const grad = ctx.createLinearGradient(0, pad.t, 0, pad.t + h);
+  grad.addColorStop(0, stroke + "55");
+  grad.addColorStop(1, stroke + "00");
+  // if stroke is named color, fallback
+  try{
+    ctx.beginPath();
+    ctx.moveTo(xAt(0), yAt(points[0].p));
+    for(let i = 1; i < n; i++) ctx.lineTo(xAt(i), yAt(points[i].p));
+    ctx.lineTo(xAt(n-1), pad.t + h);
+    ctx.lineTo(xAt(0), pad.t + h);
+    ctx.closePath();
+    ctx.fillStyle = up ? "rgba(0,255,198,0.12)" : "rgba(255,77,109,0.12)";
+    ctx.fill();
+  }catch(_){}
+
+  // line
+  ctx.beginPath();
+  ctx.lineWidth = 2.25;
+  ctx.strokeStyle = stroke;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.moveTo(xAt(0), yAt(points[0].p));
+  for(let i = 1; i < n; i++) ctx.lineTo(xAt(i), yAt(points[i].p));
+  ctx.stroke();
+
+  // end dot
+  ctx.beginPath();
+  ctx.fillStyle = stroke;
+  ctx.arc(xAt(n-1), yAt(points[n-1].p), 3.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // labels
+  ctx.fillStyle = muted;
+  ctx.font = "600 10px system-ui,sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText(max >= 1 ? max.toLocaleString(undefined,{maximumFractionDigits:2}) : max.toPrecision(3), pad.l, pad.t + 10);
+  ctx.fillText(min >= 1 ? min.toLocaleString(undefined,{maximumFractionDigits:2}) : min.toPrecision(3), pad.l, pad.t + h);
+
+  // hover
+  if(opts && opts.hoverX != null && tip){
+    let idx = Math.round(((opts.hoverX - pad.l) / w) * (n - 1));
+    idx = Math.max(0, Math.min(n - 1, idx));
+    const pt = points[idx];
+    const x = xAt(idx), y = yAt(pt.p);
+    ctx.strokeStyle = muted;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, pad.t + h); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.fillStyle = stroke; ctx.arc(x, y, 4.5, 0, Math.PI * 2); ctx.fill();
+    const when = new Date(pt.t * 1000);
+    const label = (pt.p >= 1 ? "$" + pt.p.toLocaleString(undefined,{maximumFractionDigits:2}) : "$" + pt.p.toPrecision(4))
+      + " · " + when.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    tip.style.display = "block";
+    tip.textContent = label;
+    const tw = tip.offsetWidth || 120;
+    tip.style.left = Math.min(cssW - tw - 8, Math.max(8, x - tw / 2)) + "px";
+    tip.style.top = Math.max(4, y - 28) + "px";
+  } else if(tip){
+    tip.style.display = "none";
+  }
+}
+
 function uiInstall(){
   $("gateMsg").textContent = "Add to Home Screen for the best app experience";
   const ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -9479,24 +9819,20 @@ function boot(skipInstallPrompt){
   applyStoredTheme();
   applyStoredCorners();
   initPullToRefresh();
-  // Migrate old toolbars that only had Browser — surface Discover
+  // Prefer Markets tab over Discover when user still has legacy defaults
   try{
     const raw = localStorage.getItem(LS_TOOLBAR);
     if(raw){
-      const arr = JSON.parse(raw);
-      if(Array.isArray(arr) && !arr.includes("discover") && arr.includes("browser")){
-        const i = arr.indexOf("browser");
-        arr.splice(i, 0, "discover");
-        while(arr.length > 5){
-          const drop = arr.findIndex(id => id!=="home" && id!=="more" && id!=="discover" && id!=="browser");
-          if(drop < 0) break;
-          arr.splice(drop, 1);
+      let arr = JSON.parse(raw);
+      if(Array.isArray(arr)){
+        if(arr.includes("discover") && !arr.includes("markets")){
+          arr = arr.map(id => id === "discover" ? "markets" : id);
+          localStorage.setItem(LS_TOOLBAR, JSON.stringify(normalizeToolbar(arr)));
         }
-        localStorage.setItem(LS_TOOLBAR, JSON.stringify(arr.slice(0,5)));
       }
     }
   }catch(_){}
-  if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=8").catch(()=>{});
+  if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=10").catch(()=>{});
   if(!skipInstallPrompt && !isStandalone() && !sessionStorage.getItem("howl_skip_install") && !sessionStorage.getItem("howl_saw_install")){
     sessionStorage.setItem("howl_saw_install","1");
     uiInstall();
@@ -9623,6 +9959,9 @@ window.closeJumpSheet = closeJumpSheet;
 window.runMoreAction = runMoreAction;
 window.renderMoreMenu = renderMoreMenu;
 window.postBarkBondHowl = postBarkBondHowl;
+window.initHowlCharts = initHowlCharts;
+window.refreshHowlChart = refreshHowlChart;
+window.paintIcons = paintIcons;
 
 boot();
 </script>

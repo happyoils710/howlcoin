@@ -93,6 +93,123 @@ _PRICE_COIN_IDS = (
     "chainlink,uniswap,tezos,tron,ripple,stellar,hyperliquid"
 )
 _price_cache: Dict[str, Any] = {"ts": 0.0, "data": None}
+_chart_cache: Dict[str, Any] = {}  # key -> {ts, data}
+
+
+def fetch_market_chart(
+    coin_id: str = "bitcoin", days: str = "7", force: bool = False
+) -> Dict[str, Any]:
+    """
+    OHLC-ish series for Howl Charts (CoinGecko market_chart, cached ~5 min).
+    Returns { id, days, points: [{t, p}], source }.
+    """
+    cid = (coin_id or "bitcoin").strip().lower()[:64]
+    d = (days or "7").strip()
+    if d not in ("1", "7", "14", "30", "90", "180", "365", "max"):
+        d = "7"
+    allowed = {x.strip() for x in _PRICE_COIN_IDS.split(",") if x.strip()}
+    allowed |= {
+        "bitcoin",
+        "ethereum",
+        "solana",
+        "tezos",
+        "dogecoin",
+        "litecoin",
+        "ripple",
+        "cardano",
+        "polkadot",
+        "chainlink",
+        "avalanche-2",
+        "binancecoin",
+        "matic-network",
+        "near",
+        "aptos",
+        "sui",
+        "toncoin",
+        "stellar",
+        "cosmos",
+        "uniswap",
+        "aave",
+    }
+    if cid not in allowed:
+        cid = "bitcoin"
+    key = f"{cid}:{d}"
+    now = time.time()
+    hit = _chart_cache.get(key)
+    if (
+        not force
+        and hit
+        and (now - float(hit.get("ts") or 0)) < 300
+        and hit.get("data")
+    ):
+        out = dict(hit["data"])
+        out["cached"] = True
+        return out
+    url = (
+        f"https://api.coingecko.com/api/v3/coins/{urllib.parse.quote(cid)}/market_chart?"
+        + urllib.parse.urlencode({"vs_currency": "usd", "days": d})
+    )
+    try:
+        raw = json.loads(
+            _http_get(
+                url,
+                headers={
+                    "User-Agent": "Howlscan/0.6 (+https://howlscan.org)",
+                    "Accept": "application/json",
+                },
+                timeout=18,
+            ).decode("utf-8", errors="ignore")
+        )
+        series = raw.get("prices") if isinstance(raw, dict) else None
+        if not isinstance(series, list) or not series:
+            raise RuntimeError("empty chart series")
+        points = []
+        for row in series:
+            if not isinstance(row, (list, tuple)) or len(row) < 2:
+                continue
+            try:
+                t_ms = float(row[0])
+                p = float(row[1])
+            except (TypeError, ValueError):
+                continue
+            points.append({"t": int(t_ms / 1000), "p": p})
+        # downsample to ~180 pts for mobile canvas
+        if len(points) > 200:
+            step = max(1, len(points) // 180)
+            points = points[::step]
+        first = points[0]["p"] if points else 0.0
+        last = points[-1]["p"] if points else 0.0
+        chg = ((last - first) / first * 100.0) if first else 0.0
+        out = {
+            "id": cid,
+            "days": d,
+            "points": points,
+            "count": len(points),
+            "open": first,
+            "close": last,
+            "change_pct": round(chg, 3),
+            "high": max((x["p"] for x in points), default=0.0),
+            "low": min((x["p"] for x in points), default=0.0),
+            "updated": int(now),
+            "source": "coingecko",
+            "cached": False,
+        }
+        _chart_cache[key] = {"ts": now, "data": {**out, "cached": True}}
+        return out
+    except Exception as e:
+        if hit and hit.get("data"):
+            stale = dict(hit["data"])
+            stale["stale"] = True
+            stale["error"] = str(e)
+            return stale
+        return {
+            "id": cid,
+            "days": d,
+            "points": [],
+            "error": str(e),
+            "source": "none",
+            "updated": int(now),
+        }
 
 
 def fetch_market_prices(force: bool = False) -> Dict[str, Any]:
@@ -3089,6 +3206,15 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                 if path in ("/api/public/prices", "/api/prices"):
                     force = (qs.get("force") or ["0"])[0] in ("1", "true", "yes")
                     return self._json(200, fetch_market_prices(force=force))
+
+                # Howl Charts — custom live series (not a third-party embed)
+                if path in ("/api/public/chart", "/api/chart", "/api/public/charts"):
+                    cid = (qs.get("id") or qs.get("coin") or ["bitcoin"])[0]
+                    days = (qs.get("days") or ["7"])[0]
+                    force = (qs.get("force") or ["0"])[0] in ("1", "true", "yes")
+                    return self._json(
+                        200, fetch_market_chart(coin_id=cid, days=str(days), force=force)
+                    )
 
                 # WalletConnect config (projectId is a public client id)
                 if path in (
