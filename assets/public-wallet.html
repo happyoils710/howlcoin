@@ -3291,6 +3291,20 @@ async function refreshPlayPots(){
     el.querySelectorAll("[data-open]").forEach(btn=>{
       btn.onclick = ()=>{ showPage("contracts"); setTimeout(()=> openHcDetail(btn.getAttribute("data-open")), 80); };
     });
+    // Deep link /app?join=<contract_id>
+    try{
+      const deep = window.__deepJoinCid;
+      if(deep){
+        window.__deepJoinCid = "";
+        const card = el.querySelector(`[data-cid="${CSS.escape(deep)}"]`);
+        if(card){
+          card.style.outline = "2px solid var(--green)";
+          card.scrollIntoView({ behavior: "smooth", block: "center" });
+          const inp = $("joinAmt_" + deep);
+          if(inp) setTimeout(()=> inp.focus(), 200);
+        }
+      }
+    }catch(_){}
   }catch(e){
     el.innerHTML = `<p class="err">${escHtml(e.message||e)}</p>`;
   }
@@ -3529,19 +3543,84 @@ async function sharePayRequest(){
 function consumePayRequestParams(){
   try{
     const q = new URLSearchParams(location.search || "");
-    if(q.get("request") !== "1" && !q.get("to")) return;
     const to = q.get("to") || "";
     const amount = q.get("amount") || "";
     const memo = q.get("memo") || "";
-    if(to && isValidAddress(to)){
-      showPage("send");
-      if($("sendTo")) $("sendTo").value = to;
-      if(amount && $("sendAmt")) $("sendAmt").value = amount;
-      if(memo && $("sendMemo")) $("sendMemo").value = memo;
-      toast("Pay request loaded — review & send");
-      fireConfetti("recv");
+    const join = q.get("join") || q.get("pot") || "";
+    const howlQ = q.get("howl");
+    const playQ = (q.get("play") || "").toLowerCase();
+    const hasDeep =
+      q.get("request") === "1" ||
+      !!to ||
+      !!join ||
+      howlQ != null ||
+      !!playQ;
+    if(!hasDeep) return;
+
+    // /app?join=<contract_id>  or  ?pot=<id> → Play pots
+    if(join){
+      try{ window.__deepJoinCid = String(join).trim(); }catch(_){}
+      showPage("play");
+      try{ setPlayTab("pots"); }catch(_){}
+      toast("Pot ready — join below");
+      history.replaceState(null, "", location.pathname + (location.hash || ""));
+      return;
     }
-    history.replaceState(null, "", location.pathname + (location.hash || ""));
+
+    // /app?howl=1  or  ?howl=message  or  ?play=howls
+    if(howlQ != null || playQ === "howls" || playQ === "howl"){
+      showPage("play");
+      try{ setPlayTab("howl"); }catch(_){}
+      if(howlQ && howlQ !== "1" && howlQ !== "" && $("howlMsg")){
+        $("howlMsg").value = String(howlQ).slice(0, 80);
+      }
+      toast("Howl composer ready");
+      history.replaceState(null, "", location.pathname + (location.hash || ""));
+      return;
+    }
+    if(playQ === "names" || playQ === "name"){
+      showPage("play");
+      try{ setPlayTab("names"); }catch(_){}
+      history.replaceState(null, "", location.pathname + (location.hash || ""));
+      return;
+    }
+    if(playQ === "tips" || playQ === "tip"){
+      showPage("play");
+      try{ setPlayTab("tips"); }catch(_){}
+      history.replaceState(null, "", location.pathname + (location.hash || ""));
+      return;
+    }
+    if(playQ === "pots" || playQ === "pot"){
+      showPage("play");
+      try{ setPlayTab("pots"); }catch(_){}
+      history.replaceState(null, "", location.pathname + (location.hash || ""));
+      return;
+    }
+
+    // /app?to=H… or /app?to=@name  (+ optional amount, memo, request=1)
+    if(!to && q.get("request") !== "1") return;
+    (async () => {
+      try{
+        let dest = to;
+        if(to && !isValidAddress(to)){
+          const resolved = await resolveHowlRecipient(to);
+          if(resolved) dest = resolved;
+        }
+        showPage("send");
+        if($("sendTo")) $("sendTo").value = dest || to;
+        if(amount && $("sendAmt")) $("sendAmt").value = amount;
+        if(memo && $("sendMemo")) $("sendMemo").value = memo;
+        if(dest && isValidAddress(dest)){
+          toast(to.startsWith("@") || to.includes(".howl")
+            ? "Pay @" + normalizeNameSlug(to) + " — review & send"
+            : "Pay request loaded — review & send");
+          fireConfetti("recv");
+        }else if(to){
+          toast("Loaded recipient — resolve @name if needed");
+        }
+      }catch(_){}
+      history.replaceState(null, "", location.pathname + (location.hash || ""));
+    })();
   }catch(_){}
 }
 async function postHowlMemo(){

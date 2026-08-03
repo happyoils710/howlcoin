@@ -2906,7 +2906,7 @@ function setBottomTab(tab){
 }
 function activeTabFromRoute(parts){
   if(!parts.length || (parts.length===1 && networks.find(n=>n.id===parts[0]))) return 'home';
-  if(parts[0]==='play') return 'play';
+  if(parts[0]==='play' || parts[0]==='city') return 'play';
   if(parts[0]==='culture' || parts[0]==='nfts' || parts[0]==='gallery') return 'culture';
   if(parts[0]==='health' || parts[0]==='status' || parts[0]==='charts') return 'health';
   if(parts[0]==='api' || parts[0]==='docs') return 'more';
@@ -3043,13 +3043,19 @@ async function loadHome(){
   </div>
   <div class="main" style="padding-bottom:8px">
     <div class="quick-row">
-      <button class="chipbtn" style="border-color:rgba(61,255,154,.45);color:var(--green)" onclick="location.hash='#/play'">Play board</button>
+      <button class="chipbtn" style="border-color:rgba(61,255,154,.45);color:var(--green)" onclick="location.hash='#/city'">Howl City ●</button>
+      <button class="chipbtn" onclick="location.hash='#/play'">Play board</button>
       <button class="chipbtn" onclick="location.hash='#/culture'">Culture gallery</button>
       <button class="chipbtn" onclick="location.hash='#/charts'">Charts</button>
       <button class="chipbtn" onclick="location.hash='#/health'">Network status</button>
       <button class="chipbtn" onclick="location.hash='#/${net}/block/${s.height}'">Latest #${s.height}</button>
-      <button class="chipbtn" onclick="location.hash='#/${net}/mempool'">Mempool (${s.mempool})</button>
       <button class="chipbtn" onclick="location.hash='#/run'">Run a node</button>
+    </div>
+  </div>
+  <div class="main" style="padding-top:0;padding-bottom:8px" id="homeCityPulse">
+    <div class="card" style="border-color:rgba(61,255,154,.28)">
+      <h3 style="margin:0;padding:12px 14px;border-bottom:1px solid var(--border)">Howl City <a class="more" href="#/city">live feed →</a></h3>
+      <div class="mlist" id="homeCityList"><div class="mrow"><div class="muted">Loading city…</div></div></div>
     </div>
   </div>
   <div class="main cols">
@@ -3110,6 +3116,24 @@ async function loadHome(){
       </div>
     </div>
   </div>`;
+  // Howl City pulse on home (async so blocks/txs paint first)
+  fillHomeCityList();
+}
+
+async function fillHomeCityList(){
+  const el = document.getElementById('homeCityList');
+  if(!el) return;
+  try{
+    const j = await api(`/api/${net}/city?limit=10`);
+    const events = j.events || [];
+    if(!events.length){
+      el.innerHTML = '<div class="mrow"><div class="muted">Quiet city — <a href="#/city">open live feed</a></div></div>';
+      return;
+    }
+    el.innerHTML = events.map(cityEventRow).join('');
+  }catch(e){
+    el.innerHTML = '<div class="mrow"><div class="muted">City feed unavailable · <a href="#/city">retry</a></div></div>';
+  }
 }
 
 async function showBlock(id){
@@ -3792,18 +3816,120 @@ function sparkPts(points, w, h){
   }).join(' ');
 }
 
+function cityKindEmoji(k){
+  const m = {block:'⬛', howl:'🐺', name:'@', nft:'🖼', pot:'🍯', tip:'☕', bond:'🔗', mine:'⛏', transfer:'⇄', contract:'📜', oracle:'📡', other:'·'};
+  return m[k] || '·';
+}
+function cityEventRow(ev){
+  const pending = ev.pending ? ' <span class="badge warn">waiting</span>' : '';
+  const h = ev.pending ? 'mempool' : ('#' + (ev.height ?? '—'));
+  const when = ev.timestamp ? ago(ev.timestamp) : (ev.pending ? 'now' : '—');
+  let body = esc(ev.label || ev.kind || 'event');
+  if(ev.kind === 'howl' && ev.message) body = '🐺 “' + esc(String(ev.message).slice(0,60)) + (String(ev.message).length>60?'…':'') + '”';
+  if(ev.kind === 'name' && ev.message) body = 'claimed ' + linkName(ev.message);
+  if(ev.kind === 'block') body = 'Block #' + esc(String(ev.height??'—')) + (ev.to ? ' · miner ' + linkAddr(ev.to) : '');
+  if(ev.kind === 'pot' && ev.meta && ev.meta.contract_id) body = esc(ev.label) + ' · ' + linkContract(ev.meta.contract_id);
+  if(ev.kind === 'tip' && ev.meta && ev.meta.contract_id) body = esc(ev.label) + ' · ' + linkContract(ev.meta.contract_id);
+  if(ev.kind === 'nft' && ev.message) body = esc(ev.label) + ' · ' + esc(String(ev.message).slice(0,40));
+  const who = ev.from ? linkAddr(ev.from) : (ev.to && ev.kind==='mine' ? linkAddr(ev.to) : '');
+  const amt = (ev.amount!=null && Number(ev.amount)>0) ? fmtAmt(ev.amount) : '';
+  const click = ev.txid ? `location.hash='#/${net}/tx/${encodeURIComponent(ev.txid)}'` :
+    (ev.kind==='block' && ev.height!=null ? `location.hash='#/${net}/block/${ev.height}'` : '');
+  return `<div class="mrow"${click?` onclick="${click}" style="cursor:pointer"`:''}>
+    <div class="ml">
+      <div class="mt">${cityKindEmoji(ev.kind)} ${body}${pending}</div>
+      <div class="ms">${who?who+' · ':''}${esc(h)} · ${esc(when)}${amt?' · <span class="amount">'+amt+'</span>':''}</div>
+    </div>
+  </div>`;
+}
+
+async function showHowlCity(filterKind){
+  setHeroVisible(false);
+  setBottomTab('play');
+  await loadNetworks();
+  const fk = String(filterKind || '').toLowerCase().replace(/[^a-z]/g,'');
+  const kindsQ = fk ? ('&kinds=' + encodeURIComponent(fk)) : '';
+  let events = [], cul = {}, height = '—';
+  try{
+    const j = await api(`/api/${net}/city?limit=60${kindsQ}`);
+    events = j.events || [];
+    cul = j.culture || {};
+    height = j.height != null ? j.height : '—';
+  }catch(e){}
+  setPageMeta(
+    'Howl City · live feed · Howlscan',
+    `Watch Howlcoin breathe: blocks, howls, pots, names, NFTs. Height ${height}.`,
+    '#/city'
+  );
+  const filters = [
+    ['', 'All'],
+    ['howl', 'Howls'],
+    ['pot', 'Pots'],
+    ['name', 'Names'],
+    ['nft', 'NFTs'],
+    ['block', 'Blocks'],
+    ['tip', 'Tips'],
+  ];
+  const cityHash = (k)=> k ? `#/city/${k}` : '#/city';
+  app().innerHTML = `<div class="main" style="padding-top:12px">
+    ${crumbs([{label:'Home',href:'#/'+net},{label:'Howl City'}])}
+    <div class="page-actions">
+      <button class="back" onclick="location.hash='#/${net}'">← Home</button>
+      <button class="chipbtn" onclick="location.hash='#/play'">Play board</button>
+      <button class="chipbtn" onclick="copyText('https://howlscan.org/#/city', this)">Share city</button>
+      <a class="chipbtn" href="/app?howl=1" style="text-decoration:none;color:var(--green)">Howl in wallet</a>
+      <button class="chipbtn" onclick="showHowlCity(${JSON.stringify(fk)})">↻</button>
+      <span class="muted" style="font-size:.72rem;align-self:center">● live · 15s</span>
+    </div>
+    <div class="card detail" style="border-color:rgba(61,255,154,.35)">
+      <div class="badge ok">HOWL CITY</div>
+      <span class="badge ok" style="margin-left:6px">● live</span>
+      <h2 style="margin:8px 0 6px">The chain is howling</h2>
+      <p class="muted" style="margin:0 0 10px">Live L1 feed — blocks, howls, pack pots, @names, NFTs. No wallet needed to watch. Join the action in the <a href="/app">app</a>.</p>
+      <div class="stats" style="margin:0">
+        <div class="stat" style="cursor:pointer" onclick="location.hash='#/health'"><div class="k">Height</div><div class="v">${esc(String(height))}</div><div class="s">tip</div></div>
+        <div class="stat" style="cursor:pointer" onclick="location.hash='${cityHash('pot')}'"><div class="k">Open pots</div><div class="v">${cul.packpots_open??0}</div><div class="s">${cul.packpots??0} total</div></div>
+        <div class="stat" style="cursor:pointer" onclick="location.hash='${cityHash('howl')}'"><div class="k">Howls</div><div class="v">${cul.howls??0}</div><div class="s">posts</div></div>
+        <div class="stat" style="cursor:pointer" onclick="location.hash='${cityHash('name')}'"><div class="k">Names</div><div class="v">${cul.names??0}</div><div class="s">@handles</div></div>
+        <div class="stat" style="cursor:pointer" onclick="location.hash='#/culture'"><div class="k">NFTs</div><div class="v">${cul.nfts??0}</div><div class="s">culture</div></div>
+      </div>
+      <div class="quick-row" style="margin-top:12px">
+        ${filters.map(([k,lab])=>`<button class="chipbtn ${k===fk?'active':''}" onclick="location.hash='${cityHash(k)}'">${esc(lab)}</button>`).join('')}
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <h3>Live feed <span class="badge warn">${events.length}</span></h3>
+      <div class="mlist" id="cityFeed">
+        ${events.length?events.map(cityEventRow).join(''):'<div class="mrow"><div class="muted">Quiet city — mine a block, post a howl, or open a pot.</div></div>'}
+      </div>
+    </div>
+    <div class="card detail" style="margin-top:12px">
+      <h3 style="margin-top:0">Get in the city</h3>
+      <p class="muted" style="margin:0 0 10px">Claim an @name, howl, join a pot, mint culture — all on Howlcoin L1.</p>
+      <div class="quick-row">
+        <a class="chipbtn" href="/app" style="text-decoration:none;color:var(--green)">Open wallet</a>
+        <a class="chipbtn" href="/app?howl=1" style="text-decoration:none;color:var(--cyan)">Post a howl</a>
+        <button class="chipbtn" onclick="location.hash='#/play'">Play board</button>
+        <button class="chipbtn" onclick="location.hash='#/run'">Run a node</button>
+        <button class="chipbtn" onclick="copyText('https://howlscan.org/#/city', this)">Copy city link</button>
+      </div>
+    </div>
+  </div>`;
+}
+
 async function showPlayBoard(){
   setHeroVisible(false);
   setBottomTab('play');
   await loadNetworks();
-  let pots=[], howls=[], tips=[], names=[], st={};
+  let pots=[], howls=[], tips=[], names=[], st={}, city=[];
   try{
-    [pots, howls, tips, names, st] = await Promise.all([
+    [pots, howls, tips, names, st, city] = await Promise.all([
       api(`/api/${net}/contracts?kind=packpot&limit=30`).then(j=>j.contracts||[]).catch(()=>[]),
       api(`/api/${net}/howls?limit=25`).then(j=>j.howls||[]).catch(()=>[]),
       api(`/api/${net}/contracts?kind=tipjar&limit=20`).then(j=>j.contracts||[]).catch(()=>[]),
       api(`/api/${net}/names?limit=20`).then(j=>j.names||[]).catch(()=>[]),
       api('/api/public/status?window=12').catch(()=>({})),
+      api(`/api/${net}/city?limit=12`).then(j=>j.events||[]).catch(()=>[]),
     ]);
   }catch(e){}
   const cul = st.culture || {};
@@ -3818,11 +3944,16 @@ async function showPlayBoard(){
     ${crumbs([{label:'Home',href:'#/'+net},{label:'Play'}])}
     <div class="page-actions">
       <button class="back" onclick="location.hash='#/${net}'">← Home</button>
+      <button class="chipbtn" style="border-color:var(--green);color:var(--green)" onclick="location.hash='#/city'">Howl City ●</button>
       <button class="chipbtn" onclick="location.hash='#/culture'">Culture</button>
       <button class="chipbtn" onclick="location.hash='#/app'">Open wallet to act</button>
       <button class="chipbtn" onclick="showPlayBoard()">↻ Refresh</button>
-      <span class="muted" style="font-size:.72rem;align-self:center" id="liveHint">Live · 20s</span>
+      <span class="muted" style="font-size:.72rem;align-self:center" id="liveHint">Live · 15s</span>
     </div>
+    ${city.length?`<div class="card" style="margin-bottom:12px;border-color:rgba(61,255,154,.3)">
+      <h3 style="margin:0;padding:12px 14px;border-bottom:1px solid var(--border)">City pulse <a class="more" href="#/city">full feed →</a></h3>
+      <div class="mlist">${city.slice(0,8).map(cityEventRow).join('')}</div>
+    </div>`:''}
     <div class="card detail">
       <div class="badge ok">PLAY</div>
       <span class="badge ok" style="margin-left:6px" id="playLiveDot">● live</span>
@@ -3993,17 +4124,26 @@ async function showNameProfile(slug){
       howls = (hj.howls||[]).filter(h=>(h.from||h.reporter)===addr).slice(0,12);
     }catch(e){}
   }
+  const shareUrl = 'https://howlscan.org/@' + encodeURIComponent(s);
   setPageMeta(
     `@${s} · Howlscan`,
     `Howlcoin @${s}${addr?' · '+addr.slice(0,12)+'…':''} · balance ${bal&&bal.balance_fmt||'—'} · ${nfts.length} NFTs · ${howls.length} howls.`,
-    `#/name/${encodeURIComponent(s)}`
+    '@' + s
   );
+  // Keep pretty URL when possible
+  try{
+    if(location.pathname !== '/@' + s && !(location.pathname||'').startsWith('/api')){
+      history.replaceState(null, '', '/@' + s + (location.hash || '#/name/' + encodeURIComponent(s)));
+    }
+  }catch(e){}
   app().innerHTML = `<div class="main" style="padding-top:12px">
-    ${crumbs([{label:'Home',href:'#/'+net},{label:'Play',href:'#/play'},{label:'@'+s}])}
+    ${crumbs([{label:'Home',href:'#/'+net},{label:'City',href:'#/city'},{label:'Play',href:'#/play'},{label:'@'+s}])}
     <div class="page-actions">
-      <button class="back" onclick="location.hash='#/play'">← Play</button>
+      <button class="back" onclick="location.hash='#/city'">← City</button>
+      <button class="chipbtn" onclick="copyText(${JSON.stringify(shareUrl)}, this)">Share @${esc(s)}</button>
       <button class="chipbtn" onclick="copyText(${JSON.stringify(addr)}, this)">Copy address</button>
-      <a class="chipbtn" href="/app" style="text-decoration:none;color:var(--green)">Send in wallet</a>
+      <a class="chipbtn" href="/app?to=${encodeURIComponent('@'+s)}" style="text-decoration:none;color:var(--green)">Send HOWL</a>
+      <a class="chipbtn" href="/app?howl=1" style="text-decoration:none;color:var(--cyan)">Howl</a>
     </div>
     <div class="card detail">
       <div class="badge ok">@${esc(s)}</div>
@@ -4151,6 +4291,7 @@ async function showApiDocs(){
     ['GET', '/api/public/tx/<txid>', 'Transaction detail'],
     ['GET', '/api/public/address/<H…>', 'Address history'],
     ['GET', '/api/public/howls?limit=40', 'Social howl feed'],
+    ['GET', '/api/public/city?limit=50', 'Howl City live feed (optional kinds=howl,pot,name,…)'],
     ['GET', '/api/public/names?limit=100', 'On-chain name directory'],
     ['GET', '/api/public/name/<slug>', 'Resolve @name'],
     ['GET', '/api/public/names?address=H…', 'Name for address'],
@@ -4177,7 +4318,7 @@ async function showApiDocs(){
       <div class="badge ok">API</div>
       <h2 style="margin:8px 0 6px">Howlscan public API</h2>
       <p class="muted" style="margin:0 0 10px">JSON over HTTPS. CORS open for public read endpoints. Base: <span class="mono">${esc(base)}</span>. Network id for chain routes is usually <span class="mono">public</span>.</p>
-      <p class="muted" style="margin:0;font-size:.85rem">SPA pages: <a href="#/play">#/play</a> · <a href="#/culture">#/culture</a> · <a href="#/contracts">#/contracts</a> · <a href="#/charts">#/charts</a> · <a href="#/health">#/health</a> · <a href="#/name/howler">#/name/&lt;slug&gt;</a></p>
+      <p class="muted" style="margin:0;font-size:.85rem">SPA pages: <a href="#/city">#/city</a> · <a href="#/play">#/play</a> · <a href="#/culture">#/culture</a> · <a href="#/contracts">#/contracts</a> · <a href="#/charts">#/charts</a> · <a href="#/health">#/health</a> · <a href="#/name/howler">#/name/&lt;slug&gt;</a> · share <span class="mono">/@slug</span></p>
     </div>
     <div class="card" style="margin-top:12px">
       <h3>Endpoints</h3>
@@ -4359,6 +4500,24 @@ function doSearch(){
     });
 }
 
+// Pretty paths → SPA hash (howlscan.org/@name, /city, /play)
+(function bootstrapPrettyPath(){
+  try{
+    const p = (location.pathname || '/').replace(/\/+$/,'') || '/';
+    const hasHash = !!(location.hash && location.hash.replace(/^#\/?/,'').length);
+    if(hasHash) return;
+    const at = p.match(/^\/@([a-zA-Z0-9_-]{1,32})$/i);
+    if(at){
+      location.replace('/@' + at[1].toLowerCase() + '#/name/' + encodeURIComponent(at[1].toLowerCase()));
+      return;
+    }
+    if(p === '/city'){ location.replace('/#/city'); return; }
+    if(p === '/play'){ location.replace('/#/play'); return; }
+    if(p === '/culture' || p === '/nfts'){ location.replace('/#/culture'); return; }
+    if(p === '/charts'){ location.replace('/#/charts'); return; }
+  }catch(e){}
+})();
+
 async function route(){
   toggleDrawer(false);
   const h=(location.hash||'').replace(/^#\/?/,'');
@@ -4369,24 +4528,11 @@ async function route(){
   renderNav();
   setBottomTab(activeTabFromRoute(parts));
   __routeKey = parts.join('/') || 'home';
-  // scroll to top on navigation (mobile)
   try{ window.scrollTo({top:0, behavior:'instant' in window ? 'instant' : 'auto'}); }catch(e){ window.scrollTo(0,0); }
   try{
     // Global product routes (network-agnostic → public chain)
-async function route(){
-  toggleDrawer(false);
-  const h=(location.hash||'').replace(/^#\/?/,'');
-  const parts=h.split('/').filter(Boolean);
-  if(parts[0] && networks.length && networks.find(n=>n.id===parts[0])){
-    net=parts[0];
-  }
-  renderNav();
-  setBottomTab(activeTabFromRoute(parts));
-  __routeKey = parts.join('/') || 'home';
-  try{ window.scrollTo({top:0, behavior:'instant' in window ? 'instant' : 'auto'}); }catch(e){ window.scrollTo(0,0); }
-  try{
+    if(parts[0]==='city') return await showHowlCity(parts[1] || '');
     if(parts[0]==='play') return await showPlayBoard();
-    if(parts[0]==='city') return await showPlayBoard(); // city → same live board
     if(parts[0]==='culture' || parts[0]==='nfts' || parts[0]==='gallery') return await showCultureGallery();
     if(parts[0]==='charts' || parts[0]==='markets') return await showChartsBoard();
     if(parts[0]==='api' || parts[0]==='docs') return await showApiDocs();
@@ -4420,7 +4566,8 @@ function isHomeHash(){
 function liveRouteKind(){
   const h=(location.hash||'').replace(/^#\/?/,'').split('/').filter(Boolean);
   if(!h.length || (h.length===1 && networks.find(n=>n.id===h[0]))) return 'home';
-  if(h[0]==='play' || h[0]==='city') return 'play';
+  if(h[0]==='city') return 'city';
+  if(h[0]==='play') return 'play';
   if(h[0]==='culture' || h[0]==='nfts' || h[0]==='gallery') return 'culture';
   if(h[0]==='charts' || h[0]==='markets') return 'charts';
   if(h[0]==='health' || h[0]==='status') return 'health';
@@ -4438,6 +4585,10 @@ function softLiveRefresh(force){
   const keyBefore = __routeKey;
   const run = async ()=>{
     if(kind==='home') await loadHome();
+    else if(kind==='city'){
+      const hh=(location.hash||'').replace(/^#\/?/,'').split('/').filter(Boolean);
+      await showHowlCity(hh[1]||'');
+    }
     else if(kind==='play') await showPlayBoard();
     else if(kind==='culture') await showCultureGallery();
     else if(kind==='charts') await showChartsBoard();
@@ -4449,7 +4600,6 @@ function softLiveRefresh(force){
     } else if(force) await route();
   };
   run().catch(()=>{});
-  // ignore if navigated away
   void keyBefore;
 }
 window.addEventListener('hashchange', ()=>route());
@@ -4475,7 +4625,10 @@ setInterval(async ()=>{
     __lastTipKey = key;
   }catch(e){}
 }, 8000);
-
+</script>
+</body>
+</html>
+"""
 
 
 class ExplorerServer:
@@ -4548,6 +4701,31 @@ class ExplorerServer:
 
                 if path in ("/", "/index.html"):
                     return self._bytes(200, EXPLORER_HTML.encode(), "text/html; charset=utf-8")
+
+                # Pretty product paths + @name share URLs → SPA shell
+                # Client bootstrapPrettyPath / showNameProfile map these to hash routes.
+                if path in (
+                    "/city",
+                    "/city/",
+                    "/play",
+                    "/play/",
+                    "/culture",
+                    "/culture/",
+                    "/charts",
+                    "/charts/",
+                    "/nfts",
+                    "/nfts/",
+                ):
+                    return self._bytes(
+                        200, EXPLORER_HTML.encode(), "text/html; charset=utf-8"
+                    )
+                # howlscan.org/@slug — public name share links
+                if path.startswith("/@"):
+                    slug = path[2:].strip("/").split("/")[0]
+                    if slug and re.fullmatch(r"[A-Za-z0-9_-]{1,32}", slug):
+                        return self._bytes(
+                            200, EXPLORER_HTML.encode(), "text/html; charset=utf-8"
+                        )
 
                 if path in ("/whitepaper", "/whitepaper.html"):
                     wp = ASSETS_DIR / "whitepaper.html"

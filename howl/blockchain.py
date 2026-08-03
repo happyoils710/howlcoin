@@ -1866,6 +1866,224 @@ class Blockchain:
                 break
         return out
 
+    def list_city_events(
+        self, limit: int = 50, kinds: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Howl City live feed: blocks + culture txs + pending mempool, newest first.
+        kinds filter: block, howl, name, nft, pot, tip, contract, transfer, mine
+        """
+        limit = max(1, min(200, int(limit or 50)))
+        allow = None
+        if kinds:
+            allow = {k.strip().lower() for k in kinds if k and k.strip()}
+
+        def _ok(kind: str) -> bool:
+            return allow is None or kind in allow
+
+        events: List[Dict[str, Any]] = []
+
+        # Mempool first (pending drama)
+        for tx in reversed(self.mempool):
+            ev = self._city_event_from_tx(
+                tx, height=None, ts=None, bhash=None, pending=True
+            )
+            if ev and _ok(ev["kind"]):
+                events.append(ev)
+            if len(events) >= limit:
+                return events[:limit]
+
+        # Recent blocks (newest first)
+        for b in reversed(self.blocks[-120:]):
+            height = b.get("height")
+            try:
+                ts = int((b.get("header") or {}).get("timestamp") or 0) or None
+            except (TypeError, ValueError):
+                ts = None
+            bhash = b.get("hash")
+            # block event
+            if _ok("block"):
+                coinbase = next(
+                    (
+                        t
+                        for t in (b.get("transactions") or [])
+                        if t.get("type") == "coinbase"
+                    ),
+                    None,
+                )
+                events.append(
+                    {
+                        "kind": "block",
+                        "label": "Block mined",
+                        "height": height,
+                        "timestamp": ts,
+                        "block_hash": bhash,
+                        "txid": None,
+                        "from": None,
+                        "to": (coinbase or {}).get("to"),
+                        "amount": (coinbase or {}).get("amount"),
+                        "message": None,
+                        "pending": False,
+                        "meta": {
+                            "tx_count": len(b.get("transactions") or []),
+                            "miner": (coinbase or {}).get("to"),
+                        },
+                    }
+                )
+                if len(events) >= limit:
+                    return events[:limit]
+            for tx in reversed(b.get("transactions") or []):
+                if (tx.get("type") or "") == "coinbase":
+                    continue  # already covered as block
+                ev = self._city_event_from_tx(
+                    tx, height=height, ts=ts, bhash=bhash, pending=False
+                )
+                if ev and _ok(ev["kind"]):
+                    events.append(ev)
+                if len(events) >= limit:
+                    return events[:limit]
+        return events[:limit]
+
+    def _city_event_from_tx(
+        self,
+        tx: Dict[str, Any],
+        *,
+        height: Optional[int],
+        ts: Optional[int],
+        bhash: Optional[str],
+        pending: bool,
+    ) -> Optional[Dict[str, Any]]:
+        ty = (tx.get("type") or "transfer").lower()
+        base = {
+            "txid": tx.get("txid"),
+            "height": height,
+            "timestamp": ts,
+            "block_hash": bhash,
+            "from": tx.get("from"),
+            "to": tx.get("to"),
+            "amount": tx.get("amount"),
+            "pending": pending,
+            "type": ty,
+        }
+        if ty == "coinbase":
+            return {
+                **base,
+                "kind": "mine",
+                "label": "Mining reward",
+                "message": None,
+                "meta": {},
+            }
+        if ty == "oracle":
+            key = str(tx.get("oracle_key") or "")
+            val = tx.get("oracle_value")
+            if key == "howl.howl" or key.startswith("howl.howl."):
+                return {
+                    **base,
+                    "kind": "howl",
+                    "label": "Howl",
+                    "message": val,
+                    "meta": {"key": key},
+                }
+            if key.startswith("howl.name."):
+                return {
+                    **base,
+                    "kind": "name",
+                    "label": "Name claim",
+                    "message": key[len("howl.name.") :],
+                    "meta": {"key": key, "slug": key[len("howl.name.") :]},
+                }
+            if key.startswith("howl.bond."):
+                return {
+                    **base,
+                    "kind": "bond",
+                    "label": "Bark bond howl",
+                    "message": val,
+                    "meta": {"key": key},
+                }
+            return {
+                **base,
+                "kind": "oracle",
+                "label": "Oracle",
+                "message": val,
+                "meta": {"key": key},
+            }
+        if ty == "nft_mint":
+            return {
+                **base,
+                "kind": "nft",
+                "label": "NFT mint",
+                "message": tx.get("name"),
+                "meta": {"nft_id": tx.get("nft_id"), "uri": tx.get("uri")},
+            }
+        if ty == "nft_transfer":
+            return {
+                **base,
+                "kind": "nft",
+                "label": "NFT transfer",
+                "message": tx.get("nft_id"),
+                "meta": {"nft_id": tx.get("nft_id")},
+            }
+        if ty == "contract_deploy":
+            kind = (tx.get("contract_kind") or "").lower()
+            kind_map = {
+                "packpot": ("pot", "Pack pot opened"),
+                "tipjar": ("tip", "Tip jar opened"),
+                "barkbond": ("bond", "Bark bond locked"),
+            }
+            ck, label = kind_map.get(kind, ("contract", "Contract deploy"))
+            return {
+                **base,
+                "kind": ck,
+                "label": label,
+                "message": tx.get("name"),
+                "meta": {
+                    "contract_id": tx.get("contract_id"),
+                    "contract_kind": kind,
+                    "method": "deploy",
+                },
+            }
+        if ty == "contract_call":
+            kind = ""
+            cid = tx.get("contract_id")
+            if cid and cid in self.contracts:
+                kind = (self.contracts[cid].get("kind") or "").lower()
+            method = (tx.get("method") or "").lower()
+            if kind == "packpot" or method in ("join",):
+                label = "Pack pot join" if method == "join" else f"Pack pot · {method}"
+                ck = "pot"
+            elif kind == "tipjar" or method == "donate":
+                label = "Tip jar donate" if method == "donate" else f"Tip jar · {method}"
+                ck = "tip"
+            else:
+                label = f"Contract · {method or 'call'}"
+                ck = "contract"
+            return {
+                **base,
+                "kind": ck,
+                "label": label,
+                "message": method,
+                "meta": {
+                    "contract_id": cid,
+                    "contract_kind": kind,
+                    "method": method,
+                },
+            }
+        if ty == "transfer":
+            return {
+                **base,
+                "kind": "transfer",
+                "label": "Transfer",
+                "message": tx.get("memo"),
+                "meta": {},
+            }
+        return {
+            **base,
+            "kind": "other",
+            "label": ty,
+            "message": tx.get("memo"),
+            "meta": {},
+        }
+
     # ---------- on-chain names (howl.name.<slug>) ----------
 
     NAME_PREFIX = "howl.name."
