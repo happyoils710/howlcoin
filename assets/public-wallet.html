@@ -434,6 +434,14 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .qr-scan-bar{display:flex;gap:8px;align-items:center;margin:0 0 8px}
 .qr-scan-bar video{width:100%;max-height:200px;background:#000;border:1px solid var(--border);display:none}
 .qr-scan-bar video.on{display:block}
+/* Confetti overlay */
+#confettiCanvas{position:fixed;inset:0;z-index:120;pointer-events:none}
+.play-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.play-tabs button{border:1px solid var(--border);background:transparent;color:var(--muted);font:inherit;font-size:.75rem;font-weight:700;padding:8px 12px;cursor:pointer}
+.play-tabs button.on{color:var(--green);border-color:color-mix(in srgb,var(--green) 45%,transparent);background:rgba(0,255,198,.08)}
+.duel-qr{text-align:center;padding:12px 0}
+.duel-qr img{max-width:220px;width:100%;border:1px solid var(--border);background:#fff}
+.howl-feed .item{flex-direction:column;align-items:stretch;gap:4px}
 @keyframes ptrspin{to{transform:rotate(360deg)}}
 .item{display:flex;justify-content:space-between;gap:10px;padding:11px 0;
   border-bottom:1px solid rgba(255,255,255,.05);align-items:flex-start}
@@ -866,7 +874,8 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
           <button type="button" class="menu-row" onclick="showPage('recv')"><span class="mi">↓</span><div><div class="mt">Deposits</div><div class="ms">HOWL · SOL · XTZ · ETH · tokens</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('send')"><span class="mi">↑</span><div><div class="mt">Send HOWL</div><div class="ms">Transfer · address book · QR scan</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('activity')"><span class="mi">☰</span><div><div class="mt">Activity</div><div class="ms">History · pending · NFT mints</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="openShareCard('address')"><span class="mi">⇪</span><div><div class="mt">Share card</div><div class="ms">Address · height image for socials</div></div><span class="chev">›</span></button>
+          <button type="button" class="menu-row" onclick="openShareCard('address')"><span class="mi">⇪</span><div><div class="mt">Share card</div><div class="ms">Address · block · social image</div></div><span class="chev">›</span></button>
+          <button type="button" class="menu-row" onclick="showPage('play')"><span class="mi">✦</span><div><div class="mt">Play &amp; social</div><div class="ms">Request · howl · names · QR duel</div></div><span class="chev">›</span></button>
         </div>
       </div>
       <div class="panel">
@@ -1339,6 +1348,77 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       </div>
     </div>
 
+    <!-- PLAY / SOCIAL / DEMO -->
+    <div class="page" id="p-play">
+      <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>Play &amp; social</h1></div>
+      <div class="panel">
+        <div class="play-tabs" id="playTabs">
+          <button type="button" class="on" data-pt="request" onclick="setPlayTab('request')">Request</button>
+          <button type="button" data-pt="howl" onclick="setPlayTab('howl')">Howl</button>
+          <button type="button" data-pt="names" onclick="setPlayTab('names')">Names</button>
+          <button type="button" data-pt="duel" onclick="setPlayTab('duel')">QR duel</button>
+          <button type="button" data-pt="share" onclick="setPlayTab('share')">Share</button>
+        </div>
+      </div>
+      <div class="panel" id="playRequest">
+        <h2>Request HOWL</h2>
+        <p class="hint">Make a pay-request link + QR. Friend opens it in Howl wallet to prefill Send.</p>
+        <label>Amount (HOWL)</label>
+        <input class="field" id="reqAmt" inputmode="decimal" placeholder="10"/>
+        <label>Memo (optional)</label>
+        <input class="field" id="reqMemo" placeholder="coffee · tips · gas"/>
+        <button class="btn" type="button" onclick="buildPayRequest()">Make request</button>
+        <div id="reqOut" class="hidden" style="margin-top:12px">
+          <div class="mono" id="reqLink" style="font-size:.72rem;word-break:break-all;margin-bottom:8px" onclick="copyText($('reqLink').textContent)"></div>
+          <div class="duel-qr"><img id="reqQr" alt="request QR"/></div>
+          <button class="btn sec" type="button" onclick="copyText($('reqLink').textContent)">Copy link</button>
+          <button class="btn sec" type="button" onclick="sharePayRequest()">Share…</button>
+        </div>
+      </div>
+      <div class="panel hidden" id="playHowl">
+        <h2>Howl on-chain</h2>
+        <p class="hint">Post a short howl (max 80 chars) as an oracle note. Costs <b>1 HOWL</b> fee to miners. Visible on Howlscan activity for your address.</p>
+        <label>Your howl</label>
+        <input class="field" id="howlMsg" maxlength="80" placeholder="awoo — block party 🐺"/>
+        <button class="btn" type="button" onclick="postHowlMemo()">Broadcast howl</button>
+        <p class="err" id="howlErr"></p>
+        <p class="hint" id="howlTx"></p>
+        <h3 style="margin:16px 0 8px;font-size:.85rem">Recent howls (yours)</h3>
+        <div class="howl-feed" id="howlFeed"><p class="hint">—</p></div>
+      </div>
+      <div class="panel hidden" id="playNames">
+        <h2>Address names</h2>
+        <p class="hint">Nicknames stay on this device and show in Activity / Send. Set a public display name via oracle (1 HOWL fee).</p>
+        <label>Your public name (on-chain)</label>
+        <input class="field" id="pubName" maxlength="32" placeholder="Howler"/>
+        <button class="btn sec" type="button" onclick="postPublicName()">Publish name (1 HOWL)</button>
+        <p class="err" id="pubNameErr"></p>
+        <label style="margin-top:12px">Local nickname for an address</label>
+        <input class="field" id="nickName" placeholder="Friend"/>
+        <input class="field" id="nickAddr" placeholder="H…"/>
+        <button class="btn sec" type="button" onclick="saveNickname()">Save local name</button>
+        <div id="nickList" style="margin-top:10px"></div>
+      </div>
+      <div class="panel hidden" id="playDuel">
+        <h2>QR duel</h2>
+        <p class="hint">Show your deposit QR. Scan a friend’s QR to open Send prefilled — IRL demo mode.</p>
+        <div class="duel-qr">
+          <img id="duelMyQr" alt="my QR"/>
+          <p class="mono" id="duelMyAddr" style="font-size:.72rem;margin-top:8px" onclick="copyText(keypair&&keypair.address)"></p>
+        </div>
+        <button class="btn" type="button" onclick="toggleDuelScan()">Scan friend → Send</button>
+        <video id="duelVideo" playsinline muted style="width:100%;max-height:220px;margin-top:10px;display:none;border:1px solid var(--border);background:#000"></video>
+        <p class="hint" id="duelHint">Uses camera + BarcodeDetector when available.</p>
+      </div>
+      <div class="panel hidden" id="playShare">
+        <h2>Share cards</h2>
+        <p class="hint">PNG cards for Twitter / Discord / memes.</p>
+        <button class="btn" type="button" onclick="openShareCard('address')">Share my address</button>
+        <button class="btn sec" type="button" onclick="openShareCard('block')">Share current block height</button>
+        <button class="btn sec" type="button" onclick="openShareCard('howl')">Share a howl card</button>
+      </div>
+    </div>
+
     <!-- DEPOSIT / MULTI-ASSET -->
     <div class="page" id="p-recv">
       <div class="page-head"><button type="button" class="back" onclick="showPage('home')">‹ Home</button><h1>Deposit</h1></div>
@@ -1506,6 +1586,9 @@ const LS_WALLET_INDEX = "howl_wallet_index_v1";
 const LS_ADDR_BOOK = "howl_addr_book_v1";
 const LS_PORTFOLIO_CACHE = "howl_portfolio_cache_v1";
 const LS_CORNERS = "howl_corners_v1";
+const LS_NICKS = "howl_addr_nicks_v1";
+const LS_LAST_TIP = "howl_last_tip_v1";
+const LS_CELEB = "howl_celeb_seen_v1";
 
 /** All items that can appear on the bottom bar */
 const TOOLBAR_CATALOG = [
@@ -1517,6 +1600,7 @@ const TOOLBAR_CATALOG = [
   { id: "discover", label: "Discover", icon: "✦", page: "discover" },
   { id: "swap", label: "Swap", icon: "⇄", page: "swap" },
   { id: "activity", label: "Activity", icon: "☰", page: "activity" },
+  { id: "play", label: "Play", icon: "✦", page: "play" },
   { id: "nft", label: "NFT", icon: "◆", page: "nft" },
   { id: "oracle", label: "Oracle", icon: "◎", page: "oracle" },
   { id: "more", label: "More", icon: "☰", page: "more", fixed: true },
@@ -2534,6 +2618,7 @@ function activityRowHtml(r){
     <div class="r" style="color:var(--text)">${escHtml(String(r.amt||"").replace(" HOWL",""))}</div>
   </button>`;
 }
+// nicknames available via displayName() for other UIs
 function wireActivityClicks(root){
   root.querySelectorAll("[data-txid]").forEach(btn=>{
     btn.onclick = ()=>{
@@ -2563,11 +2648,320 @@ function updateNetPulse(sum, pendingCount){
   }
 }
 
+/* —— Confetti —— */
+function fireConfetti(kind){
+  try{
+    let c = $("confettiCanvas");
+    if(!c){
+      c = document.createElement("canvas");
+      c.id = "confettiCanvas";
+      document.body.appendChild(c);
+    }
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    c.width = innerWidth * dpr;
+    c.height = innerHeight * dpr;
+    c.style.width = innerWidth + "px";
+    c.style.height = innerHeight + "px";
+    const ctx = c.getContext("2d");
+    ctx.scale(dpr, dpr);
+    const colors = ["#00ffc6","#c084fc","#ff4ecd","#ffc14d","#6ea8ff","#fff"];
+    const parts = Array.from({length: 80}, () => ({
+      x: Math.random() * innerWidth,
+      y: -20 - Math.random() * 80,
+      vx: (Math.random() - 0.5) * 6,
+      vy: 2 + Math.random() * 5,
+      s: 4 + Math.random() * 6,
+      rot: Math.random() * 6,
+      vr: (Math.random() - 0.5) * 0.3,
+      col: colors[(Math.random() * colors.length) | 0],
+    }));
+    let t = 0;
+    const tick = () => {
+      t++;
+      ctx.clearRect(0, 0, innerWidth, innerHeight);
+      for(const p of parts){
+        p.x += p.vx; p.y += p.vy; p.vy += 0.08; p.rot += p.vr;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.col;
+        ctx.fillRect(-p.s/2, -p.s/2, p.s, p.s * 0.6);
+        ctx.restore();
+      }
+      if(t < 90) requestAnimationFrame(tick);
+      else ctx.clearRect(0, 0, innerWidth, innerHeight);
+    };
+    requestAnimationFrame(tick);
+    try{ if(navigator.vibrate) navigator.vibrate(kind === "mine" ? [20,40,20] : 15); }catch(_){}
+  }catch(_){}
+}
+function celebrateIfNew(sum, addr){
+  try{
+    const tip = sum?.tip || "";
+    const h = sum?.height;
+    const prev = JSON.parse(localStorage.getItem(LS_CELEB) || "{}");
+    const my = keypair?.address;
+    if(!my) return;
+    // coinbase to self in latest txs
+    let mined = false, received = false;
+    for(const t of (addr?.transactions || chainInfo.txs || []).slice(0, 5)){
+      if(t.type === "coinbase" && t.to === my && t.block_height === h) mined = true;
+      if(t.direction === "in" && t.type !== "coinbase" && t.block_height === h) received = true;
+    }
+    if(mined && prev.minedH !== h){
+      fireConfetti("mine");
+      toast("⛏ You mined block #" + h + " — awoo!");
+      prev.minedH = h;
+    } else if(received && prev.recvTip !== tip){
+      fireConfetti("recv");
+      toast("↓ HOWL received — confetti!");
+      prev.recvTip = tip;
+    }
+    if(tip && prev.tip !== tip){
+      prev.tip = tip;
+      prev.h = h;
+    }
+    localStorage.setItem(LS_CELEB, JSON.stringify(prev));
+  }catch(_){}
+}
+
+/* —— Play tabs · request · howl · names · duel —— */
+let playTab = "request";
+let duelStream = null, duelTimer = null;
+function setPlayTab(tab){
+  playTab = tab || "request";
+  document.querySelectorAll("#playTabs [data-pt]").forEach(b=>{
+    b.classList.toggle("on", b.getAttribute("data-pt") === playTab);
+  });
+  ["request","howl","names","duel","share"].forEach(id=>{
+    const el = $("play" + id.charAt(0).toUpperCase() + id.slice(1));
+    // ids: playRequest playHowl playNames playDuel playShare
+  });
+  const map = { request:"playRequest", howl:"playHowl", names:"playNames", duel:"playDuel", share:"playShare" };
+  Object.entries(map).forEach(([k, id])=>{
+    const el = $(id);
+    if(el) el.classList.toggle("hidden", k !== playTab);
+  });
+  if(playTab === "duel") renderDuelMyQr();
+  if(playTab === "names") renderNickList();
+  if(playTab === "howl") refreshHowlFeed();
+  if(playTab !== "duel") stopDuelScan();
+}
+function buildPayRequest(){
+  if(!keypair){ toast("Unlock first"); return; }
+  const amt = ($("reqAmt")?.value || "").trim() || "0";
+  const memo = ($("reqMemo")?.value || "").trim();
+  const u = new URL(location.origin + location.pathname);
+  u.searchParams.set("request", "1");
+  u.searchParams.set("to", keypair.address);
+  u.searchParams.set("amount", amt);
+  if(memo) u.searchParams.set("memo", memo);
+  const link = u.toString();
+  if($("reqLink")) $("reqLink").textContent = link;
+  if($("reqQr")) $("reqQr").src = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" + encodeURIComponent(link);
+  $("reqOut")?.classList.remove("hidden");
+  toast("Request ready");
+}
+async function sharePayRequest(){
+  const link = $("reqLink")?.textContent || "";
+  if(!link) return buildPayRequest();
+  try{
+    if(navigator.share) await navigator.share({ title: "Send me HOWL", text: "Pay request on Howlcoin", url: link });
+    else copyText(link);
+  }catch(_){ copyText(link); }
+}
+function consumePayRequestParams(){
+  try{
+    const q = new URLSearchParams(location.search || "");
+    if(q.get("request") !== "1" && !q.get("to")) return;
+    const to = q.get("to") || "";
+    const amount = q.get("amount") || "";
+    const memo = q.get("memo") || "";
+    if(to && isValidAddress(to)){
+      showPage("send");
+      if($("sendTo")) $("sendTo").value = to;
+      if(amount && $("sendAmt")) $("sendAmt").value = amount;
+      if(memo && $("sendMemo")) $("sendMemo").value = memo;
+      toast("Pay request loaded — review & send");
+      fireConfetti("recv");
+    }
+    history.replaceState(null, "", location.pathname + (location.hash || ""));
+  }catch(_){}
+}
+async function postHowlMemo(){
+  $("howlErr") && ($("howlErr").textContent = "");
+  $("howlTx") && ($("howlTx").textContent = "");
+  try{
+    if(!keypair) throw new Error("Unlock first");
+    const msg = ($("howlMsg")?.value || "").trim();
+    if(!msg) throw new Error("Type a howl first");
+    if(msg.length > 80) throw new Error("Max 80 characters");
+    await postOracle({
+      source_chain: "howlcoin",
+      oracle_key: "howl.howl",
+      oracle_value: msg,
+    });
+    $("howlTx").textContent = "Howl queued (1 HOWL fee) — needs a mined block";
+    toast("Howl broadcast · awoo!");
+    fireConfetti("howl");
+    if($("howlMsg")) $("howlMsg").value = "";
+    setTimeout(refreshHowlFeed, 1200);
+  }catch(e){
+    if($("howlErr")) $("howlErr").textContent = e.message || String(e);
+  }
+}
+async function refreshHowlFeed(){
+  const el = $("howlFeed");
+  if(!el || !keypair) return;
+  try{
+    const j = await api("/api/public/address/" + encodeURIComponent(keypair.address));
+    const howls = (j.transactions || []).filter(t =>
+      t.type === "oracle" || (t.memo && String(t.memo).toLowerCase().includes("oracle"))
+    ).slice(0, 8);
+    // also read oracle feed for howl.howl from us
+    let feed = [];
+    try{
+      const o = await api("/api/public/oracle?limit=30");
+      feed = (o.feed || o.entries || []).filter(e =>
+        (e.key === "howl.howl" || e.oracle_key === "howl.howl") &&
+        (e.reporter === keypair.address || e.from === keypair.address)
+      );
+    }catch(_){}
+    if(feed.length){
+      el.innerHTML = feed.slice(0, 10).map(e => `
+        <div class="item">
+          <div><b>🐺 ${escHtml(String(e.value || e.oracle_value || ""))}</b></div>
+          <div class="m">#${escHtml(String(e.height ?? "—"))} · ${escHtml(displayName(e.reporter || e.from || keypair.address))}</div>
+        </div>`).join("");
+    } else if(howls.length){
+      el.innerHTML = howls.map(t => `
+        <div class="item"><div class="m">Oracle / howl activity · #${escHtml(String(t.block_height ?? "—"))}</div></div>
+      `).join("");
+    } else el.innerHTML = `<p class="hint">No howls yet — be first</p>`;
+  }catch(e){
+    el.innerHTML = `<p class="hint">${escHtml(e.message)}</p>`;
+  }
+}
+function loadNicks(){
+  try{ return JSON.parse(localStorage.getItem(LS_NICKS) || "{}"); }catch{ return {}; }
+}
+function saveNicks(m){ localStorage.setItem(LS_NICKS, JSON.stringify(m || {})); }
+function displayName(addr){
+  if(!addr) return "—";
+  const n = loadNicks()[addr];
+  if(n) return n + " · " + shortAddr(addr);
+  return shortAddr(addr);
+}
+function saveNickname(){
+  const name = ($("nickName")?.value || "").trim();
+  const addr = ($("nickAddr")?.value || "").trim();
+  if(!name || !isValidAddress(addr)){ toast("Name + valid address required"); return; }
+  const m = loadNicks();
+  m[addr] = name;
+  saveNicks(m);
+  // also address book
+  try{ addAddressBookEntry(name, addr); }catch(_){}
+  if($("nickName")) $("nickName").value = "";
+  if($("nickAddr")) $("nickAddr").value = "";
+  renderNickList();
+  toast("Saved " + name);
+}
+function renderNickList(){
+  const el = $("nickList");
+  if(!el) return;
+  const m = loadNicks();
+  const keys = Object.keys(m);
+  if(!keys.length){ el.innerHTML = `<p class="hint">No local names yet</p>`; return; }
+  el.innerHTML = keys.map(a => `
+    <div class="item">
+      <div><b>${escHtml(m[a])}</b><div class="m mono" style="font-size:.72rem">${escHtml(a)}</div></div>
+      <button type="button" class="chip" style="cursor:pointer" onclick="pickSendAddress(${JSON.stringify(a)});showPage('send')">Send</button>
+    </div>`).join("");
+}
+async function postPublicName(){
+  $("pubNameErr") && ($("pubNameErr").textContent = "");
+  try{
+    const name = ($("pubName")?.value || "").trim();
+    if(!name) throw new Error("Enter a name");
+    if(name.length > 32) throw new Error("Max 32 chars");
+    await postOracle({
+      source_chain: "howlcoin",
+      oracle_key: "howl.name",
+      oracle_value: name,
+    });
+    const m = loadNicks();
+    if(keypair) m[keypair.address] = name;
+    saveNicks(m);
+    toast("Name queued on-chain (1 HOWL fee)");
+    fireConfetti("howl");
+  }catch(e){
+    if($("pubNameErr")) $("pubNameErr").textContent = e.message || String(e);
+  }
+}
+function renderDuelMyQr(){
+  if(!keypair) return;
+  if($("duelMyAddr")) $("duelMyAddr").textContent = keypair.address;
+  if($("duelMyQr")){
+    $("duelMyQr").src = "https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + encodeURIComponent(keypair.address);
+  }
+}
+async function toggleDuelScan(){
+  const vid = $("duelVideo");
+  if(!vid) return;
+  if(duelStream){ stopDuelScan(); toast("Scanner off"); return; }
+  if(!navigator.mediaDevices?.getUserMedia){ toast("Camera not available"); return; }
+  try{
+    duelStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+    vid.srcObject = duelStream;
+    vid.style.display = "block";
+    await vid.play();
+    toast("Scan friend’s HOWL QR");
+    const BD = window.BarcodeDetector;
+    if(typeof BD === "function"){
+      const det = new BD({ formats: ["qr_code"] });
+      duelTimer = setInterval(async ()=>{
+        try{
+          if(vid.readyState < 2) return;
+          const codes = await det.detect(vid);
+          for(const c of codes || []){
+            const raw = String(c.rawValue || "").trim();
+            let addr = "";
+            try{
+              const u = new URL(raw);
+              addr = u.searchParams.get("to") || "";
+            }catch(_){}
+            const m = raw.match(/H[1-9A-HJ-NP-Za-km-z]{20,}/);
+            if(m) addr = m[0];
+            if(addr && isValidAddress(addr)){
+              stopDuelScan();
+              showPage("send");
+              if($("sendTo")) $("sendTo").value = addr;
+              toast("Duel locked — send to " + shortAddr(addr));
+              fireConfetti("duel");
+              return;
+            }
+          }
+        }catch(_){}
+      }, 400);
+    } else if($("duelHint")) $("duelHint").textContent = "BarcodeDetector missing — paste address on Send instead.";
+  }catch(e){
+    toast(e.message || "Camera denied");
+    stopDuelScan();
+  }
+}
+function stopDuelScan(){
+  if(duelTimer){ clearInterval(duelTimer); duelTimer = null; }
+  if(duelStream){ try{ duelStream.getTracks().forEach(t=>t.stop()); }catch(_){ } duelStream = null; }
+  const vid = $("duelVideo");
+  if(vid){ vid.pause(); vid.srcObject = null; vid.style.display = "none"; }
+}
+
 /* —— Share card —— */
 function openShareCard(kind){
   const modal = $("shareModal");
   const canvas = $("shareCanvas");
   if(!modal || !canvas || !keypair){ toast("Unlock wallet first"); return; }
+  kind = kind || "address";
   const ctx = canvas.getContext("2d");
   const W = canvas.width, H = canvas.height;
   ctx.fillStyle = "#050214";
@@ -2580,23 +2974,46 @@ function openShareCard(kind){
   ctx.fillText("HOWLCOIN", 40, 70);
   ctx.fillStyle = "#eef6ff";
   ctx.font = "22px Inter, sans-serif";
-  ctx.fillText("Public Scrypt chain · howlscan.org", 40, 110);
-  ctx.fillStyle = "#8b9bbf";
-  ctx.font = "18px ui-monospace, monospace";
-  const addr = keypair.address || "";
-  ctx.fillText("Address", 40, 170);
-  ctx.fillStyle = "#eef6ff";
-  ctx.font = "20px ui-monospace, monospace";
-  // wrap address
-  const chunk = 28;
-  for(let i = 0; i < addr.length; i += chunk){
-    ctx.fillText(addr.slice(i, i + chunk), 40, 200 + (i / chunk) * 28);
+  if(kind === "block"){
+    ctx.fillText("I ride the public Scrypt chain", 40, 110);
+    ctx.fillStyle = "#00ffc6";
+    ctx.font = "bold 64px Orbitron, sans-serif";
+    ctx.fillText("#" + (chainInfo.height || "—"), 40, 200);
+    ctx.fillStyle = "#8b9bbf";
+    ctx.font = "20px Inter, sans-serif";
+    ctx.fillText("howlscan.org · mine · hold · howl", 40, 250);
+    ctx.fillStyle = "#eef6ff";
+    ctx.font = "16px ui-monospace, monospace";
+    ctx.fillText(shortAddr(keypair.address), 40, H - 50);
+    if($("shareHint")) $("shareHint").textContent = "Block height card for socials.";
+  } else if(kind === "howl"){
+    ctx.fillText("awoo from the chain", 40, 110);
+    ctx.fillStyle = "#c084fc";
+    ctx.font = "bold 32px Inter, sans-serif";
+    const msg = ($("howlMsg")?.value || "Mine. Hold. Howl.").slice(0, 48);
+    ctx.fillText('"' + msg + '"', 40, 180);
+    ctx.fillStyle = "#8b9bbf";
+    ctx.font = "18px Inter, sans-serif";
+    ctx.fillText("Height #" + (chainInfo.height || "—") + " · " + shortAddr(keypair.address), 40, 240);
+    if($("shareHint")) $("shareHint").textContent = "Howl card — edit message in Play → Howl first.";
+  } else {
+    ctx.fillText("Public Scrypt chain · howlscan.org", 40, 110);
+    ctx.fillStyle = "#8b9bbf";
+    ctx.font = "18px ui-monospace, monospace";
+    const addr = keypair.address || "";
+    ctx.fillText("Address", 40, 170);
+    ctx.fillStyle = "#eef6ff";
+    ctx.font = "20px ui-monospace, monospace";
+    const chunk = 28;
+    for(let i = 0; i < addr.length; i += chunk){
+      ctx.fillText(addr.slice(i, i + chunk), 40, 200 + (i / chunk) * 28);
+    }
+    ctx.fillStyle = "#00ffc6";
+    ctx.font = "18px Inter, sans-serif";
+    ctx.fillText("Height " + (chainInfo.height || "—") + " · Mine · Hold · Howl", 40, H - 50);
+    if($("shareHint")) $("shareHint").textContent = "Download or copy address for socials.";
   }
-  ctx.fillStyle = "#00ffc6";
-  ctx.font = "18px Inter, sans-serif";
-  ctx.fillText("Height " + (chainInfo.height || "—") + " · Mine · Hold · Howl", 40, H - 50);
   modal.classList.remove("hidden");
-  if($("shareHint")) $("shareHint").textContent = "Download or copy address for socials.";
 }
 function closeShareCard(){ $("shareModal")?.classList.add("hidden"); }
 function downloadShareCard(){
@@ -3236,6 +3653,7 @@ function showApp(){
   updateSecUI();
   fillChainSelects();
   wireUnitToggle();
+  try{ consumePayRequestParams(); }catch(_){}
   syncUnitToggleUI();
   updatePortfolioTotal();
   renderWalletSwitcher();
@@ -3433,7 +3851,9 @@ function showPage(name){
   if(name==="nft"){ wireNftPage(); setNftDashTab(nftDashTab || "mine"); }
   if(name==="activity"){ renderActivityFull(); }
   if(name==="send"){ renderSendAddrChips(); renderAddressBookUI(); }
+  if(name==="play"){ setPlayTab(playTab || "request"); }
   if(name!=="send") try{ stopSendQrScan(); }catch(_){}
+  if(name!=="play") try{ stopDuelScan(); }catch(_){}
   if(name==="wc"){ renderWcPage(); ensureWalletConnect(); }
   if(name==="oracle") refreshOracle();
   if(name==="toolbar") renderToolbarEditor();
@@ -6265,6 +6685,7 @@ async function refresh(){
     updateNetPulse(sum, sum.mempool ?? pending.length);
     renderHomeActivity();
     if($("p-activity")?.classList.contains("on")) renderActivityFull();
+    celebrateIfNew(sum, addr);
     // Prices + SOL first, then full multi-chain balances
     refreshMarketPrices(false);
     refreshSolBalances(true).then(()=> refreshEthBalances());
@@ -7225,6 +7646,14 @@ window.toggleSendQrScan = toggleSendQrScan;
 window.pickSendAddress = pickSendAddress;
 window.addAddressBookEntry = addAddressBookEntry;
 window.removeAddressBookEntry = removeAddressBookEntry;
+window.setPlayTab = setPlayTab;
+window.buildPayRequest = buildPayRequest;
+window.sharePayRequest = sharePayRequest;
+window.postHowlMemo = postHowlMemo;
+window.saveNickname = saveNickname;
+window.postPublicName = postPublicName;
+window.toggleDuelScan = toggleDuelScan;
+window.fireConfetti = fireConfetti;
 window.copyNftRecvAddr = copyNftRecvAddr;
 window.watchNftFromForm = watchNftFromForm;
 window.wireNftPage = wireNftPage;

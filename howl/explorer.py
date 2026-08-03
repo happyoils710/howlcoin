@@ -2007,7 +2007,16 @@ async function loadHome(){
           : ` · smooth difficulty activates at height <b>${s.smooth_diff_activation_height||120}</b> (next blocks).`}
         Nodes must run <b>v0.6+</b>.
         <a href="#/run">Run a node / mine</a>
+        · <a href="#/health">Health</a>
       </p>
+      <div id="tipTicker" class="mono" style="margin-top:10px;padding:8px 10px;border:1px solid rgba(0,255,198,.2);background:rgba(0,0,0,.25);font-size:.78rem;overflow:hidden;white-space:nowrap;cursor:pointer"
+        onclick="location.hash='#/${net}/block/${s.height}'"
+        title="Tap for tip block">
+        <span style="color:var(--green)">● tip</span>
+        <span class="muted"> #${s.height}</span>
+        · <span id="tipTickerHash">${esc(short(s.tip,18))}</span>
+        <span class="muted"> · ${esc(tipAge)}</span>
+      </div>
     </div>
   </div>
   <div class="stats">
@@ -2729,6 +2738,24 @@ ensureBanner();
 loadNetworks().then(route);
 // Background data refresh only (banner stays mounted, animation uninterrupted)
 setInterval(()=>{ if(isHomeHash()) loadHome().catch(()=>{}); }, 20000);
+// Tip ticker: flash when height/tip changes
+let __lastTipKey = '';
+setInterval(async ()=>{
+  if(!isHomeHash()) return;
+  try{
+    const s = await api('/api/public/summary');
+    const key = (s.height||'') + ':' + (s.tip||'');
+    const el = document.getElementById('tipTickerHash');
+    const box = document.getElementById('tipTicker');
+    if(el && s.tip) el.textContent = short(s.tip, 18);
+    if(box && __lastTipKey && key !== __lastTipKey){
+      box.style.borderColor = 'var(--green)';
+      box.style.boxShadow = '0 0 16px rgba(61,255,154,.35)';
+      setTimeout(()=>{ box.style.borderColor = ''; box.style.boxShadow = ''; }, 1200);
+    }
+    __lastTipKey = key;
+  }catch(e){}
+}, 8000);
 </script>
 </body>
 </html>
