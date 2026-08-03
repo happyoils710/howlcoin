@@ -495,12 +495,35 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
   border-top:1px solid var(--border);
   padding:4px env(safe-area-inset-right,0px) calc(6px + var(--safe-b)) env(safe-area-inset-left,0px);
   z-index:30}
-.tab{border:0;background:0;color:var(--muted);font:inherit;font-size:.58rem;font-weight:700;
-  flex:1 1 0;min-width:0;max-width:100%;min-height:54px;cursor:pointer;
+.tab{border:0;background:0;color:var(--muted);font:inherit;font-size:.62rem;font-weight:700;
+  flex:1 1 0;min-width:0;max-width:100%;min-height:56px;cursor:pointer;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:2px;letter-spacing:.04em;text-transform:uppercase;padding:4px 2px;margin:0}
-.tab span.ico{font-size:1.15rem;line-height:1;display:block}
+  gap:3px;letter-spacing:.03em;text-transform:uppercase;padding:6px 2px;margin:0}
+.tab span.ico{font-size:1.2rem;line-height:1;display:block}
 .tab.on{color:var(--green);text-shadow:0 0 12px rgba(0,255,198,.5)}
+.tab.on span.ico{transform:scale(1.06)}
+/* Home quick actions — 2×3 grid, easier than 4 tiny buttons */
+.actions.quick-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:4px 0 14px}
+.actions.quick-grid .action{min-height:68px;padding:10px 6px}
+.actions.quick-grid .action .ico{font-size:1.25rem}
+.actions.quick-grid .action .n{font-size:.72rem}
+.top-brand{display:flex;align-items:center;gap:10px;min-width:0;cursor:pointer;border:0;background:0;padding:0;color:inherit;font:inherit;text-align:left}
+.top-brand:active{opacity:.85}
+.top-jump{border:1px solid var(--border);background:var(--card2);color:var(--text);width:36px;height:36px;border-radius:10px;font-size:1rem;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.top-jump:active{border-color:var(--green);color:var(--green)}
+.more-search{margin-bottom:10px}
+.more-search input{margin:0}
+.more-sec-title{margin:16px 0 6px;font-size:.68rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.more-sec-title:first-child{margin-top:4px}
+.jump-sheet{position:fixed;inset:0;z-index:110;background:rgba(0,0,0,.72);display:flex;align-items:flex-end;justify-content:center;padding:0;opacity:0;pointer-events:none;transition:opacity .18s}
+.jump-sheet.on{opacity:1;pointer-events:auto}
+.jump-sheet .js-panel{width:100%;max-width:480px;max-height:78vh;overflow:auto;background:var(--card2);border:1px solid var(--border);border-bottom:0;border-radius:18px 18px 0 0;padding:14px 14px calc(16px + var(--safe-b))}
+.jump-sheet .js-title{display:flex;align-items:center;justify-content:space-between;margin:0 0 10px;font-family:var(--font-display);font-size:.85rem;letter-spacing:.06em}
+.jump-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.jump-grid button{border:1px solid var(--border);background:var(--card);color:var(--text);font:inherit;padding:14px 8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;min-height:76px}
+.jump-grid button .ji{font-size:1.35rem;line-height:1}
+.jump-grid button .jl{font-size:.68rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;text-align:center}
+.jump-grid button:active{border-color:var(--green);color:var(--green)}
 .toolbar-edit .menu-row .mi{font-size:1rem}
 .toolbar-edit .chk{width:22px;height:22px;accent-color:var(--green);flex-shrink:0}
 .toolbar-edit .ord{display:flex;flex-direction:column;gap:2px;margin-left:4px}
@@ -712,7 +735,9 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .menu-row .mt{font-weight:700;font-size:1rem;letter-spacing:.02em}
 .menu-row .ms{font-size:.78rem;color:var(--muted);margin-top:2px}
 .menu-row .chev{margin-left:auto;color:var(--muted);font-size:1.1rem;opacity:.7}
-.page-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.page-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;
+  position:sticky;top:0;z-index:12;background:var(--bg);padding:8px 0 10px;
+  border-bottom:1px solid var(--border)}
 .page-head .back{border:1px solid rgba(0,255,200,.2);background:rgba(0,0,0,.35);color:var(--cyan);
   border-radius:12px;padding:8px 12px;font:inherit;font-weight:700;cursor:pointer;min-height:40px}
 .page-head h1{margin:0;font-family:Orbitron,sans-serif;font-size:.85rem;letter-spacing:.08em;
@@ -737,10 +762,13 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
     <span id="ptrLabel">Pull to refresh</span>
   </div>
   <div class="top">
-    <img src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt=""/>
-    <div><div class="t">Howl<span>coin</span></div><div class="s" id="syncSub">Public chain</div></div>
+    <button type="button" class="top-brand" onclick="showPage('home')" title="Home" aria-label="Go home">
+      <img src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt=""/>
+      <div><div class="t">Howl<span>coin</span></div><div class="s" id="syncSub">Public chain</div></div>
+    </button>
     <div class="grow"></div>
-    <span class="chip" id="liveChip">● …</span>
+    <button type="button" class="top-jump" onclick="openJumpSheet()" title="Jump to…" aria-label="Open navigation">▦</button>
+    <span class="chip" id="liveChip" onclick="showPage('activity')" title="Activity" style="cursor:pointer">● …</span>
   </div>
   <div class="content">
     <!-- HOME -->
@@ -808,11 +836,13 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
           <p class="hint" id="walletSwitchHint" style="margin:6px 0 0">Switch · create · import · delete</p>
         </div>
       </div>
-      <div class="actions">
+      <div class="actions quick-grid" role="navigation" aria-label="Quick actions">
         <button class="action" type="button" onclick="showPage('send')"><span class="ico">↑</span><span class="n">Send</span></button>
         <button class="action" type="button" onclick="showPage('recv')"><span class="ico">↓</span><span class="n">Deposit</span></button>
+        <button class="action" type="button" onclick="showPage('nft')"><span class="ico">◆</span><span class="n">NFTs</span></button>
+        <button class="action" type="button" onclick="showPage('swap')"><span class="ico">⇄</span><span class="n">Swap</span></button>
         <button class="action" type="button" onclick="showPage('activity')"><span class="ico">☰</span><span class="n">Activity</span></button>
-        <button class="action" type="button" onclick="showPage('more')"><span class="ico">···</span><span class="n">More</span></button>
+        <button class="action" type="button" onclick="openJumpSheet()"><span class="ico">▦</span><span class="n">All apps</span></button>
       </div>
       <div class="panel">
         <h2>Network</h2>
@@ -900,34 +930,13 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 
     <!-- MORE HUB -->
     <div class="page" id="p-more">
+      <div class="page-head"><button type="button" class="back" onclick="showPage('home')">‹ Home</button><h1>More</h1></div>
       <div class="panel">
-        <h2>Apps</h2>
-        <div class="menu-list">
-          <button type="button" class="menu-row" onclick="showPage('assets')"><span class="mi">◈</span><div><div class="mt">Assets</div><div class="ms">By chain · deposit · history</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="showPage('swap')"><span class="mi">⇄</span><div><div class="mt">Swap</div><div class="ms">Jupiter · Howl Swap (→ HOWL)</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="showPage('browser')"><span class="mi">◈</span><div><div class="mt">Howl Search</div><div class="ms">Search the open web · open any site or dapp</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="showPage('discover')"><span class="mi">✦</span><div><div class="mt">Discover</div><div class="ms">New crypto tech · scout agents</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="showPage('nft')"><span class="mi">◆</span><div><div class="mt">NFT Dashboard</div><div class="ms">Collection · all on-chain · timestamps · mint</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="showPage('wc')"><span class="mi">🔗</span><div><div class="mt">WalletConnect</div><div class="ms" id="moreWcHint">Connect external dApps</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="showPage('oracle')"><span class="mi">◎</span><div><div class="mt">Oracle</div><div class="ms">Observe chains · post tips on HOWL</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="showPage('contracts')"><span class="mi">⚙</span><div><div class="mt">Smart contracts</div><div class="ms">Tip jar · timelock · escrow on HOWL</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="showPage('recv')"><span class="mi">↓</span><div><div class="mt">Deposits</div><div class="ms">HOWL · SOL · XTZ · ETH · tokens</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="showPage('send')"><span class="mi">↑</span><div><div class="mt">Send HOWL</div><div class="ms">Transfer · address book · QR scan</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="showPage('activity')"><span class="mi">☰</span><div><div class="mt">Activity</div><div class="ms">History · pending · NFT mints</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="openShareCard('address')"><span class="mi">⇪</span><div><div class="mt">Share card</div><div class="ms">Address · block · social image</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="showPage('play')"><span class="mi">✦</span><div><div class="mt">Play &amp; social</div><div class="ms">Request · howl · names · QR duel</div></div><span class="chev">›</span></button>
+        <div class="more-search">
+          <input class="field" id="moreSearch" type="search" enterkeyhint="search" placeholder="Search apps &amp; settings…" autocomplete="off" spellcheck="false"/>
         </div>
-      </div>
-      <div class="panel">
-        <h2>Settings</h2>
-        <div class="menu-list">
-          <button type="button" class="menu-row" onclick="showPage('sec')"><span class="mi">🛡</span><div><div class="mt">Security</div><div class="ms" id="moreSecHint">Face ID · 2FA · recovery</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="showPage('toolbar')"><span class="mi">☰</span><div><div class="mt">Customize toolbar</div><div class="ms">Pick bottom icons · Search · Discover</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="showPage('appearance')"><span class="mi">◐</span><div><div class="mt">Appearance</div><div class="ms" id="themeHint">Light · Dark · Neo · Bones</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="refresh();toast('Synced')"><span class="mi">↻</span><div><div class="mt">Refresh data</div><div class="ms">Reload balances &amp; chain</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="window.open('https://howlscan.org/','_blank')"><span class="mi">⎋</span><div><div class="mt">Howlscan</div><div class="ms">Block explorer</div></div><span class="chev">›</span></button>
-          <button type="button" class="menu-row" onclick="lockWallet()"><span class="mi">🔒</span><div><div class="mt">Lock wallet</div><div class="ms">Require unlock again</div></div><span class="chev">›</span></button>
-        </div>
+        <button type="button" class="btn sec" style="margin:0 0 12px" onclick="openJumpSheet()">▦ Jump to any screen</button>
+        <div id="moreMenuHost"></div>
       </div>
       <div class="panel">
         <h2>Snapshot</h2>
@@ -937,9 +946,18 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       </div>
     </div>
 
+    <!-- Global jump sheet (navigation hub) -->
+    <div id="jumpSheet" class="jump-sheet" aria-hidden="true" onclick="if(event.target===this)closeJumpSheet()">
+      <div class="js-panel" onclick="event.stopPropagation()">
+        <div class="js-title"><span>Jump to</span><button type="button" class="chip" style="cursor:pointer" onclick="closeJumpSheet()">Close</button></div>
+        <p class="hint" style="margin:0 0 10px">Everything in one place — money, NFTs, apps, settings.</p>
+        <div class="jump-grid" id="jumpGrid"></div>
+      </div>
+    </div>
+
     <!-- SEND HOWL -->
     <div class="page" id="p-send">
-      <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>Send</h1></div>
+      <div class="page-head"><button type="button" class="back" onclick="showPage('home')">‹ Home</button><h1>Send</h1></div>
       <div class="panel">
         <h2>Send HOWL</h2>
         <label>To address</label>
@@ -988,7 +1006,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 
     <!-- SWAP (Solana / Jupiter) + Howl Swap bridge -->
     <div class="page" id="p-swap">
-      <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>Swap</h1></div>
+      <div class="page-head"><button type="button" class="back" onclick="showPage('home')">‹ Home</button><h1>Swap</h1></div>
       <div class="seg" id="swapModeSeg" style="margin-bottom:12px">
         <button type="button" class="on" data-mode="jup" onclick="setSwapMode('jup',this)">Solana · Jupiter</button>
         <button type="button" data-mode="howl" onclick="setSwapMode('howl',this)">Howl Swap</button>
@@ -1252,7 +1270,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 
     <!-- NFT DASHBOARD (HOWL on-chain timestamps + multi-chain tools) -->
     <div class="page" id="p-nft">
-      <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>NFT Dashboard</h1></div>
+      <div class="page-head"><button type="button" class="back" onclick="showPage('home')">‹ Home</button><h1>NFTs</h1></div>
       <div class="panel">
         <h2>Howlcoin NFT dashboard</h2>
         <p class="hint" style="margin:0">View mints, transfers, and <b>every on-chain timestamp</b> (block time). Photo mint is free-form on HOWL; other chains use receive / watch tools.</p>
@@ -1714,7 +1732,39 @@ const TOOLBAR_CATALOG = [
   { id: "contracts", label: "Contracts", icon: "⚙", page: "contracts" },
   { id: "more", label: "More", icon: "☰", page: "more", fixed: true },
 ];
-const DEFAULT_TOOLBAR = ["home", "assets", "swap", "recv", "more"];
+/** Daily-use defaults: money + NFTs (user can customize under More → Toolbar) */
+const DEFAULT_TOOLBAR = ["home", "send", "recv", "nft", "more"];
+
+/** Structured More menu + jump sheet destinations */
+const MORE_MENU = [
+  { section: "Money", items: [
+    { id: "send", icon: "↑", title: "Send HOWL", sub: "Transfer · address book · QR", page: "send" },
+    { id: "recv", icon: "↓", title: "Deposit", sub: "HOWL · SOL · XTZ · ETH · tokens", page: "recv" },
+    { id: "assets", icon: "◈", title: "Assets", sub: "By chain · balances · history", page: "assets" },
+    { id: "swap", icon: "⇄", title: "Swap", sub: "Jupiter · Howl Swap → HOWL", page: "swap" },
+    { id: "activity", icon: "☰", title: "Activity", sub: "History · pending · mints", page: "activity" },
+  ]},
+  { section: "Collectibles", items: [
+    { id: "nft", icon: "◆", title: "NFTs", sub: "Howl · Tezos · mint · send", page: "nft" },
+    { id: "contracts", icon: "⚙", title: "Smart contracts", sub: "Tip jar · timelock · escrow", page: "contracts" },
+  ]},
+  { section: "Apps", items: [
+    { id: "browser", icon: "⌕", title: "Howl Search", sub: "Web · dApps", page: "browser" },
+    { id: "discover", icon: "✦", title: "Discover", sub: "New crypto tech", page: "discover" },
+    { id: "wc", icon: "🔗", title: "WalletConnect", sub: "External dApps", page: "wc", hintId: "moreWcHint" },
+    { id: "oracle", icon: "◎", title: "Oracle", sub: "Post chain tips on HOWL", page: "oracle" },
+    { id: "play", icon: "✦", title: "Play & social", sub: "Request · howl · QR duel", page: "play" },
+    { id: "share", icon: "⇪", title: "Share card", sub: "Address · social image", action: "share" },
+  ]},
+  { section: "Settings", items: [
+    { id: "sec", icon: "🛡", title: "Security", sub: "Face ID · 2FA · recovery", page: "sec", hintId: "moreSecHint" },
+    { id: "toolbar", icon: "☰", title: "Customize toolbar", sub: "Bottom bar icons", page: "toolbar" },
+    { id: "appearance", icon: "◐", title: "Appearance", sub: "Theme · corners", page: "appearance", hintId: "themeHint" },
+    { id: "refresh", icon: "↻", title: "Refresh data", sub: "Balances & chain", action: "refresh" },
+    { id: "explorer", icon: "⎋", title: "Howlscan", sub: "Block explorer", action: "explorer" },
+    { id: "lock", icon: "🔒", title: "Lock wallet", sub: "Require unlock again", action: "lock" },
+  ]},
+];
 
 /** Chains for asset browser */
 const ASSET_CHAINS = [
@@ -3919,26 +3969,119 @@ function normalizeToolbar(ids){
   if(list.length < 3) list = DEFAULT_TOOLBAR.slice();
   return list;
 }
+/** Pages that live under More (for bottom-tab highlight) */
+const MORE_NESTED = new Set([
+  "more","sec","toolbar","appearance","wc","oracle","contracts","play","browser","discover","asset",
+]);
+
+function toolbarActiveId(activePage){
+  const ids = getToolbarIds();
+  const onBar = new Set(ids);
+  if(onBar.has(activePage)) return activePage;
+  // asset detail → assets tab if present
+  if(activePage === "asset" && onBar.has("assets")) return "assets";
+  if(MORE_NESTED.has(activePage) || !onBar.has(activePage)){
+    return onBar.has("more") ? "more" : ids[0];
+  }
+  return ids[0];
+}
+
 function renderToolbar(activePage){
   const nav = $("bottomNav");
   if(!nav) return;
   const ids = getToolbarIds();
   const cat = Object.fromEntries(TOOLBAR_CATALOG.map(t=>[t.id,t]));
-  // Which bottom tab should look active?
-  const onBar = new Set(ids);
-  let active = activePage;
-  if(!onBar.has(activePage)){
-    // map nested pages
-    if(activePage === "sec" || activePage === "toolbar" || activePage === "appearance") active = "more";
-    else if(!onBar.has(activePage)) active = onBar.has("more") ? "more" : ids[0];
-  }
+  const active = toolbarActiveId(activePage || currentPage || "home");
   nav.innerHTML = ids.map(id=>{
     const t = cat[id];
     if(!t) return "";
-    const on = t.page === active || (active === "more" && t.id === "more" && (activePage==="sec"||activePage==="toolbar"||activePage==="more"))
-      || (t.page === activePage);
+    const on = t.id === active || t.page === active;
     return `<button type="button" class="tab ${on?"on":""}" data-p="${t.page}" onclick="showPage('${t.page}')"><span class="ico">${t.icon}</span>${t.label}</button>`;
   }).join("");
+}
+
+function runMoreAction(action){
+  if(action === "share") openShareCard("address");
+  else if(action === "refresh"){ refresh(); toast("Synced"); }
+  else if(action === "explorer") openExternalUrl("https://howlscan.org/");
+  else if(action === "lock") lockWallet();
+}
+
+function renderMoreMenu(filter){
+  const host = $("moreMenuHost");
+  if(!host) return;
+  const q = (filter || "").trim().toLowerCase();
+  let html = "";
+  let shown = 0;
+  for(const sec of MORE_MENU){
+    const items = sec.items.filter(it=>{
+      if(!q) return true;
+      const blob = (it.title + " " + it.sub + " " + sec.section).toLowerCase();
+      return blob.includes(q);
+    });
+    if(!items.length) continue;
+    html += `<div class="more-sec-title">${escHtml(sec.section)}</div><div class="menu-list">`;
+    for(const it of items){
+      shown++;
+      const click = it.page
+        ? `showPage('${it.page}')`
+        : `runMoreAction('${it.action}')`;
+      const hintAttr = it.hintId ? ` id="${it.hintId}"` : "";
+      // ms may be dynamic for security/wc
+      const ms = it.hintId
+        ? `<div class="ms"${hintAttr}>${escHtml(it.sub)}</div>`
+        : `<div class="ms">${escHtml(it.sub)}</div>`;
+      html += `<button type="button" class="menu-row" data-more-id="${escAttr(it.id)}" onclick="${click}">
+        <span class="mi">${it.icon}</span>
+        <div style="min-width:0;flex:1"><div class="mt">${escHtml(it.title)}</div>${ms}</div>
+        <span class="chev">›</span>
+      </button>`;
+    }
+    html += `</div>`;
+  }
+  if(!shown){
+    html = `<p class="hint">No matches for “${escHtml(q)}”. Try send, nft, security…</p>`;
+  }
+  host.innerHTML = html;
+  // re-apply live security / wc hints if elements recreated
+  try{ updateSecUI(); }catch(_){}
+  try{ if(typeof renderWcPage === "function"){ /* status only */ } }catch(_){}
+}
+
+function wireMoreSearch(){
+  const el = $("moreSearch");
+  if(!el || el.dataset.wired) return;
+  el.dataset.wired = "1";
+  el.addEventListener("input", ()=> renderMoreMenu(el.value));
+}
+
+function openJumpSheet(){
+  const sheet = $("jumpSheet");
+  const grid = $("jumpGrid");
+  if(!sheet || !grid) return;
+  const tiles = [];
+  for(const sec of MORE_MENU){
+    for(const it of sec.items){
+      if(it.action === "refresh" || it.action === "lock") continue;
+      tiles.push(it);
+    }
+  }
+  // always include home
+  tiles.unshift({ id: "home", icon: "⌂", title: "Home", page: "home" });
+  grid.innerHTML = tiles.map(it=>{
+    const click = it.page
+      ? `closeJumpSheet();showPage('${it.page}')`
+      : `closeJumpSheet();runMoreAction('${it.action}')`;
+    return `<button type="button" onclick="${click}"><span class="ji">${it.icon}</span><span class="jl">${escHtml(it.title)}</span></button>`;
+  }).join("");
+  sheet.classList.add("on");
+  sheet.setAttribute("aria-hidden", "false");
+}
+function closeJumpSheet(){
+  const sheet = $("jumpSheet");
+  if(!sheet) return;
+  sheet.classList.remove("on");
+  sheet.setAttribute("aria-hidden", "true");
 }
 function renderToolbarEditor(){
   const host = $("toolbarEditor");
@@ -4005,6 +4148,7 @@ let currentPage = "home";
 
 function showPage(name){
   currentPage = name || "home";
+  try{ closeJumpSheet(); }catch(_){}
   document.querySelectorAll(".page").forEach(p=>p.classList.toggle("on", p.id==="p-"+name));
   renderToolbar(name);
   const app = $("app");
@@ -4030,6 +4174,10 @@ function showPage(name){
     }
   }
   if(name==="sec" || name==="more") updateSecUI();
+  if(name==="more"){
+    wireMoreSearch();
+    renderMoreMenu($("moreSearch")?.value || "");
+  }
   if(name==="swap"){ initSwapUI(); if(swapMode==="howl") initBridgeUI(); }
   if(name==="browser") initBrowserUI();
   if(name==="discover") loadDiscover(false);
@@ -9018,7 +9166,7 @@ function boot(skipInstallPrompt){
       }
     }
   }catch(_){}
-  if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=5").catch(()=>{});
+  if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=6").catch(()=>{});
   if(!skipInstallPrompt && !isStandalone() && !sessionStorage.getItem("howl_skip_install") && !sessionStorage.getItem("howl_saw_install")){
     sessionStorage.setItem("howl_saw_install","1");
     uiInstall();
@@ -9136,6 +9284,10 @@ window.renderHcDeployFields = renderHcDeployFields;
 window.finishAccountWizard = finishAccountWizard;
 window.prepareTezosNftSend = prepareTezosNftSend;
 window.initBridgeUI = initBridgeUI;
+window.openJumpSheet = openJumpSheet;
+window.closeJumpSheet = closeJumpSheet;
+window.runMoreAction = runMoreAction;
+window.renderMoreMenu = renderMoreMenu;
 
 boot();
 </script>
