@@ -947,7 +947,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
     <!-- HOWL CHARTS — first-party Howlcoin product -->
     <div class="page" id="p-markets">
       <div class="page-head"><button type="button" class="back" onclick="showPage('home')">‹ Home</button><h1>Howl Charts</h1></div>
-      <p class="hint" style="margin:0 0 12px"><b>Howl Charts</b> is a Howlcoin product — our canvas, our history. Live spots from <b>on-chain oracles</b> (Chainlink) + <b>Howl Swap</b> for HOWL. No CoinGecko / market-price APIs.</p>
+      <p class="hint" style="margin:0 0 12px"><b>Howl Charts</b> is a Howlcoin product — our canvas, our history. Live spots from <b>on-chain data</b> and the <b>Howl Swap</b> index for HOWL. Built and hosted by Howlcoin.</p>
 
       <div class="chart-card">
         <div class="chart-head">
@@ -9726,7 +9726,7 @@ async function refreshMarketsBoard(force){
     });
     if(meta){
       const t = j.updated ? new Date(j.updated * 1000).toLocaleTimeString() : "—";
-      meta.textContent = `Howl Charts · ${marketsLive.length} assets · on-chain spots · updated ${t}`
+      meta.textContent = `Howl Charts · ${marketsLive.length} assets · live · updated ${t}`
         + (j.cached ? " · cached" : "")
         + " · Howlcoin product";
     }
@@ -9799,11 +9799,9 @@ async function refreshHowlChart(force){
       }
     }
     if(meta){
-      const range = days === "max" ? (j.range || "lifetime") : (days + " day");
-      const src = j.source && j.source !== "none" ? ` · ${j.source}` : "";
+      const range = days === "max" ? "lifetime" : (days + " day");
       meta.textContent = `Howl Charts · ${range} · ${j.count||chartState.points.length} pts`
-        + (j.cached ? " · cached" : " · live series")
-        + src
+        + (j.cached ? " · cached" : " · live")
         + (j.high != null ? ` · H ${fmtUsdPx(j.high)}` : "")
         + (j.low != null ? ` L ${fmtUsdPx(j.low)}` : "")
         + " · Howlcoin product";

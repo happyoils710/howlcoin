@@ -99,7 +99,7 @@ _markets_board_cache: Dict[str, Any] = {"ts": 0.0, "data": None}
 _coin_profile_cache: Dict[str, Any] = {}  # id -> {ts, data}
 _chart_samples_lock = threading.Lock()
 
-# Howl Charts product note (first-party Howlcoin surface; feeds power coverage)
+# Howl Charts product note (public-facing — Howlcoin only, no third-party brands)
 _HOWL_CHARTS_NOTE = "Howl Charts · Howlcoin product"
 _HOWL_CHART_ID = "howlcoin"
 
@@ -478,12 +478,12 @@ def fetch_onchain_spot(
         "name": name,
         "usd": usd,
         "feed": addr,
-        "oracle": "chainlink",
+        "oracle": "onchain",
         "chain": "ethereum",
         "updated_onchain": int(raw.get("updated") or now),
         "updated": int(now),
         "product": "Howl Charts",
-        "source": "chainlink",
+        "source": "onchain",
         "recorded": recorded,
         "note": _HOWL_CHARTS_NOTE,
     }
@@ -622,7 +622,7 @@ def fetch_markets_board(force: bool = False) -> Dict[str, Any]:
                 "change_24h": chg,
                 "market_cap": None,
                 "vol_24h": None,
-                "oracle": "chainlink",
+                "oracle": "onchain",
                 "feed": spot.get("feed"),
             }
         except Exception as e:
@@ -646,11 +646,10 @@ def fetch_markets_board(force: bool = False) -> Dict[str, Any]:
         "coins": coins,
         "count": len(coins),
         "updated": int(now),
-        "source": "howl-charts-onchain",
-        "feeds": ["howl-swap", "chainlink-ethereum"],
+        "source": "howl-charts",
+        "feeds": ["howl-swap", "onchain"],
         "product": "Howl Charts",
-        "note": _HOWL_CHARTS_NOTE
-        + " · prices from chain oracles + Howl Swap (no market-price APIs)",
+        "note": _HOWL_CHARTS_NOTE + " · on-chain spots + Howl Swap",
         "cached": False,
     }
     if errors and not coins:
@@ -748,9 +747,8 @@ def fetch_coin_profile(coin_id: str = "bitcoin", force: bool = False) -> Dict[st
             "bridge_enabled": spot.get("bridge_enabled"),
             "product": "Howl Charts",
             "updated": int(now),
-            "source": spot.get("source") or "onchain",
-            "note": _HOWL_CHARTS_NOTE
-            + " · on-chain spot · history from Howl Charts samples",
+            "source": "howl-charts",
+            "note": _HOWL_CHARTS_NOTE,
             "cached": False,
         }
         _coin_profile_cache[cid] = {"ts": now, "data": {**out, "cached": True}}
@@ -815,8 +813,7 @@ def _chart_payload(
         "updated": int(now),
         "source": source,
         "product": "Howl Charts",
-        "note": _HOWL_CHARTS_NOTE
-        + " · chart from Howlscan samples of on-chain spots",
+        "note": _HOWL_CHARTS_NOTE,
         "cached": False,
     }
 
@@ -857,17 +854,17 @@ def fetch_market_chart(
         if usd is None:
             raise RuntimeError("no on-chain spot")
         points = _series_from_samples(cid, d, usd, now)
-        source = "howl-swap" if cid == _HOWL_CHART_ID else "chainlink+howl-samples"
+        source = "howl-swap" if cid == _HOWL_CHART_ID else "howl-charts"
         out = _chart_payload(cid, d, points, source, now)
         if cid == _HOWL_CHART_ID:
             out["index"] = "howl-swap"
             out["howl_per_usdc"] = spot.get("howl_per_usdc")
         else:
-            out["oracle"] = "chainlink"
+            out["oracle"] = "onchain"
             out["feed"] = spot.get("feed")
         # Lifetime for our product = full Howl Charts sample history
         if d == "max":
-            out["range"] = "lifetime (Howl Charts history)"
+            out["range"] = "lifetime"
         _chart_cache[key] = {"ts": now, "data": {**out, "cached": True}}
         return out
     except Exception as e:
