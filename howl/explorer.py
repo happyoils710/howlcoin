@@ -3443,6 +3443,30 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                             },
                         )
 
+                    if rest[0] in ("contracts", "contract"):
+                        if rest[0] == "contract" and len(rest) >= 2:
+                            cid = urllib.parse.unquote(rest[1])
+                            row = chain.get_contract(cid)
+                            if not row:
+                                return self._json(404, {"error": "contract not found"})
+                            return self._json(200, {"network": net, "contract": row})
+                        owner = (qs.get("owner") or [None])[0]
+                        kind = (qs.get("kind") or [None])[0]
+                        limit = int(qs.get("limit", ["100"])[0])
+                        rows = chain.list_contracts(
+                            owner=owner, kind=kind, limit=limit
+                        )
+                        return self._json(
+                            200,
+                            {
+                                "network": net,
+                                "contracts": rows,
+                                "count": len(chain.contracts),
+                                "returned": len(rows),
+                                "kinds": list(getattr(chain, "CONTRACT_KINDS", ())),
+                            },
+                        )
+
                 return self._json(404, {"error": "not found"})
 
             def do_OPTIONS(self):

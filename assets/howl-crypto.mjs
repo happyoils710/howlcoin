@@ -560,6 +560,13 @@ export function txSighash(txBody) {
     "oracle_value",
     "source_chain",
     "observed_at",
+    "contract_id",
+    "contract_kind",
+    "method",
+    "unlock_height",
+    "counterparty",
+    "arbiter",
+    "call_value",
   ]) {
     if (txBody[k] != null && txBody[k] !== "") body[k] = txBody[k];
   }
@@ -623,6 +630,12 @@ export function makeNftId(creator, name, uri, nonce) {
   return bytesToHex(sha256(new TextEncoder().encode(raw))).slice(0, 32);
 }
 
+/** Deterministic Howl contract id from creator + kind + name + nonce */
+export function makeContractId(creator, kind, name, nonce) {
+  const raw = `hc|${creator}|${kind}|${name}|${nonce}`;
+  return "hc" + bytesToHex(sha256(new TextEncoder().encode(raw))).slice(0, 30);
+}
+
 /** Tezos tz1 from same mnemonic (ed25519 SLIP-0010 m/44'/1729'/0'/0') */
 export function tezosPath(account = 0) {
   return [
@@ -645,9 +658,21 @@ export function tezosAddressFromMnemonic(phrase, account = 0, passphrase = "") {
   const priv = deriveEd25519Path(seed, tezosPath(account));
   const pub = ed25519.getPublicKey(priv);
   // tz1 = base58check( 0x06 0xa1 0x9f || blake2b-160(pubkey) )
-  const pkh = blake2b(pub, { dkLen: 20 });
+  let pkh;
+  try {
+    pkh = blake2b(pub, { dkLen: 20 });
+  } catch {
+    // some CDN builds only expose the hasher factory
+    pkh = blake2b.create({ dkLen: 20 }).update(pub).digest();
+  }
+  if (!pkh || pkh.length !== 20) {
+    throw new Error("Tezos blake2b-160 failed (got " + (pkh && pkh.length) + " bytes)");
+  }
   const payload = concat(new Uint8Array([6, 161, 159]), pkh);
   const address = base58CheckEncode(payload);
+  if (!address.startsWith("tz1")) {
+    throw new Error("Unexpected Tezos address prefix: " + address.slice(0, 4));
+  }
   return {
     address,
     privateKeyHex: bytesToHex(priv),

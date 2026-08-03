@@ -897,6 +897,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
           <button type="button" class="menu-row" onclick="showPage('nft')"><span class="mi">◆</span><div><div class="mt">NFT Dashboard</div><div class="ms">Collection · all on-chain · timestamps · mint</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('wc')"><span class="mi">🔗</span><div><div class="mt">WalletConnect</div><div class="ms" id="moreWcHint">Connect external dApps</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('oracle')"><span class="mi">◎</span><div><div class="mt">Oracle</div><div class="ms">Observe chains · post tips on HOWL</div></div><span class="chev">›</span></button>
+          <button type="button" class="menu-row" onclick="showPage('contracts')"><span class="mi">⚙</span><div><div class="mt">Smart contracts</div><div class="ms">Tip jar · timelock · escrow on HOWL</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('recv')"><span class="mi">↓</span><div><div class="mt">Deposits</div><div class="ms">HOWL · SOL · XTZ · ETH · tokens</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('send')"><span class="mi">↑</span><div><div class="mt">Send HOWL</div><div class="ms">Transfer · address book · QR scan</div></div><span class="chev">›</span></button>
           <button type="button" class="menu-row" onclick="showPage('activity')"><span class="mi">☰</span><div><div class="mt">Activity</div><div class="ms">History · pending · NFT mints</div></div><span class="chev">›</span></button>
@@ -1382,6 +1383,50 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       </div>
     </div>
 
+    <!-- SMART CONTRACTS (Howl Script) -->
+    <div class="page" id="p-contracts">
+      <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>Contracts</h1></div>
+      <div class="panel">
+        <h2>Howl Script Contracts</h2>
+        <p class="hint">Native on-chain templates — not EVM. Deploy a tip jar, timelock, or escrow. Funds lock in the contract until you call a method. Fee ≈ <b>1 HOWL</b> per deploy/call.</p>
+        <ol class="steps" style="margin:8px 0 0;padding-left:1.2rem;color:var(--muted);font-size:.88rem;line-height:1.45">
+          <li><b style="color:var(--text)">Tip jar</b> — friends donate HOWL; you withdraw anytime.</li>
+          <li><b style="color:var(--text)">Timelock</b> — lock HOWL until a future block height, then claim.</li>
+          <li><b style="color:var(--text)">Escrow</b> — buyer funds; release to seller or refund after height / via arbiter.</li>
+        </ol>
+      </div>
+      <div class="panel">
+        <h2>Deploy</h2>
+        <label>Kind</label>
+        <select class="field" id="hcKind" onchange="renderHcDeployFields()">
+          <option value="tipjar">Tip jar</option>
+          <option value="timelock">Timelock</option>
+          <option value="escrow">Escrow</option>
+        </select>
+        <label>Name</label>
+        <input class="field" id="hcName" placeholder="Coffee tip jar" maxlength="80"/>
+        <label>Initial fund (HOWL, optional for tip jar)</label>
+        <input class="field" id="hcFund" inputmode="decimal" placeholder="0"/>
+        <div id="hcExtraFields"></div>
+        <button class="btn" type="button" onclick="deployHowlContract()">Deploy contract</button>
+        <p class="err" id="hcErr"></p>
+        <p class="hint" id="hcTx"></p>
+      </div>
+      <div class="panel">
+        <h2>Your contracts</h2>
+        <p class="hint">Owned, counterparty, or arbiter roles. Tap a row to call methods.</p>
+        <button class="btn sec" type="button" onclick="refreshHowlContracts()">↻ Refresh</button>
+        <div id="hcList" style="margin-top:10px"><p class="hint">Loading…</p></div>
+      </div>
+      <div class="panel hidden" id="hcDetailPanel">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <button type="button" class="back" style="margin:0" onclick="closeHcDetail()">‹ Back</button>
+          <h2 style="margin:0;flex:1" id="hcDetailTitle">Contract</h2>
+        </div>
+        <div id="hcDetailBody"></div>
+      </div>
+    </div>
+
     <!-- PLAY / SOCIAL / DEMO -->
     <div class="page" id="p-play">
       <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>Play &amp; social</h1></div>
@@ -1567,7 +1612,7 @@ import {
   utxoAddressFromMnemonic, btcAddressFromMnemonic, trxAddressFromMnemonic,
   xrpAddressFromMnemonic, xlmAddressFromMnemonic,
   UTXO_COINS, EVM_CHAINS,
-  buildSignedTx, parseHowl, formatHowl, isValidAddress, COIN, makeNftId,
+  buildSignedTx, parseHowl, formatHowl, isValidAddress, COIN, makeNftId, makeContractId,
   PRESET_ASSETS, generateTotpSecret, totpOtpauthUrl, verifyTotp,
 } from "/assets/howl-crypto.mjs";
 import {
@@ -1652,6 +1697,7 @@ const TOOLBAR_CATALOG = [
   { id: "play", label: "Play", icon: "✦", page: "play" },
   { id: "nft", label: "NFT", icon: "◆", page: "nft" },
   { id: "oracle", label: "Oracle", icon: "◎", page: "oracle" },
+  { id: "contracts", label: "Contracts", icon: "⚙", page: "contracts" },
   { id: "more", label: "More", icon: "☰", page: "more", fixed: true },
 ];
 const DEFAULT_TOOLBAR = ["home", "assets", "swap", "recv", "more"];
@@ -1699,6 +1745,8 @@ let keypair = null;
 let ethInfo = null;
 let solInfo = null;
 let xtzInfo = null;
+/** Why multi-chain (Tezos/SOL/etc.) may be missing — key-only or derive error */
+let multiChainNote = "";
 /** Extra chain addresses: { btc, ltc, bch, doge, trx, xrp, xlm } */
 let multiInfo = {};
 let mnemonic = null;
@@ -3385,7 +3433,10 @@ function assetAddress(a){
   if(!a) return "";
   if(a.kind === "howl") return keypair?.address || "";
   if(a.kind === "sol" || a.kind === "spl") return solInfo?.address || "";
-  if(a.kind === "xtz" || a.kind === "fa") return xtzInfo?.address || "";
+  if(a.kind === "xtz" || a.kind === "fa"){
+    ensureTezosDerived();
+    return xtzInfo?.address || "";
+  }
   if(a.kind === "utxo") return multiInfo[a.coinId]?.address || multiInfo[a.id]?.address || "";
   if(a.kind === "trx" || a.kind === "trc20") return multiInfo.trx?.address || "";
   if(a.kind === "xrp" || a.kind === "xrp_token") return multiInfo.xrp?.address || "";
@@ -3393,6 +3444,36 @@ function assetAddress(a){
   if(a.kind === "external") return "";
   // eth, evm, erc20 share ETH address
   return ethInfo?.address || "";
+}
+/** Human reason Tezos/SOL/etc. address is blank */
+function multiChainMissingHint(kind){
+  if(kind === "xtz" || kind === "fa" || kind === "tezos"){
+    if(xtzInfo?.address) return "";
+    if(!mnemonic) return "This wallet is key-only (HOWL + ETH). Import or create a 12-word seed wallet to get a Tezos tz1 address for XTZ + NFTs.";
+    if(multiChainNote) return multiChainNote;
+    return "Tezos address not derived — unlock again or switch to a seed wallet.";
+  }
+  if(kind === "sol" || kind === "spl"){
+    if(solInfo?.address) return "";
+    if(!mnemonic) return "Key-only wallet — Solana needs a 12-word seed.";
+    return multiChainNote || "Solana address not ready.";
+  }
+  return multiChainNote || "";
+}
+/** Retry Tezos derivation from mnemonic (fixes silent fail / late CDN). */
+function ensureTezosDerived(){
+  if(xtzInfo?.address) return xtzInfo;
+  if(!mnemonic) return null;
+  try{
+    xtzInfo = tezosAddressFromMnemonic(mnemonic, 0);
+    if(multiChainNote && multiChainNote.toLowerCase().includes("tezos")) multiChainNote = "";
+    return xtzInfo;
+  }catch(e){
+    xtzInfo = null;
+    multiChainNote = "Tezos derive failed: " + (e && e.message ? e.message : String(e));
+    console.error("[howl] tezos derive", e);
+    return null;
+  }
 }
 function assetDisplaySymbol(a){
   return a?.displaySymbol || a?.symbol || "?";
@@ -3553,7 +3634,13 @@ function renderAssetDetail(){
   if($("assetDetailBal")) $("assetDetailBal").textContent = balTxt + " " + assetDisplaySymbol(a);
   if($("assetDetailName")) $("assetDetailName").textContent = (a.name || "") + (a.note ? " · " + a.note : "");
   const addr = assetAddress(a);
-  if($("assetDetailAddr")) $("assetDetailAddr").textContent = addr || (a.kind==="external" ? "(use external wallet)" : "—");
+  if($("assetDetailAddr")){
+    if(addr) $("assetDetailAddr").textContent = addr;
+    else if(a.kind==="external") $("assetDetailAddr").textContent = "(use external wallet)";
+    else if(a.kind === "xtz" || a.kind === "fa" || a.kind === "sol" || a.kind === "spl")
+      $("assetDetailAddr").textContent = multiChainMissingHint(a.kind) || "—";
+    else $("assetDetailAddr").textContent = "—";
+  }
   let actions = assetActions(a);
   // Always allow manual refresh on asset page (SOL uses fast path)
   actions = [
@@ -3601,10 +3688,13 @@ function renderAssetDetail(){
         solHint = `<p class="hint" style="margin-top:8px">Loading SOL balance…</p>`;
       }
     }
+    const miss = !addr ? multiChainMissingHint(a.kind) : "";
     mini.innerHTML = `
       <div style="text-align:center">
-        <div class="qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(addr||"")}" alt="QR"/></div>
-        ${addr?`<button class="btn sec" type="button" onclick="copyAssetAddress()">Copy ${escHtml(assetDisplaySymbol(a))} address</button>`:`<p class="hint">No in-app deposit address for this asset yet.</p>`}
+        ${addr?`<div class="qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(addr)}" alt="QR"/></div>`:""}
+        ${addr?`<button class="btn sec" type="button" onclick="copyAssetAddress()">Copy ${escHtml(assetDisplaySymbol(a))} address</button>`
+          :`<div class="warnbox" style="text-align:left">${escHtml(miss || "No in-app deposit address for this asset yet.")}</div>`}
+        ${addr && (a.kind==="xtz"||a.kind==="fa")?`<p class="hint" style="margin-top:8px"><b>tz1</b> receive · same for XTZ + FA2 NFTs · not KT1</p>`:""}
         <p class="hint" style="margin-top:8px">Only send <b>${escHtml(assetDisplaySymbol(a))}</b> on <b>${escHtml(a.network||"")}</b>.</p>
         ${solHint}
         ${a.note?`<p class="hint">${escHtml(a.note)}</p>`:""}
@@ -3710,6 +3800,13 @@ function showApp(){
   $("gate").classList.add("hidden");
   $("app").classList.remove("hidden");
   updateSecUI();
+  // Re-derive Tezos/SOL if seed present (fixes silent CDN fail on first unlock)
+  if(mnemonic){
+    try{ ensureTezosDerived(); }catch(_){}
+    if(!solInfo){
+      try{ solInfo = solAddressFromMnemonic(mnemonic, 0); }catch(e){ console.error(e); }
+    }
+  }
   fillChainSelects();
   wireUnitToggle();
   try{ consumePayRequestParams(); }catch(_){}
@@ -3916,6 +4013,7 @@ function showPage(name){
   if(name!=="send") try{ closeSlideConfirm(); }catch(_){}
   if(name==="wc"){ renderWcPage(); ensureWalletConnect(); }
   if(name==="oracle") refreshOracle();
+  if(name==="contracts"){ renderHcDeployFields(); refreshHowlContracts(); }
   if(name==="toolbar") renderToolbarEditor();
   if(name==="appearance"){
     setTheme(localStorage.getItem(LS_THEME)||"neo");
@@ -5327,14 +5425,18 @@ function selectAsset(id){
       </div>`;
     return;
   }
+  const miss = (addr === "—" || !addr || addr === "—") ? multiChainMissingHint(a.kind) : "";
+  const hasAddr = addr && addr !== "—";
   body.innerHTML = `
     <div style="text-align:center">
       <div class="badge on">${escHtml(a.network||"")}</div>
       <h3 style="margin:10px 0 4px;font-family:var(--font-display);letter-spacing:.06em">${escHtml(sym)}</h3>
       <p class="hint">${escHtml(a.name||"")}</p>
-      <div class="qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(addr)}" alt="QR"/></div>
+      ${hasAddr?`<div class="qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(addr)}" alt="QR"/></div>
       <div class="mono">${escHtml(addr)}</div>
-      <button class="btn" type="button" onclick="copyText(${JSON.stringify(addr)})">Copy ${escHtml(sym)} address</button>
+      <button class="btn" type="button" onclick="copyText(${JSON.stringify(addr)})">Copy ${escHtml(sym)} address</button>`
+      :`<div class="warnbox" style="text-align:left;margin:12px 0">${escHtml(miss || "Address not available for this wallet type.")}</div>`}
+      ${hasAddr && (a.kind==="xtz"||a.kind==="fa")?`<p class="hint">Tezos <b>tz1</b> · XTZ + FA2 NFTs · never use KT1 as your receive address</p>`:""}
       <p class="hint">Balance: <b style="color:var(--green)">${escHtml(bal)}</b> ${escHtml(sym)}</p>
       ${a.contract?`<p class="hint mono" style="font-size:.72rem">Contract: ${escHtml(a.contract)}</p>`:""}
       ${a.mint?`<p class="hint mono" style="font-size:.72rem">Mint: ${escHtml(a.mint)}</p>`:""}
@@ -5554,7 +5656,10 @@ function nftReceiveAddress(chainId){
   const id = chainId || nftChain;
   if(id === "howl") return keypair?.address || "";
   if(id === "solana") return solInfo?.address || "";
-  if(id === "tezos") return xtzInfo?.address || "";
+  if(id === "tezos"){
+    ensureTezosDerived();
+    return xtzInfo?.address || "";
+  }
   if(id === "tron") return multiInfo.trx?.address || "";
   if(id === "xrp") return multiInfo.xrp?.address || "";
   if(id === "stellar") return multiInfo.xlm?.address || "";
@@ -5635,14 +5740,55 @@ function renderNftChainUI(){
   if(sel && sel.value !== nftChain) sel.value = nftChain;
 
   const addr = nftReceiveAddress(nftChain);
-  if($("nftRecvAddr")) $("nftRecvAddr").textContent = addr || "— (unlock wallet)";
+  if($("nftRecvAddr")){
+    if(addr) $("nftRecvAddr").textContent = addr;
+    else if(meta.id === "tezos") $("nftRecvAddr").textContent = multiChainMissingHint("xtz") || "— (no tz1)";
+    else $("nftRecvAddr").textContent = "— (unlock wallet)";
+  }
   if($("nftRecvHint")){
-    $("nftRecvHint").textContent = `Only send ${meta.label} NFTs to this address. Wrong network can mean lost assets.`;
+    if(meta.id === "tezos"){
+      $("nftRecvHint").innerHTML = addr
+        ? ("<b>Tezos NFTs land on your tz1 account</b> (same address as XTZ) — not a KT1/Michelson contract. " +
+          "In Temple/Kukai/Objkt, set <b>Recipient</b> to the tz1 below. " +
+          "<b>KT1…</b> is only the NFT collection contract (the other wallet already knows that). " +
+          "Never paste a KT1 as the destination when someone is sending <i>to you</i>.")
+        : ("<b style=\"color:var(--danger,#f66)\">No Tezos address on this wallet.</b> " +
+          escHtml(multiChainMissingHint("xtz") || "Use a 12-word seed wallet (not private-key-only)."));
+    } else {
+      $("nftRecvHint").textContent = `Only send ${meta.label} NFTs to this address. Wrong network can mean lost assets.`;
+    }
   }
   if($("nftRecvQr")){
     if(addr){
-      $("nftRecvQr").innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(addr)}" alt="QR"/>`;
+      const note = meta.id === "tezos"
+        ? `<p class="hint" style="margin:8px 0 0">Receive address type: <b>tz1</b> (implicit). Path m/44'/1729'/0'/0' · same for XTZ + FA2 NFTs.</p>`
+        : "";
+      $("nftRecvQr").innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(addr)}" alt="QR"/>${note}`;
     } else $("nftRecvQr").innerHTML = "";
+  }
+  // Extra Tezos help under receive
+  let help = $("nftTezosHelp");
+  if(meta.id === "tezos"){
+    if(!help && $("nftReceivePanel")){
+      help = document.createElement("div");
+      help.id = "nftTezosHelp";
+      help.className = "warnbox";
+      help.style.marginTop = "10px";
+      $("nftReceivePanel").appendChild(help);
+    }
+    if(help){
+      help.innerHTML = `
+        <b>How to receive from another Tezos wallet</b>
+        <ol style="margin:8px 0 0;padding-left:1.2rem;line-height:1.45">
+          <li>Copy the <b>tz1…</b> address above (not KT1).</li>
+          <li>In the other wallet: Send NFT → paste <b>tz1</b> as recipient.</li>
+          <li>Leave the collection/contract as the NFT’s <b>KT1</b> (Michelson contract) — that is the collection, not you.</li>
+          <li>After confirm, open NFT → Tezos → Refresh. We load FA2 balances from TzKT.</li>
+        </ol>
+        <p style="margin:8px 0 0">If their app asks for a “Michelson address,” they usually mean the <b>token contract (KT1)</b> for the collection, which you do <b>not</b> replace with your wallet. Your wallet is always <b>tz1</b>.</p>`;
+    }
+  } else if(help){
+    help.remove();
   }
 
   const mintPanel = $("nftMintPanel");
@@ -5663,10 +5809,14 @@ function renderNftChainUI(){
   if($("nftXferToLab")){
     $("nftXferToLab").textContent = meta.id === "howl" ? "To HOWL address (H…)"
       : meta.id === "solana" ? "To Solana address"
+      : meta.id === "tezos" ? "To Tezos tz1 (not KT1)"
       : "To address on " + meta.label;
   }
   if($("nftXferTo")){
-    $("nftXferTo").placeholder = meta.id === "howl" ? "H…" : meta.id === "solana" ? "Base58…" : "0x… / address";
+    $("nftXferTo").placeholder = meta.id === "howl" ? "H…"
+      : meta.id === "solana" ? "Base58…"
+      : meta.id === "tezos" ? "tz1…"
+      : "0x… / address";
   }
   const needContract = !!(meta.evmId);
   if($("nftXferExtraLab")) $("nftXferExtraLab").classList.toggle("hidden", !needContract);
@@ -5692,8 +5842,9 @@ function renderNftWatchFields(meta){
     `;
   } else if(meta.id === "tezos"){
     box.innerHTML = `
-      <label>FA2 contract (KT1…)</label>
-      <input class="field" id="nftWatchContract" placeholder="KT1…"/>
+      <p class="hint">Optional: manually pin a collection. <b>KT1</b> = FA2 contract (Michelson). Your receive address stays <b>tz1</b> above.</p>
+      <label>FA2 collection contract (KT1…)</label>
+      <input class="field" id="nftWatchContract" placeholder="KT1… (collection, not your wallet)"/>
       <label>Token ID</label>
       <input class="field" id="nftWatchTokenId" placeholder="0"/>
       <label>Name (optional)</label>
@@ -6037,6 +6188,52 @@ async function refreshNftActivity(){
   }
 }
 
+/** FA2 NFT balances for a tz1 via TzKT (mainnet). */
+async function listTezosNfts(owner){
+  const acct = (owner || "").trim();
+  if(!acct || !acct.startsWith("tz")) throw new Error("Need a tz1/tz2/tz3 account address");
+  // balance.ne=0 and token.metadata when available
+  const url = "https://api.tzkt.io/v1/tokens/balances?" + new URLSearchParams({
+    account: acct,
+    "balance.ne": "0",
+    "token.standard.in": "fa2,fa1.2",
+    limit: "50",
+    sort: { desc: "lastTime" },
+  });
+  // TzKT uses sort.desc=lastTime as query key
+  const url2 = `https://api.tzkt.io/v1/tokens/balances?account=${encodeURIComponent(acct)}&balance.ne=0&token.standard.in=fa2,fa1.2&limit=50&sort.desc=lastTime`;
+  const r = await fetchTimeout(url2, {}, 15000);
+  if(!r.ok) throw new Error("TzKT " + r.status);
+  const rows = await r.json();
+  const out = [];
+  for(const row of rows || []){
+    const tok = row.token || {};
+    const meta = tok.metadata || {};
+    let image = meta.displayUri || meta.thumbnailUri || meta.artifactUri || meta.image || "";
+    if(typeof image === "string"){
+      image = image.replace("ipfs://", "https://ipfs.io/ipfs/");
+    } else image = "";
+    // skip pure fungibles with huge balances if they look like FA1.2 currency
+    const bal = String(row.balance || "0");
+    const isNftish = tok.standard === "fa2" || Number(bal) === 1 || (meta && (meta.displayUri || meta.artifactUri || meta.name));
+    if(!isNftish && tok.standard === "fa1.2" && Number(bal) > 100) continue;
+    out.push({
+      chain: "tezos",
+      kind: "fa",
+      contract: tok.contract?.address || tok.contract || "",
+      tokenId: tok.tokenId != null ? String(tok.tokenId) : "0",
+      nft_id: String(tok.tokenId != null ? tok.tokenId : "0"),
+      id: (tok.contract?.address || "") + ":" + (tok.tokenId ?? "0"),
+      name: meta.name || meta.symbol || ("Token #" + (tok.tokenId ?? "?")),
+      uri: meta.artifactUri || meta.displayUri || "",
+      image,
+      balance: bal,
+      owner: acct,
+    });
+  }
+  return out;
+}
+
 async function refreshNfts(){
   wireNftPage();
   // Dashboard tabs: mine / all load HOWL gallery; tools use chain selector
@@ -6046,7 +6243,46 @@ async function refreshNfts(){
   }
   if(nftDashTab === "tools"){
     renderNftChainUI();
-    return;
+    // Also list Solana / Tezos NFTs in the gallery while on tools
+    const meta = nftChainMeta();
+    const gal = $("nftGallery");
+    const galPanel = $("nftGalleryPanel");
+    if(galPanel) galPanel.classList.remove("hidden");
+    if(meta.id === "tezos" || meta.id === "solana"){
+      if($("nftGalleryTitle")) $("nftGalleryTitle").textContent = meta.label + " collection";
+      if($("nftGalleryHint")){
+        $("nftGalleryHint").textContent = meta.id === "tezos"
+          ? "FA2 held by your tz1 (from TzKT). Receive to tz1 — never to a KT1."
+          : "NFTs on your Solana address.";
+      }
+      // fall through to multi-chain path below by not returning early
+    } else if(meta.id === "howl"){
+      if($("nftGalleryTitle")) $("nftGalleryTitle").textContent = "Howlcoin collection";
+      // load howl owned
+      try{
+        if(!keypair) throw new Error("Unlock wallet");
+        if(gal) gal.innerHTML = `<p class="hint">Loading…</p>`;
+        const j = await api("/api/public/nfts?owner=" + encodeURIComponent(keypair.address));
+        const list = (j.nfts || []).map(n => ({
+          ...n,
+          image: (n.uri && (n.uri.startsWith("http") || n.uri.startsWith("data:"))) ? n.uri : "",
+        }));
+        renderNftCards(list, { empty: "No Howlcoin NFTs yet", canSend: true, howl: true });
+      }catch(e){
+        if(gal) gal.innerHTML = `<p class="err">${escHtml(e.message)}</p>`;
+      }
+      return;
+    } else {
+      // EVM / watch-only chains: show watched list
+      if($("nftGalleryTitle")) $("nftGalleryTitle").textContent = meta.label + " (watched)";
+      if(gal) gal.innerHTML = `<p class="hint">Loading…</p>`;
+      // continue to watched path at bottom — jump via flag
+    }
+    if(meta.id === "tezos" || meta.id === "solana" || (meta.id !== "howl")){
+      // run multi-chain listing below
+    } else {
+      return;
+    }
   }
   const gal = $("nftGallery");
   const howlMode = nftDashTab === "all" || nftDashTab === "mine";
@@ -6104,6 +6340,27 @@ async function refreshNfts(){
       renderNftCards(list, {
         empty: "No Solana NFTs found. Receive to the address in Mint / tools.",
         canSend: true,
+        howl: false,
+      });
+      return;
+    }
+    if(meta.id === "tezos"){
+      if(!xtzInfo?.address) throw new Error("Tezos tz1 not ready — unlock a seed wallet (not key-only)");
+      const list = await listTezosNfts(xtzInfo.address);
+      const watched = loadNftWatch().filter(n => n.chain === "tezos").map(n => ({
+        ...n,
+        nft_id: n.tokenId != null ? String(n.tokenId) : n.id,
+        id: n.id || (n.contract + ":" + n.tokenId),
+      }));
+      // merge watched not already in list
+      const keys = new Set(list.map(n => (n.contract || "") + ":" + (n.tokenId ?? n.nft_id)));
+      for(const w of watched){
+        const k = (w.contract || "") + ":" + (w.tokenId ?? "");
+        if(!keys.has(k)) list.push(w);
+      }
+      renderNftCards(list, {
+        empty: "No FA2 NFTs on this tz1 yet. Receive to your tz1 (not KT1). Then tap Refresh.",
+        canSend: false,
         howl: false,
       });
       return;
@@ -6629,6 +6886,278 @@ async function refreshOracle(){
   }
 }
 
+/* —— Howl Script Contracts —— */
+let hcSelectedId = null;
+let hcCache = [];
+
+function renderHcDeployFields(){
+  const kind = ($("hcKind")?.value || "tipjar");
+  const box = $("hcExtraFields");
+  if(!box) return;
+  if(kind === "timelock"){
+    box.innerHTML = `
+      <label>Unlock height (block # in the future)</label>
+      <input class="field" id="hcUnlock" inputmode="numeric" placeholder="e.g. current + 100"/>
+      <p class="hint">Funds locked until chain height ≥ this number. Tip: check Howlscan height first.</p>`;
+  } else if(kind === "escrow"){
+    box.innerHTML = `
+      <label>Seller (counterparty) HOWL address</label>
+      <input class="field" id="hcCounterparty" placeholder="H…" spellcheck="false"/>
+      <label>Arbiter (optional)</label>
+      <input class="field" id="hcArbiter" placeholder="H… (can release or refund)"/>
+      <label>Refund after height (optional)</label>
+      <input class="field" id="hcUnlock" inputmode="numeric" placeholder="0 = no auto refund height"/>
+      <p class="hint">You are the buyer. Fund after deploy, then release to seller (or arbiter/refund).</p>`;
+  } else {
+    box.innerHTML = `<p class="hint">Anyone can <b>donate</b> after deploy. Only you can <b>withdraw</b>.</p>`;
+  }
+}
+
+async function deployHowlContract(){
+  if($("hcErr")) $("hcErr").textContent = "";
+  if($("hcTx")) $("hcTx").textContent = "";
+  try{
+    if(!keypair) throw new Error("Unlock wallet first");
+    const kind = ($("hcKind")?.value || "tipjar").trim();
+    const name = ($("hcName")?.value || "").trim();
+    if(!name) throw new Error("Name required");
+    let fundHowl = 0n;
+    const fundTxt = ($("hcFund")?.value || "").trim();
+    if(fundTxt) fundHowl = parseHowl(fundTxt);
+    const fee = Number(COIN);
+    const nonce = await nextLocalNonce();
+    const contract_id = makeContractId(keypair.address, kind, name, nonce);
+    const extra = { contract_id, contract_kind: kind, name };
+    if(kind === "timelock"){
+      const uh = parseInt(($("hcUnlock")?.value || "").trim(), 10);
+      if(!uh || uh < 1) throw new Error("Unlock height required for timelock");
+      extra.unlock_height = uh;
+      if(fundHowl <= 0n) throw new Error("Timelock needs initial fund > 0");
+    }
+    if(kind === "escrow"){
+      const cp = ($("hcCounterparty")?.value || "").trim();
+      if(!isValidAddress(cp)) throw new Error("Valid seller (counterparty) address required");
+      extra.counterparty = cp;
+      const arb = ($("hcArbiter")?.value || "").trim();
+      if(arb){
+        if(!isValidAddress(arb)) throw new Error("Bad arbiter address");
+        extra.arbiter = arb;
+      }
+      const uh = parseInt(($("hcUnlock")?.value || "0").trim() || "0", 10);
+      if(uh > 0) extra.unlock_height = uh;
+    }
+    openSlideConfirm({
+      title: "Slide to deploy contract",
+      rows: [
+        { k: "Kind", v: kind },
+        { k: "Name", v: name },
+        { k: "Fund", v: fundHowl > 0n ? formatHowl(fundHowl) : "0 (fee only)" },
+        { k: "Fee", v: "1 HOWL" },
+        { k: "Id", v: contract_id.slice(0, 18) + "…" },
+      ],
+      onConfirm: async () => {
+        const tx = await buildSignedTx({
+          keypair,
+          to: keypair.address,
+          amountHowlies: Number(fundHowl),
+          feeHowlies: fee,
+          nonce,
+          memo: "contract_deploy",
+          type: "contract_deploy",
+          extra,
+        });
+        const res = await api("/api/public/broadcast", {
+          method:"POST", headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({ tx }),
+        });
+        reserveLocalNonce(keypair.address, nonce);
+        if($("hcTx")) $("hcTx").textContent = "Deploy queued " + (res.txid||"").slice(0,16) + "… — needs a mined block";
+        toast("Contract deploy queued");
+        fireConfetti("howl");
+        if($("hcName")) $("hcName").value = "";
+        setTimeout(refreshHowlContracts, 1500);
+      },
+    });
+  }catch(e){
+    if($("hcErr")) $("hcErr").textContent = e.message || String(e);
+  }
+}
+
+async function refreshHowlContracts(){
+  const el = $("hcList");
+  if(!el) return;
+  el.innerHTML = `<p class="hint">Loading…</p>`;
+  try{
+    if(!keypair) throw new Error("Unlock first");
+    const j = await api("/api/public/contracts?owner=" + encodeURIComponent(keypair.address) + "&limit=50");
+    hcCache = j.contracts || [];
+    if(!hcCache.length){
+      el.innerHTML = `<p class="hint">No contracts yet — deploy a tip jar above. After deploy, wait for a mined block.</p>`;
+      return;
+    }
+    el.innerHTML = hcCache.map(c => `
+      <button type="button" class="asset-row" data-cid="${escAttr(c.contract_id)}" style="width:100%;text-align:left;margin-bottom:6px">
+        <span class="ico">${escHtml((c.kind||"?").slice(0,3).toUpperCase())}</span>
+        <div class="meta">
+          <div class="sym">${escHtml(c.name || c.contract_id)}</div>
+          <div class="nm mono">${escHtml(c.kind)} · ${escHtml(c.status||"active")} · ${escHtml(c.balance_fmt||"0")}</div>
+        </div>
+        <div class="bal">›</div>
+      </button>`).join("");
+    el.querySelectorAll("[data-cid]").forEach(btn=>{
+      btn.onclick = ()=> openHcDetail(btn.getAttribute("data-cid"));
+    });
+  }catch(e){
+    el.innerHTML = `<p class="err">${escHtml(e.message||e)}</p>`;
+  }
+}
+
+function closeHcDetail(){
+  hcSelectedId = null;
+  $("hcDetailPanel")?.classList.add("hidden");
+}
+
+async function openHcDetail(cid){
+  hcSelectedId = cid;
+  const panel = $("hcDetailPanel");
+  const body = $("hcDetailBody");
+  if(panel) panel.classList.remove("hidden");
+  if(body) body.innerHTML = `<p class="hint">Loading…</p>`;
+  try{
+    const j = await api("/api/public/contract/" + encodeURIComponent(cid));
+    const c = j.contract || {};
+    if($("hcDetailTitle")) $("hcDetailTitle").textContent = c.name || "Contract";
+    const role = keypair && (
+      c.owner === keypair.address ? "owner" :
+      c.counterparty === keypair.address ? "seller" :
+      c.arbiter === keypair.address ? "arbiter" : "viewer"
+    );
+    const hist = (c.history || []).slice().reverse().slice(0, 12);
+    let actions = "";
+    if(c.status === "closed"){
+      actions = `<p class="hint">Contract closed.</p>`;
+    } else if(c.kind === "tipjar"){
+      actions = `
+        <label>Donate (HOWL)</label>
+        <input class="field" id="hcCallAmt" inputmode="decimal" placeholder="5"/>
+        <button class="btn" type="button" onclick="callHowlContract('donate')">Donate</button>
+        ${role==="owner"?`<button class="btn sec" type="button" onclick="callHowlContract('withdraw')">Withdraw all (owner)</button>
+        <label>Or withdraw amount (HOWL)</label>
+        <input class="field" id="hcCallVal" inputmode="decimal" placeholder="all if empty"/>
+        <button class="btn sec" type="button" onclick="callHowlContract('withdraw', true)">Withdraw amount</button>`:""}`;
+    } else if(c.kind === "timelock"){
+      actions = `
+        <label>Add fund (HOWL)</label>
+        <input class="field" id="hcCallAmt" inputmode="decimal" placeholder="10"/>
+        <button class="btn" type="button" onclick="callHowlContract('fund')">Fund more</button>
+        ${role==="owner"?`<button class="btn sec" type="button" onclick="callHowlContract('claim')">Claim after unlock #${escHtml(String(c.unlock_height||"?"))}</button>`:""}`;
+    } else if(c.kind === "escrow"){
+      actions = `
+        ${role==="owner"?`<label>Fund escrow (HOWL)</label>
+        <input class="field" id="hcCallAmt" inputmode="decimal" placeholder="50"/>
+        <button class="btn" type="button" onclick="callHowlContract('fund')">Fund as buyer</button>`:""}
+        ${(role==="owner"||role==="seller"||role==="arbiter")?`<button class="btn sec" type="button" onclick="callHowlContract('release')">Release → seller</button>`:""}
+        ${(role==="arbiter"||role==="owner")?`<button class="btn sec" type="button" onclick="callHowlContract('refund')">Refund → buyer</button>`:""}
+        <p class="hint">Seller: ${escHtml((c.counterparty||"").slice(0,16))}… · Arbiter: ${escHtml((c.arbiter||"—").slice(0,16))}</p>`;
+    }
+    if(body){
+      body.innerHTML = `
+        <p class="hint"><span class="badge">${escHtml(c.kind)}</span> <span class="badge">${escHtml(c.status||"active")}</span> · role: ${escHtml(role||"?")}</p>
+        <div class="mono" style="font-size:.72rem;word-break:break-all;margin:8px 0">${escHtml(c.contract_id)}</div>
+        <p>Locked: <b style="color:var(--green)">${escHtml(c.balance_fmt||"0")}</b></p>
+        <p class="hint">Owner: <span class="mono">${escHtml(c.owner||"")}</span></p>
+        ${c.unlock_height?`<p class="hint">Unlock height: <b>#${escHtml(String(c.unlock_height))}</b></p>`:""}
+        <div style="margin:12px 0">${actions}</div>
+        <p class="err" id="hcCallErr"></p>
+        <p class="hint" id="hcCallTx"></p>
+        <h3 style="font-size:.85rem;margin:16px 0 8px">History</h3>
+        ${hist.length? hist.map(h=>`
+          <div class="item"><div>
+            <b>${escHtml(h.event||"?")}</b> · ${escHtml(String(h.amount!=null?formatHowl(h.amount):""))}
+            <div class="m">#${h.height??"—"} · ${(h.txid||"").slice(0,12)}…</div>
+          </div></div>`).join("") : `<p class="hint">No events yet</p>`}
+        <button class="btn sec" type="button" onclick="copyText(${JSON.stringify(c.contract_id)})">Copy contract id</button>
+      `;
+    }
+    panel?.scrollIntoView({ behavior:"smooth", block:"start" });
+  }catch(e){
+    if(body) body.innerHTML = `<p class="err">${escHtml(e.message||e)}</p>`;
+  }
+}
+
+async function callHowlContract(method, usePartial){
+  if($("hcCallErr")) $("hcCallErr").textContent = "";
+  if($("hcCallTx")) $("hcCallTx").textContent = "";
+  try{
+    if(!keypair) throw new Error("Unlock first");
+    if(!hcSelectedId) throw new Error("No contract selected");
+    const j = await api("/api/public/contract/" + encodeURIComponent(hcSelectedId));
+    const c = j.contract || {};
+    const fee = Number(COIN);
+    const nonce = await nextLocalNonce();
+    let amountHowlies = 0;
+    let call_value = undefined;
+    let to = keypair.address;
+    const extra = { contract_id: hcSelectedId, method };
+
+    if(method === "donate" || method === "fund"){
+      const t = ($("hcCallAmt")?.value || "").trim();
+      if(!t) throw new Error("Amount required");
+      amountHowlies = Number(parseHowl(t));
+      if(amountHowlies <= 0) throw new Error("Amount must be > 0");
+      to = keypair.address;
+    } else if(method === "withdraw"){
+      to = keypair.address;
+      if(usePartial){
+        const t = ($("hcCallVal")?.value || "").trim();
+        if(t) call_value = Number(parseHowl(t));
+      }
+      if(call_value != null) extra.call_value = call_value;
+    } else if(method === "claim"){
+      to = keypair.address;
+    } else if(method === "release"){
+      to = c.counterparty;
+      if(!to) throw new Error("No seller on contract");
+    } else if(method === "refund"){
+      to = c.owner;
+    }
+
+    openSlideConfirm({
+      title: "Slide to call " + method,
+      rows: [
+        { k: "Method", v: method },
+        { k: "Contract", v: hcSelectedId.slice(0, 16) + "…" },
+        { k: "Amount", v: amountHowlies ? formatHowl(amountHowlies) : "0 (payout from contract)" },
+        { k: "Fee", v: "1 HOWL" },
+      ],
+      onConfirm: async () => {
+        const tx = await buildSignedTx({
+          keypair,
+          to,
+          amountHowlies,
+          feeHowlies: fee,
+          nonce,
+          memo: "contract_call:" + method,
+          type: "contract_call",
+          extra,
+        });
+        const res = await api("/api/public/broadcast", {
+          method:"POST", headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({ tx }),
+        });
+        reserveLocalNonce(keypair.address, nonce);
+        if($("hcCallTx")) $("hcCallTx").textContent = "Call queued " + (res.txid||"").slice(0,16) + "…";
+        toast(method + " queued");
+        fireConfetti("send");
+        setTimeout(()=>{ refreshHowlContracts(); openHcDetail(hcSelectedId); }, 1500);
+      },
+    });
+  }catch(e){
+    if($("hcCallErr")) $("hcCallErr").textContent = e.message || String(e);
+    else toast(e.message || String(e));
+  }
+}
+
 async function nextLocalNonce(){
   // confirmed nonce + pending mempool txs from us + local reserved nonces
   const addr = await api("/api/public/address/" + encodeURIComponent(keypair.address));
@@ -7040,10 +7569,17 @@ function clearMultiChainKeys(){
 function deriveAllFromMnemonic(phrase){
   mnemonic = phrase.trim().toLowerCase().split(/\s+/).join(" ");
   if(!checkMnemonic(mnemonic)) throw new Error("Invalid recovery phrase");
+  multiChainNote = "";
   keypair = keypairFromMnemonic(mnemonic, 0);
   ethInfo = ethAddressFromMnemonic(mnemonic, 0);
-  solInfo = solAddressFromMnemonic(mnemonic, 0);
-  try { xtzInfo = tezosAddressFromMnemonic(mnemonic, 0); } catch { xtzInfo = null; }
+  try { solInfo = solAddressFromMnemonic(mnemonic, 0); }
+  catch(e){ solInfo = null; multiChainNote = "Solana: " + (e.message||e); console.error(e); }
+  try { xtzInfo = tezosAddressFromMnemonic(mnemonic, 0); }
+  catch(e){
+    xtzInfo = null;
+    multiChainNote = (multiChainNote ? multiChainNote + " · " : "") + "Tezos: " + (e.message||e);
+    console.error("[howl] tezos", e);
+  }
   multiInfo = {};
   try {
     multiInfo.btc = btcAddressFromMnemonic(mnemonic, 0);
@@ -7063,6 +7599,7 @@ function deriveAllFromPrivateKey(privateKeyHex){
   keypair = keypairFromPrivateHex(keyHex);
   try { ethInfo = ethAddressFromPrivateHex(keyHex); } catch { ethInfo = null; }
   clearMultiChainKeys();
+  multiChainNote = "Key-only wallet: HOWL + ETH only. Create/import a 12-word seed for Tezos (tz1), Solana, and other chains.";
 }
 
 async function activateWalletEntry(entry, pin){
@@ -7914,6 +8451,9 @@ Object.defineProperty(window, "keypair", { get: () => keypair });
 Object.defineProperty(window, "solInfo", { get: () => solInfo });
 Object.defineProperty(window, "ethInfo", { get: () => ethInfo });
 Object.defineProperty(window, "xtzInfo", { get: () => xtzInfo });
+Object.defineProperty(window, "multiChainNote", { get: () => multiChainNote });
+window.ensureTezosDerived = ensureTezosDerived;
+window.refreshHowlContracts = refreshHowlContracts;
 
 boot();
 </script>

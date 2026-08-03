@@ -143,6 +143,14 @@ def tx_sighash(tx_body: Dict[str, Any]) -> bytes:
         "oracle_value",
         "source_chain",
         "observed_at",
+        # Howl smart contracts
+        "contract_id",
+        "contract_kind",
+        "method",
+        "unlock_height",
+        "counterparty",
+        "arbiter",
+        "call_value",
     ):
         if tx_body.get(k) is not None and tx_body.get(k) != "":
             body[k] = tx_body[k]

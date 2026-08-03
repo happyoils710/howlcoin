@@ -121,6 +121,9 @@ class Blockchain:
 
     # ---------- state ----------
 
+    # Native smart-contract templates (Howl Script Contracts)
+    CONTRACT_KINDS = ("tipjar", "timelock", "escrow")
+
     def _rebuild_state(self) -> None:
         self.balances: Dict[str, int] = {}
         self.nonces: Dict[str, int] = {}
@@ -128,8 +131,129 @@ class Blockchain:
         self.nfts: Dict[str, Dict[str, Any]] = {}
         # oracle_key -> latest observation
         self.oracle: Dict[str, Dict[str, Any]] = {}
+        # contract_id -> Howl Script Contract state
+        self.contracts: Dict[str, Dict[str, Any]] = {}
         for block in self.blocks:
             self._apply_block(block, mutate_only=True)
+
+    def _credit_user_amount(self, t: str, amount: int) -> bool:
+        """Whether amount should credit tx['to'] as a normal transfer."""
+        if amount <= 0:
+            return False
+        if t in ("contract_deploy", "contract_call"):
+            # Funds lock into contract.balance (or payouts handled separately)
+            return False
+        return True
+
+    def _apply_contract_effects(
+        self,
+        tx: Dict[str, Any],
+        height: int,
+        block_ts: int,
+        block_hash: str,
+        bals: Optional[Dict[str, int]] = None,
+        contracts: Optional[Dict[str, Dict[str, Any]]] = None,
+    ) -> None:
+        """Mutate contract state (+ optional provisional bals for payouts)."""
+        use_bals = bals if bals is not None else self.balances
+        use_c = contracts if contracts is not None else self.contracts
+        t = tx.get("type") or "transfer"
+        frm = tx.get("from") or ""
+        to = tx.get("to") or ""
+        amount = int(tx.get("amount", 0))
+        if t == "contract_deploy":
+            cid = (tx.get("contract_id") or "").strip()
+            kind = (tx.get("contract_kind") or "").strip().lower()
+            if not cid:
+                return
+            use_c[cid] = {
+                "contract_id": cid,
+                "kind": kind,
+                "name": (tx.get("name") or "Contract").strip()[:80],
+                "owner": frm,
+                "balance": amount,  # initial fund locked
+                "status": "active",
+                "unlock_height": int(tx.get("unlock_height") or 0),
+                "counterparty": (tx.get("counterparty") or "").strip(),
+                "arbiter": (tx.get("arbiter") or "").strip(),
+                "funded_by": frm if amount else "",
+                "deploy_txid": tx.get("txid"),
+                "deploy_height": height,
+                "deploy_timestamp": block_ts,
+                "last_txid": tx.get("txid"),
+                "last_height": height,
+                "last_timestamp": block_ts,
+                "last_block_hash": block_hash,
+                "memo": tx.get("memo") or "",
+                "history": [
+                    {
+                        "event": "deploy",
+                        "txid": tx.get("txid"),
+                        "from": frm,
+                        "amount": amount,
+                        "height": height,
+                        "timestamp": block_ts,
+                        "block_hash": block_hash,
+                    }
+                ],
+            }
+            return
+
+        if t != "contract_call":
+            return
+        cid = (tx.get("contract_id") or "").strip()
+        method = (tx.get("method") or "").strip().lower()
+        c = use_c.get(cid)
+        if not c or c.get("status") == "closed":
+            return
+        hist = list(c.get("history") or [])
+        if method in ("donate", "fund"):
+            c["balance"] = int(c.get("balance") or 0) + amount
+            if amount and not c.get("funded_by"):
+                c["funded_by"] = frm
+            hist.append(
+                {
+                    "event": method,
+                    "txid": tx.get("txid"),
+                    "from": frm,
+                    "amount": amount,
+                    "height": height,
+                    "timestamp": block_ts,
+                    "block_hash": block_hash,
+                }
+            )
+        elif method in ("withdraw", "claim", "release", "refund"):
+            # Payout from contract balance → `to`
+            try:
+                payout = int(tx.get("call_value") or 0)
+            except (TypeError, ValueError):
+                payout = 0
+            bal = int(c.get("balance") or 0)
+            if payout <= 0 or payout > bal:
+                payout = bal
+            if payout > 0:
+                c["balance"] = bal - payout
+                use_bals[to] = use_bals.get(to, 0) + payout
+            if method in ("claim", "release", "refund"):
+                c["status"] = "closed"
+            hist.append(
+                {
+                    "event": method,
+                    "txid": tx.get("txid"),
+                    "from": frm,
+                    "to": to,
+                    "amount": payout,
+                    "height": height,
+                    "timestamp": block_ts,
+                    "block_hash": block_hash,
+                }
+            )
+        c["last_txid"] = tx.get("txid")
+        c["last_height"] = height
+        c["last_timestamp"] = block_ts
+        c["last_block_hash"] = block_hash
+        c["history"] = hist
+        use_c[cid] = c
 
     def _apply_block(self, block: Dict[str, Any], mutate_only: bool = False) -> None:
         height = block.get("height", 0)
@@ -145,12 +269,12 @@ class Blockchain:
             to = tx["to"]
             amount = int(tx.get("amount", 0))
             fee = int(tx.get("fee", 0))
+            t = tx.get("type") or "transfer"
             self.balances[frm] = self.balances.get(frm, 0) - amount - fee
-            if amount:
+            if self._credit_user_amount(t, amount):
                 self.balances[to] = self.balances.get(to, 0) + amount
             self.nonces[frm] = int(tx["nonce"]) + 1
 
-            t = tx.get("type") or "transfer"
             try:
                 block_ts = int((block.get("header") or {}).get("timestamp") or 0)
             except (TypeError, ValueError):
@@ -221,6 +345,8 @@ class Blockchain:
                         "txid": tx.get("txid"),
                         "height": height,
                     }
+            elif t in ("contract_deploy", "contract_call"):
+                self._apply_contract_effects(tx, height, block_ts, block_hash)
 
     def tip(self) -> Dict[str, Any]:
         return self.blocks[-1]
@@ -359,6 +485,7 @@ class Blockchain:
         provisional_balances: Optional[Dict[str, int]] = None,
         provisional_nonces: Optional[Dict[str, int]] = None,
         provisional_nfts: Optional[Dict[str, Dict[str, Any]]] = None,
+        provisional_contracts: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Tuple[bool, str]:
         if tx.get("type") == "coinbase":
             return False, "coinbase not allowed in mempool"
@@ -382,7 +509,13 @@ class Blockchain:
         if t == "transfer":
             if amount <= 0:
                 return False, "amount must be > 0"
-        elif t in ("nft_mint", "nft_transfer", "oracle"):
+        elif t in (
+            "nft_mint",
+            "nft_transfer",
+            "oracle",
+            "contract_deploy",
+            "contract_call",
+        ):
             if amount < 0:
                 return False, "amount must be >= 0"
         else:
@@ -391,6 +524,11 @@ class Blockchain:
         bals = provisional_balances if provisional_balances is not None else self.balances
         nonces = provisional_nonces if provisional_nonces is not None else self.nonces
         nfts = provisional_nfts if provisional_nfts is not None else self.nfts
+        contracts = (
+            provisional_contracts
+            if provisional_contracts is not None
+            else self.contracts
+        )
 
         bal = bals.get(tx["from"], 0)
         if bal < amount + fee:
@@ -435,6 +573,14 @@ class Blockchain:
             # oracle posts are self-targeted (no coin transfer)
             if amount != 0:
                 return False, "oracle amount must be 0"
+        elif t == "contract_deploy":
+            ok, msg = self._validate_contract_deploy(tx, contracts)
+            if not ok:
+                return False, msg
+        elif t == "contract_call":
+            ok, msg = self._validate_contract_call(tx, contracts)
+            if not ok:
+                return False, msg
 
         # Signature over canonical body (includes extended fields when present)
         if not verify_signature(tx["public_key"], tx_sighash(tx), tx["signature"]):
@@ -443,6 +589,149 @@ class Blockchain:
 
         if pubkey_to_address(bytes.fromhex(tx["public_key"])) != tx["from"]:
             return False, "pubkey/address mismatch"
+        return True, "ok"
+
+    def _validate_contract_deploy(
+        self, tx: Dict[str, Any], contracts: Dict[str, Dict[str, Any]]
+    ) -> Tuple[bool, str]:
+        cid = (tx.get("contract_id") or "").strip()
+        if not cid or len(cid) > 64:
+            return False, "contract_id required (1–64 chars)"
+        if cid in contracts:
+            return False, "contract_id already exists"
+        kind = (tx.get("contract_kind") or "").strip().lower()
+        if kind not in self.CONTRACT_KINDS:
+            return False, f"contract_kind must be one of {', '.join(self.CONTRACT_KINDS)}"
+        name = (tx.get("name") or "").strip()
+        if not name or len(name) > 80:
+            return False, "contract name required (1–80 chars)"
+        if tx["to"] != tx["from"]:
+            return False, "deploy to must be self"
+        amount = int(tx.get("amount", 0))
+        if kind == "timelock":
+            try:
+                uh = int(tx.get("unlock_height") or 0)
+            except (TypeError, ValueError):
+                return False, "unlock_height required for timelock"
+            if uh <= self.height():
+                return False, "unlock_height must be in the future"
+            if amount <= 0:
+                return False, "timelock requires initial fund amount > 0"
+        elif kind == "escrow":
+            cp = (tx.get("counterparty") or "").strip()
+            if not is_valid_address(cp):
+                return False, "escrow needs counterparty (seller) HOWL address"
+            if cp == tx["from"]:
+                return False, "counterparty cannot be self"
+            arb = (tx.get("arbiter") or "").strip()
+            if arb and not is_valid_address(arb):
+                return False, "bad arbiter address"
+            try:
+                uh = int(tx.get("unlock_height") or 0)
+            except (TypeError, ValueError):
+                uh = 0
+            if uh and uh <= self.height():
+                return False, "escrow unlock_height must be future or 0"
+        # tipjar: amount optional initial seed
+        return True, "ok"
+
+    def _validate_contract_call(
+        self, tx: Dict[str, Any], contracts: Dict[str, Dict[str, Any]]
+    ) -> Tuple[bool, str]:
+        cid = (tx.get("contract_id") or "").strip()
+        if not cid or cid not in contracts:
+            return False, "unknown contract_id"
+        c = contracts[cid]
+        if c.get("status") == "closed":
+            return False, "contract is closed"
+        method = (tx.get("method") or "").strip().lower()
+        kind = (c.get("kind") or "").lower()
+        amount = int(tx.get("amount", 0))
+        frm = tx["from"]
+        to = tx["to"]
+
+        if kind == "tipjar":
+            if method == "donate":
+                if amount <= 0:
+                    return False, "donate amount must be > 0"
+                if to != frm:
+                    return False, "donate to must be self"
+            elif method == "withdraw":
+                if amount != 0:
+                    return False, "withdraw amount field must be 0 (use call_value)"
+                if frm != c.get("owner"):
+                    return False, "only owner can withdraw tipjar"
+                if to != frm:
+                    return False, "withdraw to must be owner"
+                try:
+                    cv = int(tx.get("call_value") or 0)
+                except (TypeError, ValueError):
+                    cv = 0
+                bal = int(c.get("balance") or 0)
+                if bal <= 0:
+                    return False, "tipjar empty"
+                if cv < 0 or (cv > 0 and cv > bal):
+                    return False, "call_value exceeds tipjar balance"
+            else:
+                return False, "tipjar methods: donate, withdraw"
+
+        elif kind == "timelock":
+            if method == "fund":
+                if amount <= 0:
+                    return False, "fund amount must be > 0"
+                if to != frm:
+                    return False, "fund to must be self"
+            elif method == "claim":
+                if amount != 0:
+                    return False, "claim amount field must be 0"
+                if frm != c.get("owner"):
+                    return False, "only owner can claim timelock"
+                if to != frm:
+                    return False, "claim to must be owner"
+                uh = int(c.get("unlock_height") or 0)
+                if self.height() < uh:
+                    return False, f"timelock locked until height {uh}"
+                if int(c.get("balance") or 0) <= 0:
+                    return False, "timelock empty"
+            else:
+                return False, "timelock methods: fund, claim"
+
+        elif kind == "escrow":
+            owner = c.get("owner") or ""
+            seller = c.get("counterparty") or ""
+            arbiter = c.get("arbiter") or ""
+            if method == "fund":
+                if amount <= 0:
+                    return False, "fund amount must be > 0"
+                if frm != owner:
+                    return False, "only escrow buyer (owner) can fund"
+                if to != frm:
+                    return False, "fund to must be self"
+            elif method == "release":
+                if amount != 0:
+                    return False, "release amount field must be 0"
+                if frm not in (owner, seller, arbiter) or not frm:
+                    return False, "release: buyer, seller, or arbiter only"
+                if to != seller:
+                    return False, "release to must be seller (counterparty)"
+                if int(c.get("balance") or 0) <= 0:
+                    return False, "escrow empty"
+            elif method == "refund":
+                if amount != 0:
+                    return False, "refund amount field must be 0"
+                uh = int(c.get("unlock_height") or 0)
+                allowed = frm == arbiter or (uh and self.height() >= uh and frm == owner)
+                if not allowed:
+                    return False, "refund: arbiter anytime, or buyer after unlock_height"
+                if to != owner:
+                    return False, "refund to must be buyer (owner)"
+                if int(c.get("balance") or 0) <= 0:
+                    return False, "escrow empty"
+            else:
+                return False, "escrow methods: fund, release, refund"
+        else:
+            return False, "unknown contract kind"
+
         return True, "ok"
 
     def add_to_mempool(self, tx: Dict[str, Any]) -> Tuple[bool, str]:
@@ -486,6 +775,7 @@ class Blockchain:
         bals = dict(self.balances)
         nonces = dict(self.nonces)
         nfts = {k: dict(v) for k, v in self.nfts.items()}
+        contracts = {k: dict(v) for k, v in self.contracts.items()}
         dropped = 0
         for tx in self.mempool:
             ok, _ = self.validate_tx(
@@ -493,6 +783,7 @@ class Blockchain:
                 provisional_balances=bals,
                 provisional_nonces=nonces,
                 provisional_nfts=nfts,
+                provisional_contracts=contracts,
             )
             if not ok:
                 dropped += 1
@@ -500,11 +791,11 @@ class Blockchain:
             kept.append(tx)
             amount, fee = int(tx.get("amount", 0)), int(tx.get("fee", 0))
             frm, to = tx.get("from") or "", tx.get("to") or ""
+            tt = tx.get("type") or "transfer"
             bals[frm] = bals.get(frm, 0) - amount - fee
-            if amount:
+            if self._credit_user_amount(tt, amount):
                 bals[to] = bals.get(to, 0) + amount
             nonces[frm] = int(tx.get("nonce", 0)) + 1
-            tt = tx.get("type") or "transfer"
             if tt == "nft_mint":
                 nid = tx.get("nft_id") or ""
                 if nid:
@@ -519,6 +810,10 @@ class Blockchain:
                 nid = tx.get("nft_id") or ""
                 if nid in nfts:
                     nfts[nid]["owner"] = to
+            elif tt in ("contract_deploy", "contract_call"):
+                self._apply_contract_effects(
+                    tx, self.height(), 0, "", bals=bals, contracts=contracts
+                )
         if dropped:
             self.mempool = kept
             if save:
@@ -566,6 +861,7 @@ class Blockchain:
         bals = dict(self.balances)
         nonces = dict(self.nonces)
         nfts = {k: dict(v) for k, v in self.nfts.items()}
+        contracts = {k: dict(v) for k, v in self.contracts.items()}
         # apply coinbase
         cb = txs[0]
         bals[cb["to"]] = bals.get(cb["to"], 0) + int(cb["amount"])
@@ -575,16 +871,17 @@ class Blockchain:
                 provisional_balances=bals,
                 provisional_nonces=nonces,
                 provisional_nfts=nfts,
+                provisional_contracts=contracts,
             )
             if not ok:
                 return False, f"tx invalid: {msg}"
             frm, to = tx["from"], tx["to"]
             amount, fee = int(tx.get("amount", 0)), int(tx.get("fee", 0))
+            tt = tx.get("type") or "transfer"
             bals[frm] = bals.get(frm, 0) - amount - fee
-            if amount:
+            if self._credit_user_amount(tt, amount):
                 bals[to] = bals.get(to, 0) + amount
             nonces[frm] = int(tx["nonce"]) + 1
-            tt = tx.get("type") or "transfer"
             if tt == "nft_mint":
                 nid = tx.get("nft_id") or ""
                 if nid:
@@ -599,6 +896,19 @@ class Blockchain:
                 nid = tx.get("nft_id") or ""
                 if nid in nfts:
                     nfts[nid]["owner"] = to
+            elif tt in ("contract_deploy", "contract_call"):
+                try:
+                    bts = int(h.get("timestamp") or 0)
+                except (TypeError, ValueError):
+                    bts = 0
+                self._apply_contract_effects(
+                    tx,
+                    int(block.get("height") or 0),
+                    bts,
+                    block.get("hash") or "",
+                    bals=bals,
+                    contracts=contracts,
+                )
         return True, "ok"
 
     def append_block(self, block: Dict[str, Any]) -> Tuple[bool, str]:
@@ -717,6 +1027,7 @@ class Blockchain:
         bals = dict(self.balances)
         nonces = dict(self.nonces)
         nfts = {k: dict(v) for k, v in self.nfts.items()}
+        contracts = {k: dict(v) for k, v in self.contracts.items()}
         bals[miner_address] = bals.get(miner_address, 0) + subsidy
         fees_total = 0
         for tx in self.mempool[: max_txs * 2]:
@@ -727,18 +1038,19 @@ class Blockchain:
                 provisional_balances=bals,
                 provisional_nonces=nonces,
                 provisional_nfts=nfts,
+                provisional_contracts=contracts,
             )
             if not ok:
                 continue
             selected.append(tx)
             amount, fee = int(tx.get("amount", 0)), int(tx.get("fee", 0))
             fees_total += fee
+            tt = tx.get("type") or "transfer"
             bals[tx["from"]] = bals.get(tx["from"], 0) - amount - fee
-            if amount:
+            if self._credit_user_amount(tt, amount):
                 bals[tx["to"]] = bals.get(tx["to"], 0) + amount
             nonces[tx["from"]] = int(tx["nonce"]) + 1
-            # provisional NFT ownership for multi-tx blocks
-            tt = tx.get("type") or "transfer"
+            # provisional NFT / contract state for multi-tx blocks
             if tt == "nft_mint":
                 nid = tx.get("nft_id") or ""
                 if nid:
@@ -753,6 +1065,10 @@ class Blockchain:
                 nid = tx.get("nft_id") or ""
                 if nid in nfts:
                     nfts[nid]["owner"] = tx["to"]
+            elif tt in ("contract_deploy", "contract_call"):
+                self._apply_contract_effects(
+                    tx, height, block_ts, "", bals=bals, contracts=contracts
+                )
 
         reward = subsidy + fees_total
         # credit fees to miner in provisional bals (already had subsidy)
@@ -1307,6 +1623,45 @@ class Blockchain:
     def oracle_get(self, key: str) -> Optional[Dict[str, Any]]:
         return self.oracle.get(key)
 
+    def _enrich_contract(self, c: Dict[str, Any]) -> Dict[str, Any]:
+        out = dict(c)
+        bal = int(out.get("balance") or 0)
+        out["balance_fmt"] = format_howl(bal)
+        return out
+
+    def list_contracts(
+        self,
+        owner: Optional[str] = None,
+        kind: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        items = list(self.contracts.values())
+        if owner:
+            o = owner.strip()
+            items = [
+                c
+                for c in items
+                if c.get("owner") == o
+                or c.get("counterparty") == o
+                or c.get("arbiter") == o
+            ]
+        if kind:
+            k = kind.strip().lower()
+            items = [c for c in items if (c.get("kind") or "").lower() == k]
+        items.sort(
+            key=lambda c: (
+                -(c.get("last_height") or c.get("deploy_height") or 0),
+                c.get("contract_id") or "",
+            )
+        )
+        return [self._enrich_contract(c) for c in items[:limit]]
+
+    def get_contract(self, contract_id: str) -> Optional[Dict[str, Any]]:
+        c = self.contracts.get(contract_id)
+        if not c:
+            return None
+        return self._enrich_contract(c)
+
     def address_history(self, address: str, limit: int = 50) -> Dict[str, Any]:
         txs = []
         for b in self.blocks:
@@ -1327,7 +1682,7 @@ class Blockchain:
                     txs.append(
                         {
                             "txid": tx.get("txid"),
-                            "type": "transfer",
+                            "type": tx.get("type") or "transfer",
                             "from": tx.get("from"),
                             "to": tx.get("to"),
                             "amount": tx.get("amount"),
@@ -1335,6 +1690,9 @@ class Blockchain:
                             "block_height": b["height"],
                             "block_hash": b["hash"],
                             "direction": direction,
+                            "contract_id": tx.get("contract_id"),
+                            "method": tx.get("method"),
+                            "nft_id": tx.get("nft_id"),
                         }
                     )
         txs = list(reversed(txs))[:limit]
