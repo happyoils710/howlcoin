@@ -70,7 +70,7 @@ def solana_rpc_call(method: str, params: list, timeout: int = 20) -> Any:
                 data=body,
                 headers={
                     "Content-Type": "application/json",
-                    "User-Agent": "Howlscan/0.5 (+https://howlscan.org)",
+                    "User-Agent": "Howlscan/0.6.4 (+https://howlscan.org)",
                     "Accept": "application/json",
                 },
                 method="POST",
@@ -247,7 +247,7 @@ def _eth_json_rpc(method: str, params: list, timeout: int = 14) -> Any:
                 body,
                 headers={
                     "Content-Type": "application/json",
-                    "User-Agent": "Howlscan/0.6 (+https://howlscan.org)",
+                    "User-Agent": "Howlscan/0.6.4 (+https://howlscan.org)",
                     "Accept": "application/json",
                 },
                 timeout=timeout,
@@ -911,7 +911,7 @@ def fetch_market_prices(force: bool = False) -> Dict[str, Any]:
             _http_get(
                 url,
                 headers={
-                    "User-Agent": "Howlscan/0.5 (+https://howlscan.org)",
+                    "User-Agent": "Howlscan/0.6.4 (+https://howlscan.org)",
                     "Accept": "application/json",
                 },
                 timeout=12,
@@ -1350,7 +1350,7 @@ def _search_wikipedia(query: str, limit: int = 4) -> List[Dict[str, str]]:
             _http_get(
                 url,
                 headers={
-                    "User-Agent": "HowlSearch/0.5 (+https://howlscan.org)",
+                    "User-Agent": "HowlSearch/0.6.4 (+https://howlscan.org)",
                     "Accept": "application/json",
                 },
                 timeout=8,
@@ -1387,7 +1387,7 @@ def _search_coingecko(query: str, limit: int = 4) -> List[Dict[str, str]]:
             _http_get(
                 url,
                 headers={
-                    "User-Agent": "HowlSearch/0.5 (+https://howlscan.org)",
+                    "User-Agent": "HowlSearch/0.6.4 (+https://howlscan.org)",
                     "Accept": "application/json",
                 },
                 timeout=8,
@@ -1748,7 +1748,7 @@ def _xai_enrich(items: List[Dict[str, Any]]) -> Optional[List[Dict[str, Any]]]:
             headers={
                 "Authorization": f"Bearer {key}",
                 "Content-Type": "application/json",
-                "User-Agent": "HowlDiscover/0.5",
+                "User-Agent": "HowlDiscover/0.6.4",
             },
             timeout=28,
         )
@@ -3219,7 +3219,7 @@ async function showRunNode(){
   setHeroVisible(false);
   setBottomTab('more');
   await loadNetworks();
-  let height='?', protocol='0.6-smooth-diff', version='0.6.0', dLabel='—', smoothH=120;
+  let height='?', protocol='0.6-smooth-diff', version='0.6.4', dLabel='—', smoothH=120;
   try{
     const s=await api('/api/public/summary');
     if(s.online || s.height!=null){

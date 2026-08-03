@@ -66,4 +66,17 @@ Primary seed stays `147.182.223.204:42069`. A second peer lowers “one box quie
 
 ## Version note
 
-**v0.6.1** retarget safety applies from height **300** (historical blocks unchanged). Miners should run **0.6.1+**.
+**Current release: v0.6.4** (`howl.config.VERSION` / `python3 -m howl --version`).
+
+Historical consensus flags (do not rewrite history):
+
+- **v0.6** smooth difficulty from height **120**
+- **v0.6.1** retarget safety from height **300** (historical blocks unchanged)
+
+Miners and seeds should run **0.6.4+**. After deploy, run:
+
+```bash
+./scripts/howl-deploy-verify.sh
+# or on the VPS:
+#   bash /opt/howlcoin/scripts/howl-deploy-verify.sh --local
+```
