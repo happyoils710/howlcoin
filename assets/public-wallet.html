@@ -442,6 +442,32 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .duel-qr{text-align:center;padding:12px 0}
 .duel-qr img{max-width:220px;width:100%;border:1px solid var(--border);background:#fff}
 .howl-feed .item{flex-direction:column;align-items:stretch;gap:4px}
+/* Slide-to-confirm sheet */
+.slide-sheet{position:fixed;left:0;right:0;bottom:0;z-index:100;transform:translateY(110%);
+  transition:transform .28s cubic-bezier(.2,.8,.2,1);padding:0 0 calc(12px + var(--safe-b));
+  background:var(--card);border-top:1px solid var(--border);box-shadow:0 -12px 40px rgba(0,0,0,.45)}
+.slide-sheet.on{transform:translateY(0)}
+.slide-sheet .ss-inner{padding:14px 16px 10px;max-width:520px;margin:0 auto}
+.slide-sheet .ss-title{font-family:var(--font-display);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--cyan,#7ee);margin:0 0 8px}
+.slide-sheet .ss-row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;font-size:.9rem;border-bottom:1px solid rgba(255,255,255,.06)}
+.slide-sheet .ss-row:last-of-type{border-bottom:0}
+.slide-sheet .ss-row .k{color:var(--muted)}
+.slide-sheet .ss-row .v{color:var(--text);font-weight:700;text-align:right;word-break:break-all;max-width:62%}
+.slide-track{position:relative;height:56px;margin:14px 0 8px;border:1px solid var(--border);background:var(--field-bg,rgba(0,0,0,.35));
+  overflow:hidden;user-select:none;touch-action:none}
+.slide-track .ss-label{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-weight:700;letter-spacing:.04em;color:var(--muted);pointer-events:none;font-size:.9rem}
+.slide-track.done .ss-label{color:var(--green)}
+.slide-knob{position:absolute;left:3px;top:3px;width:50px;height:50px;background:linear-gradient(180deg,var(--green),color-mix(in srgb,var(--green) 70%,#000));
+  color:var(--btn-fg,#03140f);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.1rem;
+  cursor:grab;z-index:2;box-shadow:0 0 16px rgba(0,255,198,.35)}
+.slide-knob:active{cursor:grabbing}
+.slide-fill{position:absolute;left:0;top:0;bottom:0;width:56px;background:rgba(0,255,198,.12);pointer-events:none}
+.slide-sheet .ss-actions{display:flex;gap:8px}
+.slide-sheet .ss-actions button{flex:1}
+#app.slide-open{padding-bottom:calc(var(--nav-h) + var(--safe-b) + 220px)}
+.amt-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.amt-chips button{border:1px solid var(--border);background:var(--card2);color:var(--text);font:inherit;font-size:.72rem;font-weight:700;padding:6px 10px;cursor:pointer}
 @keyframes ptrspin{to{transform:rotate(360deg)}}
 .item{display:flex;justify-content:space-between;gap:10px;padding:11px 0;
   border-bottom:1px solid rgba(255,255,255,.05);align-items:flex-start}
@@ -912,6 +938,13 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <div class="addr-chips" id="sendAddrChips"></div>
         <label>Amount (HOWL)</label>
         <input class="field" id="sendAmt" inputmode="decimal" placeholder="0"/>
+        <div class="amt-chips">
+          <button type="button" onclick="setSendAmtPct(0.25)">25%</button>
+          <button type="button" onclick="setSendAmtPct(0.5)">50%</button>
+          <button type="button" onclick="setSendAmtPct(0.75)">75%</button>
+          <button type="button" onclick="setSendAmtPct(1)">Max</button>
+          <button type="button" onclick="pasteSendTo()">Paste address</button>
+        </div>
         <label>Network fee (HOWL → miner)</label>
         <input class="field" id="sendFee" value="1" inputmode="decimal"/>
         <label>Memo (optional)</label>
@@ -923,8 +956,9 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <label class="hint" style="display:flex;align-items:center;gap:8px;margin:8px 0;cursor:pointer">
           <input type="checkbox" id="sendSaveAddr" checked style="width:auto;margin:0"/> Save address after send
         </label>
-        <button class="btn" type="button" id="sendBtn" onclick="doSend()">Send</button>
+        <button class="btn" type="button" id="sendBtn" onclick="prepareSendConfirm()">Review &amp; slide to send</button>
         <p class="err" id="sendErr"></p>
+        <p class="hint">Slide the bar at the bottom to confirm — no accidental sends.</p>
       </div>
       <div class="panel">
         <h2>Address book</h2>
@@ -1499,6 +1533,21 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
   <nav class="bottom" id="bottomNav" aria-label="Main"></nav>
 </div>
 <div class="toast" id="toast"></div>
+<!-- Slide-to-confirm transaction bar -->
+<div class="slide-sheet" id="slideSheet" aria-hidden="true">
+  <div class="ss-inner">
+    <div class="ss-title" id="slideTitle">Confirm send</div>
+    <div id="slideRows"></div>
+    <div class="slide-track" id="slideTrack">
+      <div class="slide-fill" id="slideFill"></div>
+      <div class="ss-label" id="slideLabel">Slide to confirm →</div>
+      <div class="slide-knob" id="slideKnob" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Slide to confirm">››</div>
+    </div>
+    <div class="ss-actions">
+      <button class="btn sec" type="button" onclick="closeSlideConfirm()">Cancel</button>
+    </div>
+  </div>
+</div>
 <div class="share-modal hidden" id="shareModal" onclick="if(event.target===this)closeShareCard()">
   <div class="share-card-box" onclick="event.stopPropagation()">
     <h2 style="margin:0 0 6px;font-size:1rem">Share</h2>
@@ -2796,16 +2845,26 @@ async function postHowlMemo(){
     const msg = ($("howlMsg")?.value || "").trim();
     if(!msg) throw new Error("Type a howl first");
     if(msg.length > 80) throw new Error("Max 80 characters");
-    await postOracle({
-      source_chain: "howlcoin",
-      oracle_key: "howl.howl",
-      oracle_value: msg,
+    openSlideConfirm({
+      title: "Slide to howl",
+      rows: [
+        { k: "Message", v: msg },
+        { k: "Fee", v: "1 HOWL (miner)" },
+        { k: "Type", v: "oracle · howl.howl" },
+      ],
+      onConfirm: async () => {
+        await postOracle({
+          source_chain: "howlcoin",
+          oracle_key: "howl.howl",
+          oracle_value: msg,
+        });
+        if($("howlTx")) $("howlTx").textContent = "Howl queued (1 HOWL fee) — needs a mined block";
+        toast("Howl broadcast · awoo!");
+        fireConfetti("howl");
+        if($("howlMsg")) $("howlMsg").value = "";
+        setTimeout(refreshHowlFeed, 1200);
+      },
     });
-    $("howlTx").textContent = "Howl queued (1 HOWL fee) — needs a mined block";
-    toast("Howl broadcast · awoo!");
-    fireConfetti("howl");
-    if($("howlMsg")) $("howlMsg").value = "";
-    setTimeout(refreshHowlFeed, 1200);
   }catch(e){
     if($("howlErr")) $("howlErr").textContent = e.message || String(e);
   }
@@ -3854,6 +3913,7 @@ function showPage(name){
   if(name==="play"){ setPlayTab(playTab || "request"); }
   if(name!=="send") try{ stopSendQrScan(); }catch(_){}
   if(name!=="play") try{ stopDuelScan(); }catch(_){}
+  if(name!=="send") try{ closeSlideConfirm(); }catch(_){}
   if(name==="wc"){ renderWcPage(); ensureWalletConnect(); }
   if(name==="oracle") refreshOracle();
   if(name==="toolbar") renderToolbarEditor();
@@ -6142,28 +6202,41 @@ async function mintNft(){
     const addr = await api("/api/public/address/" + encodeURIComponent(keypair.address));
     const nonce = addr.nonce||0;
     const nft_id = makeNftId(keypair.address, name, uri, nonce);
-    const tx = await buildSignedTx({
-      keypair,
-      to: keypair.address,
-      amountHowlies: 0,
-      feeHowlies: fee,
-      nonce,
-      memo: $("nftMemo").value||"",
-      type: "nft_mint",
-      extra: { nft_id, name, uri },
+    const memo = $("nftMemo").value||"";
+    openSlideConfirm({
+      title: "Slide to mint NFT",
+      rows: [
+        { k: "Name", v: name },
+        { k: "Fee", v: "1 HOWL" },
+        { k: "Nonce", v: String(nonce) },
+        { k: "NFT id", v: nft_id.slice(0, 16) + "…" },
+      ],
+      onConfirm: async () => {
+        const tx = await buildSignedTx({
+          keypair,
+          to: keypair.address,
+          amountHowlies: 0,
+          feeHowlies: fee,
+          nonce,
+          memo,
+          type: "nft_mint",
+          extra: { nft_id, name, uri },
+        });
+        const res = await api("/api/public/broadcast", {
+          method:"POST", headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({ tx }),
+        });
+        $("nftTx").textContent = "Mint queued " + (res.txid||"").slice(0,16) + "… — needs a mined block (~60s target)";
+        toast("NFT mint queued · open Activity or Howlscan for status");
+        fireConfetti("nft");
+        $("nftName").value=""; $("nftUri").value="";
+        nftImageDataUrl = "";
+        if($("nftPreview")) $("nftPreview").innerHTML = "";
+        if($("nftFile")) $("nftFile").value = "";
+        if($("nftFileCamera")) $("nftFileCamera").value = "";
+        setTimeout(refreshNfts, 1500);
+      },
     });
-    const res = await api("/api/public/broadcast", {
-      method:"POST", headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ tx }),
-    });
-    $("nftTx").textContent = "Mint queued " + (res.txid||"").slice(0,16) + "… — needs a mined block (~60s target)";
-    toast("NFT mint queued · open Activity or Howlscan for status");
-    $("nftName").value=""; $("nftUri").value="";
-    nftImageDataUrl = "";
-    if($("nftPreview")) $("nftPreview").innerHTML = "";
-    if($("nftFile")) $("nftFile").value = "";
-    if($("nftFileCamera")) $("nftFileCamera").value = "";
-    setTimeout(refreshNfts, 1500);
   }catch(e){ $("nftErr").textContent = e.message; }
 }
 
@@ -6467,17 +6540,30 @@ async function transferNft(){
       if(!isValidAddress(to)) throw new Error("Invalid HOWL address");
       const fee = Number(COIN);
       const addr = await api("/api/public/address/" + encodeURIComponent(keypair.address));
-      const tx = await buildSignedTx({
-        keypair, to, amountHowlies: 0, feeHowlies: fee,
-        nonce: addr.nonce||0, memo: "", type: "nft_transfer",
-        extra: { nft_id: id },
+      const nonce = addr.nonce||0;
+      openSlideConfirm({
+        title: "Slide to send NFT",
+        rows: [
+          { k: "NFT", v: id.slice(0, 20) + (id.length > 20 ? "…" : "") },
+          { k: "To", v: (typeof displayName === "function" ? displayName(to) : to) },
+          { k: "Fee", v: "1 HOWL" },
+          { k: "Nonce", v: String(nonce) },
+        ],
+        onConfirm: async () => {
+          const tx = await buildSignedTx({
+            keypair, to, amountHowlies: 0, feeHowlies: fee,
+            nonce, memo: "", type: "nft_transfer",
+            extra: { nft_id: id },
+          });
+          const res = await api("/api/public/broadcast", {
+            method:"POST", headers:{ "Content-Type":"application/json" },
+            body: JSON.stringify({ tx }),
+          });
+          toast("Transfer queued " + (res.txid||"").slice(0,12));
+          fireConfetti("send");
+          setTimeout(refreshNfts, 1500);
+        },
       });
-      const res = await api("/api/public/broadcast", {
-        method:"POST", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ tx }),
-      });
-      toast("Transfer queued " + (res.txid||"").slice(0,12));
-      setTimeout(refreshNfts, 1500);
       return;
     }
 
@@ -6704,7 +6790,138 @@ async function requireTotpIfNeeded(codeEl){
   return true;
 }
 
-async function doSend(){
+/* —— Slide-to-confirm bar —— */
+let _slidePending = null; // { kind, rows, onConfirm }
+let _slideDragging = false;
+let _slideStartX = 0;
+let _slideKnobX = 0;
+let _slideWired = false;
+
+function wireSlideConfirm(){
+  if(_slideWired) return;
+  const track = $("slideTrack");
+  const knob = $("slideKnob");
+  if(!track || !knob) return;
+  _slideWired = true;
+  const maxX = () => Math.max(0, track.clientWidth - knob.clientWidth - 6);
+  const setX = (x) => {
+    x = Math.max(0, Math.min(maxX(), x));
+    _slideKnobX = x;
+    knob.style.transform = `translateX(${x}px)`;
+    if($("slideFill")) $("slideFill").style.width = (x + knob.clientWidth) + "px";
+    knob.setAttribute("aria-valuenow", String(Math.round((x / (maxX() || 1)) * 100)));
+    return x;
+  };
+  const reset = () => {
+    setX(0);
+    track.classList.remove("done");
+    if($("slideLabel")) $("slideLabel").textContent = "Slide to confirm →";
+  };
+  const onDown = (clientX) => {
+    if(!_slidePending) return;
+    _slideDragging = true;
+    _slideStartX = clientX - _slideKnobX;
+    try{ if(navigator.vibrate) navigator.vibrate(8); }catch(_){}
+  };
+  const onMove = (clientX) => {
+    if(!_slideDragging || !_slidePending) return;
+    setX(clientX - _slideStartX);
+  };
+  const onUp = async () => {
+    if(!_slideDragging) return;
+    _slideDragging = false;
+    const need = maxX() * 0.88;
+    if(_slideKnobX >= need){
+      track.classList.add("done");
+      if($("slideLabel")) $("slideLabel").textContent = "Confirmed ✓";
+      try{ if(navigator.vibrate) navigator.vibrate([12, 30, 12]); }catch(_){}
+      const job = _slidePending;
+      _slidePending = null;
+      setX(maxX());
+      try{
+        if(job && typeof job.onConfirm === "function") await job.onConfirm();
+      }catch(e){
+        if($("sendErr")) $("sendErr").textContent = e.message || String(e);
+        toast(e.message || "Failed");
+      }
+      closeSlideConfirm();
+    } else {
+      // spring back
+      knob.style.transition = "transform .2s ease";
+      if($("slideFill")) $("slideFill").style.transition = "width .2s ease";
+      setX(0);
+      setTimeout(()=>{
+        knob.style.transition = "";
+        if($("slideFill")) $("slideFill").style.transition = "";
+      }, 220);
+    }
+  };
+  knob.addEventListener("pointerdown", (e)=>{
+    e.preventDefault();
+    knob.setPointerCapture(e.pointerId);
+    onDown(e.clientX);
+  });
+  knob.addEventListener("pointermove", (e)=>{ if(_slideDragging) onMove(e.clientX); });
+  knob.addEventListener("pointerup", onUp);
+  knob.addEventListener("pointercancel", onUp);
+  window.__slideReset = reset;
+}
+
+function openSlideConfirm({ title, rows, onConfirm }){
+  wireSlideConfirm();
+  const sheet = $("slideSheet");
+  if(!sheet) return;
+  if($("slideTitle")) $("slideTitle").textContent = title || "Confirm";
+  const box = $("slideRows");
+  if(box){
+    box.innerHTML = (rows || []).map(r =>
+      `<div class="ss-row"><span class="k">${escHtml(r.k)}</span><span class="v">${escHtml(r.v)}</span></div>`
+    ).join("");
+  }
+  _slidePending = { onConfirm };
+  if(typeof window.__slideReset === "function") window.__slideReset();
+  sheet.classList.add("on");
+  sheet.setAttribute("aria-hidden", "false");
+  $("app")?.classList.add("slide-open");
+}
+
+function closeSlideConfirm(){
+  const sheet = $("slideSheet");
+  if(sheet){
+    sheet.classList.remove("on");
+    sheet.setAttribute("aria-hidden", "true");
+  }
+  $("app")?.classList.remove("slide-open");
+  _slidePending = null;
+  _slideDragging = false;
+  if(typeof window.__slideReset === "function") window.__slideReset();
+  if($("sendBtn")) $("sendBtn").disabled = false;
+}
+
+function setSendAmtPct(pct){
+  try{
+    const fee = parseHowl($("sendFee")?.value || String(minFeeHowl || 1));
+    const bal = chainInfo.balance || 0n;
+    let spend = bal - fee;
+    if(spend < 0n) spend = 0n;
+    // pct of (balance - fee)
+    const raw = (spend * BigInt(Math.round(pct * 1000))) / 1000n;
+    if($("sendAmt")) $("sendAmt").value = formatHowl(raw).replace(" HOWL","");
+  }catch(e){ toast(e.message || "Balance not ready"); }
+}
+
+async function pasteSendTo(){
+  try{
+    const t = (await navigator.clipboard.readText()).trim();
+    const m = t.match(/H[1-9A-HJ-NP-Za-km-z]{20,}/);
+    const addr = m ? m[0] : t;
+    if(!isValidAddress(addr)) throw new Error("Clipboard is not a HOWL address");
+    if($("sendTo")) $("sendTo").value = addr;
+    toast("Address pasted");
+  }catch(e){ toast(e.message || "Paste failed — allow clipboard access"); }
+}
+
+async function prepareSendConfirm(){
   $("sendErr").textContent = "";
   try{
     await requireTotpIfNeeded($("sendTotp"));
@@ -6714,9 +6931,7 @@ async function doSend(){
     if(fee < COIN) throw new Error("Fee must be at least 1 HOWL");
     if(!isValidAddress(to)) throw new Error("Invalid address");
     if(amount + fee > chainInfo.balance) throw new Error("Insufficient balance");
-    // Use mempool-aware nonce so we never double-submit the same nonce
     const nonce = await nextLocalNonce();
-    // Guard: if something is already pending at this nonce on mempool, refuse
     try{
       const mp = await api("/api/public/mempool");
       const clash = (mp.transactions||[]).find(t => t.from === keypair.address && Number(t.nonce) === Number(nonce));
@@ -6729,31 +6944,57 @@ async function doSend(){
     }catch(e){
       if(e.message && e.message.includes("pending")) throw e;
     }
-    if(!confirm(`Send ${formatHowl(amount)}\nto ${to}\nFee ${formatHowl(fee)}\nNonce ${nonce}`)) return;
+    const nick = (typeof displayName === "function") ? displayName(to) : to;
     $("sendBtn").disabled = true;
-    reserveLocalNonce(keypair.address, nonce); // reserve before broadcast to block double-tap
-    const tx = await buildSignedTx({
-      keypair, to,
-      amountHowlies: Number(amount),
-      feeHowlies: Number(fee),
-      nonce,
-      memo: $("sendMemo").value||"",
+    openSlideConfirm({
+      title: "Slide to send HOWL",
+      rows: [
+        { k: "To", v: nick },
+        { k: "Amount", v: formatHowl(amount) },
+        { k: "Fee (miner)", v: formatHowl(fee) },
+        { k: "Total", v: formatHowl(amount + fee) },
+        { k: "Nonce", v: String(nonce) },
+        { k: "Memo", v: ($("sendMemo").value || "—").slice(0, 40) },
+      ],
+      onConfirm: async () => {
+        await executeSend({ to, amount, fee, nonce, memo: $("sendMemo").value || "" });
+      },
     });
-    const res = await api("/api/public/broadcast", {
-      method:"POST", headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ tx }),
-    });
-    if($("sendSaveAddr")?.checked){
-      try{ addAddressBookEntry(to.slice(0, 8) + "…", to); }catch(_){}
-    }
-    toast("Queued " + (res.txid||"").slice(0,14) + "… needs ~1 confirmation (~60s target). Watch Activity.");
-    $("sendAmt").value = "";
-    if($("sendTotp")) $("sendTotp").value = "";
-    showPage("activity");
-    setTimeout(refresh, 1500);
-  }catch(e){ $("sendErr").textContent = e.message; }
-  finally{ $("sendBtn").disabled = false; }
+  }catch(e){
+    $("sendErr").textContent = e.message;
+    if($("sendBtn")) $("sendBtn").disabled = false;
+  }
 }
+
+async function executeSend({ to, amount, fee, nonce, memo }){
+  reserveLocalNonce(keypair.address, nonce);
+  const tx = await buildSignedTx({
+    keypair, to,
+    amountHowlies: Number(amount),
+    feeHowlies: Number(fee),
+    nonce,
+    memo: memo || "",
+  });
+  const res = await api("/api/public/broadcast", {
+    method:"POST", headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ tx }),
+  });
+  if($("sendSaveAddr")?.checked){
+    try{
+      const nick = (loadNicks()[to]) || (to.slice(0, 8) + "…");
+      addAddressBookEntry(nick, to);
+    }catch(_){}
+  }
+  toast("Queued " + (res.txid||"").slice(0,14) + "… needs ~1 confirmation. Watch Activity.");
+  try{ fireConfetti("send"); }catch(_){}
+  $("sendAmt").value = "";
+  if($("sendTotp")) $("sendTotp").value = "";
+  showPage("activity");
+  setTimeout(refresh, 1500);
+}
+
+/** @deprecated use prepareSendConfirm + slide */
+async function doSend(){ return prepareSendConfirm(); }
 
 function copyText(t){
   navigator.clipboard.writeText(t).then(()=>{
@@ -7580,6 +7821,10 @@ function boot(skipInstallPrompt){
 
 window.showPage = showPage;
 window.doSend = doSend;
+window.prepareSendConfirm = prepareSendConfirm;
+window.closeSlideConfirm = closeSlideConfirm;
+window.setSendAmtPct = setSendAmtPct;
+window.pasteSendTo = pasteSendTo;
 window.copyText = copyText;
 window.revealSeed = revealSeed;
 window.hideSeed = hideSeed;
