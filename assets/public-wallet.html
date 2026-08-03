@@ -3159,7 +3159,8 @@ function downloadShareCard(){
   toast("Share image saved");
 }
 function copyShareAddress(){
-  if(keypair?.address) copyText(keypair.address);
+  if(keypair?.address) copyText(keypair.address, "HOWL address");
+  else toast("No address yet");
 }
 
 /* —— Security score —— */
@@ -6002,18 +6003,23 @@ function setNftDashTab(tab){
   const det = $("nftDetailPanel");
   if(det) det.classList.add("hidden");
   if(tools) tools.classList.toggle("hidden", nftDashTab !== "tools");
-  if(gal) gal.classList.toggle("hidden", nftDashTab === "tools" || nftDashTab === "activity");
+  // Gallery stays visible on Mine / All / Tools (Tezos deposits show here). Hidden only on Activity.
+  if(gal) gal.classList.toggle("hidden", nftDashTab === "activity");
   if(act) act.classList.toggle("hidden", nftDashTab !== "activity");
   if(nftDashTab === "mine"){
     if($("nftGalleryTitle")) $("nftGalleryTitle").textContent = "Your collection";
-    if($("nftGalleryHint")) $("nftGalleryHint").textContent = "NFTs you own on Howlcoin — tap for full on-chain timeline.";
+    if($("nftGalleryHint")) $("nftGalleryHint").textContent = "Howlcoin + Tezos (FA2) + Solana NFTs held by this wallet.";
   } else if(nftDashTab === "all"){
     if($("nftGalleryTitle")) $("nftGalleryTitle").textContent = "All Howlcoin NFTs";
     if($("nftGalleryHint")) $("nftGalleryHint").textContent = "Every NFT on the public chain with mint / last activity timestamps.";
+  } else if(nftDashTab === "tools"){
+    if($("nftGalleryTitle")) $("nftGalleryTitle").textContent = "Collection (selected chain)";
+    if($("nftGalleryHint")) $("nftGalleryHint").textContent = "Pick Tezos to list FA2 NFTs on your tz1.";
   }
   if(nftDashTab === "tools"){
     wireNftPage();
     renderNftChainUI();
+    refreshNfts();
   } else if(nftDashTab === "activity"){
     refreshNftActivity();
   } else {
@@ -6024,7 +6030,7 @@ function setNftDashTab(tab){
 function closeNftDetail(){
   nftDetailId = null;
   if($("nftDetailPanel")) $("nftDetailPanel").classList.add("hidden");
-  if($("nftGalleryPanel") && nftDashTab !== "tools" && nftDashTab !== "activity"){
+  if($("nftGalleryPanel") && nftDashTab !== "activity"){
     $("nftGalleryPanel").classList.remove("hidden");
   }
   if(nftDashTab === "activity" && $("nftActivityPanel")) $("nftActivityPanel").classList.remove("hidden");
@@ -6139,23 +6145,33 @@ function renderNftCards(list, opts = {}){
     const mintTs = n.mint_timestamp;
     const lastTs = n.last_timestamp || mintTs;
     const mintIso = n.mint_time_iso;
-    const lastIso = n.last_time_iso || mintIso;
-    const howl = opts.howl !== false && (n.mint_height != null || n.mint_txid);
+    const howl = (opts.howl !== false && (n.mint_height != null || n.mint_txid)) || n.chain === "howl";
+    const chain = n.chain || (howl ? "howl" : "");
+    const chainLabel = chain === "tezos" ? "Tezos" : chain === "solana" ? "Solana" : chain === "howl" ? "HOWL" : (chain || "");
+    const sub = chain === "tezos"
+      ? `${shortAddr(n.contract || "")} · #${escHtml(String(n.tokenId ?? id))}${n.balance && n.balance !== "1" ? " · bal " + escHtml(String(n.balance)) : ""}`
+      : chain === "solana"
+        ? escHtml(String(id).slice(0, 22)) + (String(id).length > 22 ? "…" : "")
+        : escHtml(String(id).slice(0, 22)) + (String(id).length > 22 ? "…" : "");
     return `<button type="button" class="item" data-nft-i="${i}" style="align-items:center;width:100%;text-align:left;cursor:pointer;background:transparent;border:0;border-bottom:1px solid rgba(255,255,255,.06);color:inherit;font:inherit;padding:12px 0">
-      ${img ? `<img src="${escAttr(img)}" alt="" style="width:56px;height:56px;object-fit:cover;border:1px solid var(--border);flex-shrink:0" onerror="this.style.display='none'"/>` : `<div style="width:56px;height:56px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);flex-shrink:0">◆</div>`}
+      ${img ? `<img src="${escAttr(img)}" alt="" style="width:56px;height:56px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;background:#111" onerror="this.style.display='none'"/>` : `<div style="width:56px;height:56px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);flex-shrink:0">◆</div>`}
       <div style="min-width:0;flex:1">
-        <div><b>${escHtml(title)}</b></div>
-        <div class="m mono" style="font-size:.72rem">${escHtml(String(id).slice(0,22))}${String(id).length>22?"…":""}</div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <b>${escHtml(title)}</b>
+          ${chainLabel ? `<span class="chip" style="font-size:.6rem;padding:2px 6px">${escHtml(chainLabel)}</span>` : ""}
+        </div>
+        <div class="m mono" style="font-size:.72rem">${sub}</div>
         ${howl ? `<div class="m" style="font-size:.7rem;margin-top:3px;line-height:1.35">
           Minted <b style="color:var(--text)">#${escHtml(String(n.mint_height ?? "—"))}</b>
           · ${escHtml(fmtTsRel(mintTs) || fmtTs(mintTs, mintIso))}<br/>
           <span style="opacity:.85">${escHtml(fmtTs(mintTs, mintIso))}</span>
           ${lastTs && lastTs !== mintTs ? `<br/>Last #${escHtml(String(n.last_height ?? "—"))} · ${escHtml(fmtTsRel(lastTs))}` : ""}
-        </div>` : (n.uri ? `<div class="m" style="font-size:.7rem;overflow:hidden;text-overflow:ellipsis">${escHtml(String(n.uri).slice(0,40))}</div>` : "")}
+        </div>` : (n.contract ? `<div class="m mono" style="font-size:.68rem;margin-top:2px;overflow:hidden;text-overflow:ellipsis">${escHtml(n.contract)}</div>` : "")}
         ${n.owner && opts.showOwner ? `<div class="m mono" style="font-size:.68rem;margin-top:2px">owner ${escHtml(shortAddr(n.owner))}</div>` : ""}
       </div>
       <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end" onclick="event.stopPropagation()">
         ${howl ? `<span class="chip" style="font-size:.65rem">timeline</span>` : ""}
+        ${chain === "tezos" ? `<span class="chip" style="font-size:.65rem">TzKT</span>` : ""}
         ${opts.canSend !== false && howl && n.owner === (keypair && keypair.address) ? `<button class="btn sec" style="width:auto;margin:0;padding:6px 10px;min-height:0;font-size:.6rem" type="button" data-send="${i}">Send</button>` : ""}
       </div>
     </button>`;
@@ -6164,9 +6180,13 @@ function renderNftCards(list, opts = {}){
     btn.onclick = ()=>{
       const n = list[Number(btn.getAttribute("data-nft-i"))];
       if(!n) return;
+      if(n.chain === "tezos" || n.kind === "fa"){
+        openTezosNftDetail(n);
+        return;
+      }
       const id = n.nft_id || n.mint || n.id || n.tokenId;
       if(n.mint_height != null || n.mint_txid) openNftDetail(id);
-      else if(n.uri) openExternalUrl(n.uri);
+      else if(n.uri || n.image) openExternalUrl(n.uri || n.image);
       else toast(n.name || id || "NFT");
     };
   });
@@ -6178,6 +6198,57 @@ function renderNftCards(list, opts = {}){
       prepareNftSend(n.nft_id || n.mint || n.tokenId || n.id || "");
     };
   });
+}
+
+function ipfsToHttp(uri){
+  if(uri == null) return "";
+  let s = String(uri).trim();
+  if(!s) return "";
+  // JSON metadata sometimes embeds quoted strings
+  if(s.startsWith("{") || s.startsWith("[")) return "";
+  s = s.replace(/^ipfs:\/\/ipfs\//i, "https://ipfs.io/ipfs/");
+  s = s.replace(/^ipfs:\/\//i, "https://ipfs.io/ipfs/");
+  if(s.startsWith("Qm") && s.length >= 46) s = "https://ipfs.io/ipfs/" + s;
+  if(s.startsWith("bafy") || s.startsWith("bafk")) s = "https://ipfs.io/ipfs/" + s;
+  return s;
+}
+
+function openTezosNftDetail(n){
+  if(!n) return;
+  const det = $("nftDetailPanel");
+  const body = $("nftDetailBody");
+  const gal = $("nftGalleryPanel");
+  const act = $("nftActivityPanel");
+  if(gal) gal.classList.add("hidden");
+  if(act) act.classList.add("hidden");
+  if(det) det.classList.remove("hidden");
+  const title = n.name || ("Token #" + (n.tokenId ?? "?"));
+  if($("nftDetailTitle")) $("nftDetailTitle").textContent = title;
+  const img = ipfsToHttp(n.image || n.uri || "");
+  const contract = n.contract || "";
+  const tid = n.tokenId != null ? String(n.tokenId) : "";
+  const tzktTok = contract && tid !== ""
+    ? `https://tzkt.io/${encodeURIComponent(contract)}/tokens/${encodeURIComponent(tid)}`
+    : (xtzInfo?.address ? `https://tzkt.io/${encodeURIComponent(xtzInfo.address)}/tokens` : "https://tzkt.io");
+  const objkt = contract && tid !== ""
+    ? `https://objkt.com/tokens/${encodeURIComponent(contract)}/${encodeURIComponent(tid)}`
+    : "https://objkt.com";
+  if(body){
+    body.innerHTML = `
+      <div style="text-align:center;margin-bottom:12px">
+        ${img ? `<img src="${escAttr(img)}" alt="" style="max-width:100%;max-height:280px;object-fit:contain;border:1px solid var(--border);background:#0a0a12" onerror="this.style.display='none'"/>` : `<div class="hint">No preview image</div>`}
+      </div>
+      <p><b>${escHtml(title)}</b> <span class="chip">Tezos FA2</span></p>
+      <p class="hint mono" style="word-break:break-all">Contract: ${escHtml(contract)}</p>
+      <p class="hint">Token ID: <b>${escHtml(tid)}</b>${n.balance ? ` · balance ${escHtml(String(n.balance))}` : ""}</p>
+      <p class="hint mono" style="word-break:break-all">Owner tz1: ${escHtml(n.owner || xtzInfo?.address || "—")}</p>
+      <button class="btn" type="button" onclick="openExternalUrl(${JSON.stringify(tzktTok)})">Open on TzKT</button>
+      <button class="btn sec" type="button" onclick="openExternalUrl(${JSON.stringify(objkt)})">Open on Objkt</button>
+      <button class="btn sec" type="button" onclick="copyText(${JSON.stringify(contract)},'KT1 contract')">Copy contract</button>
+      <button class="btn sec" type="button" onclick="copyText(${JSON.stringify((contract||'')+':'+tid)},'token id')">Copy contract:id</button>
+      <p class="hint" style="margin-top:12px">Receive more to your <b>tz1</b> (same as XTZ). Collection contract is KT1 — not your wallet.</p>
+    `;
+  }
 }
 
 async function refreshNftActivity(){
@@ -6215,49 +6286,120 @@ async function refreshNftActivity(){
   }
 }
 
-/** FA2 NFT balances for a tz1 via TzKT (mainnet). */
+/** FA2 / NFT-like balances for a tz1 via TzKT (mainnet). */
 async function listTezosNfts(owner){
   const acct = (owner || "").trim();
   if(!acct || !acct.startsWith("tz")) throw new Error("Need a tz1/tz2/tz3 account address");
-  // balance.ne=0 and token.metadata when available
-  const url = "https://api.tzkt.io/v1/tokens/balances?" + new URLSearchParams({
-    account: acct,
-    "balance.ne": "0",
-    "token.standard.in": "fa2,fa1.2",
-    limit: "50",
-    sort: { desc: "lastTime" },
-  });
-  // TzKT uses sort.desc=lastTime as query key
-  const url2 = `https://api.tzkt.io/v1/tokens/balances?account=${encodeURIComponent(acct)}&balance.ne=0&token.standard.in=fa2,fa1.2&limit=50&sort.desc=lastTime`;
-  const r = await fetchTimeout(url2, {}, 15000);
-  if(!r.ok) throw new Error("TzKT " + r.status);
-  const rows = await r.json();
+  // Prefer FA2 (NFT standard); include FA1.2 only when it looks like an NFT
+  const url2 =
+    `https://api.tzkt.io/v1/tokens/balances?account=${encodeURIComponent(acct)}` +
+    `&balance.ne=0&token.standard.in=fa2,fa1.2&limit=100&sort.desc=lastLevel` +
+    `&token.metadata.null=false`;
+  let r = await fetchTimeout(url2, {}, 18000);
+  // Fallback without metadata filter (some tokens lag indexing)
+  if(!r.ok){
+    r = await fetchTimeout(
+      `https://api.tzkt.io/v1/tokens/balances?account=${encodeURIComponent(acct)}&balance.ne=0&token.standard=fa2&limit=100&sort.desc=lastLevel`,
+      {},
+      18000
+    );
+  }
+  if(!r.ok){
+    // Final fallback: all non-zero balances
+    r = await fetchTimeout(
+      `https://api.tzkt.io/v1/tokens/balances?account=${encodeURIComponent(acct)}&balance.ne=0&limit=100&sort.desc=lastLevel`,
+      {},
+      18000
+    );
+  }
+  if(!r.ok) throw new Error("TzKT " + r.status + " — could not load Tezos tokens");
+  let rows = await r.json();
+  if(!Array.isArray(rows)) rows = [];
+
+  // If metadata filter returned empty, retry without it
+  if(!rows.length){
+    const r2 = await fetchTimeout(
+      `https://api.tzkt.io/v1/tokens/balances?account=${encodeURIComponent(acct)}&balance.ne=0&token.standard=fa2&limit=100&sort.desc=lastLevel`,
+      {},
+      18000
+    );
+    if(r2.ok){
+      const j2 = await r2.json();
+      if(Array.isArray(j2)) rows = j2;
+    }
+  }
+
   const out = [];
   for(const row of rows || []){
     const tok = row.token || {};
-    const meta = tok.metadata || {};
-    let image = meta.displayUri || meta.thumbnailUri || meta.artifactUri || meta.image || "";
-    if(typeof image === "string"){
-      image = image.replace("ipfs://", "https://ipfs.io/ipfs/");
-    } else image = "";
-    // skip pure fungibles with huge balances if they look like FA1.2 currency
+    let meta = tok.metadata || {};
+    if(typeof meta === "string"){
+      try{ meta = JSON.parse(meta); }catch(_){ meta = {}; }
+    }
+    const contract = (tok.contract && (tok.contract.address || tok.contract)) || row.token?.contract?.address || "";
+    const tokenId = tok.tokenId != null ? String(tok.tokenId) : (row.tokenId != null ? String(row.tokenId) : "0");
     const bal = String(row.balance || "0");
-    const isNftish = tok.standard === "fa2" || Number(bal) === 1 || (meta && (meta.displayUri || meta.artifactUri || meta.name));
-    if(!isNftish && tok.standard === "fa1.2" && Number(bal) > 100) continue;
+    const std = (tok.standard || "").toLowerCase();
+
+    // Skip obvious fungibles (large FA1.2 balances without NFT media)
+    const hasMedia = !!(meta.displayUri || meta.thumbnailUri || meta.artifactUri || meta.image || meta.formats);
+    const isNftish =
+      std === "fa2" ||
+      Number(bal) === 1 ||
+      hasMedia ||
+      (meta.name && Number(bal) <= 100);
+    if(std === "fa1.2" && Number(bal) > 100 && !hasMedia) continue;
+    if(!isNftish && Number(bal) > 1000) continue;
+
+    let image =
+      meta.displayUri ||
+      meta.thumbnailUri ||
+      meta.artifactUri ||
+      meta.image ||
+      (Array.isArray(meta.formats) && meta.formats[0] && (meta.formats[0].uri || meta.formats[0].url)) ||
+      "";
+    image = ipfsToHttp(image);
+    let uri = ipfsToHttp(meta.artifactUri || meta.displayUri || meta.uri || "");
+
     out.push({
       chain: "tezos",
       kind: "fa",
-      contract: tok.contract?.address || tok.contract || "",
-      tokenId: tok.tokenId != null ? String(tok.tokenId) : "0",
-      nft_id: String(tok.tokenId != null ? tok.tokenId : "0"),
-      id: (tok.contract?.address || "") + ":" + (tok.tokenId ?? "0"),
-      name: meta.name || meta.symbol || ("Token #" + (tok.tokenId ?? "?")),
-      uri: meta.artifactUri || meta.displayUri || "",
+      contract: typeof contract === "string" ? contract : (contract.address || ""),
+      tokenId,
+      nft_id: (typeof contract === "string" ? contract : "") + ":" + tokenId,
+      id: (typeof contract === "string" ? contract : "") + ":" + tokenId,
+      name: meta.name || meta.symbol || ("Token #" + tokenId),
+      uri,
       image,
       balance: bal,
       owner: acct,
+      standard: std || "fa2",
+      lastLevel: row.lastLevel || tok.lastLevel,
     });
   }
+
+  // Enrich up to 12 items missing names/images via per-token TzKT call
+  const need = out.filter(n => (!n.image || n.name.startsWith("Token #")) && n.contract).slice(0, 12);
+  await Promise.all(need.map(async (n)=>{
+    try{
+      const tr = await fetchTimeout(
+        `https://api.tzkt.io/v1/tokens?contract=${encodeURIComponent(n.contract)}&tokenId=${encodeURIComponent(n.tokenId)}&limit=1`,
+        {},
+        10000
+      );
+      if(!tr.ok) return;
+      const arr = await tr.json();
+      const t = arr && arr[0];
+      if(!t) return;
+      const m = t.metadata || {};
+      if(m.name) n.name = m.name;
+      const im = ipfsToHttp(m.displayUri || m.thumbnailUri || m.artifactUri || m.image || "");
+      if(im) n.image = im;
+      const u = ipfsToHttp(m.artifactUri || m.displayUri || "");
+      if(u) n.uri = u;
+    }catch(_){}
+  }));
+
   return out;
 }
 
@@ -6312,32 +6454,100 @@ async function refreshNfts(){
     }
   }
   const gal = $("nftGallery");
-  const howlMode = nftDashTab === "all" || nftDashTab === "mine";
-  if(howlMode){
+  // All-on-chain: Howl only. Mine: Howl + Tezos (+ Solana) deposits for this wallet.
+  if(nftDashTab === "all"){
     if(gal) gal.innerHTML = `<p class="hint">Loading Howlcoin NFTs…</p>`;
     try{
-      let url = "/api/public/nfts?limit=100";
-      if(nftDashTab === "mine"){
-        if(!keypair) throw new Error("Unlock wallet to see your collection");
-        url += "&owner=" + encodeURIComponent(keypair.address);
-      }
-      const j = await api(url);
+      const j = await api("/api/public/nfts?limit=100");
       const list = (j.nfts || []).map(n => ({
         ...n,
+        chain: "howl",
         image: (n.uri && (n.uri.startsWith("http") || n.uri.startsWith("data:"))) ? n.uri : "",
       }));
-      if($("nftDashMeta")){
-        $("nftDashMeta").textContent = nftDashTab === "mine"
-          ? `${list.length} you own · ${j.count ?? "?"} total on chain`
-          : `${list.length} shown · ${j.count ?? list.length} total on chain`;
-      }
+      if($("nftDashMeta")) $("nftDashMeta").textContent = `${list.length} shown · ${j.count ?? list.length} total on chain`;
       if($("nftCount")) $("nftCount").textContent = String(list.length);
       renderNftCards(list, {
-        empty: nftDashTab === "mine"
-          ? "No Howlcoin NFTs yet — open Mint / tools to photo-mint"
-          : "No NFTs on chain yet — be the first to mint",
-        canSend: nftDashTab === "mine",
-        showOwner: nftDashTab === "all",
+        empty: "No NFTs on chain yet — be the first to mint",
+        canSend: false,
+        showOwner: true,
+        howl: true,
+      });
+    }catch(e){
+      if(gal) gal.innerHTML = `<p class="err">${escHtml(e.message)}</p>`;
+    }
+    return;
+  }
+  if(nftDashTab === "mine"){
+    if(gal) gal.innerHTML = `<p class="hint">Loading your NFTs (Howlcoin + Tezos)…</p>`;
+    try{
+      if(!keypair) throw new Error("Unlock wallet to see your collection");
+      ensureTezosDerived();
+      const parts = [];
+      let howlList = [];
+      let tezosList = [];
+      let solList = [];
+      let tezosErr = "";
+      let solErr = "";
+
+      const jobs = [];
+      jobs.push((async ()=>{
+        try{
+          const j = await api("/api/public/nfts?owner=" + encodeURIComponent(keypair.address) + "&limit=100");
+          howlList = (j.nfts || []).map(n => ({
+            ...n,
+            chain: "howl",
+            image: (n.uri && (n.uri.startsWith("http") || n.uri.startsWith("data:"))) ? n.uri : "",
+          }));
+        }catch(e){ howlList = []; }
+      })());
+      jobs.push((async ()=>{
+        if(!xtzInfo?.address){
+          tezosErr = multiChainMissingHint("xtz") || "No tz1 (need seed wallet)";
+          return;
+        }
+        try{
+          tezosList = await listTezosNfts(xtzInfo.address);
+        }catch(e){
+          tezosErr = e.message || "TzKT failed";
+          tezosList = [];
+        }
+      })());
+      jobs.push((async ()=>{
+        if(!solInfo?.address) return;
+        try{
+          solList = await listSolNfts(solInfo.address, { solRpc });
+          solList = (solList || []).map(n => ({ ...n, chain: "solana" }));
+        }catch(e){
+          solErr = e.message || "";
+          solList = [];
+        }
+      })());
+      await Promise.all(jobs);
+
+      const list = [...howlList, ...tezosList, ...solList];
+      const bits = [
+        `${howlList.length} HOWL`,
+        xtzInfo?.address ? `${tezosList.length} Tezos` : "Tezos n/a",
+        solInfo?.address ? `${solList.length} SOL` : null,
+      ].filter(Boolean);
+      if($("nftDashMeta")){
+        let meta = bits.join(" · ");
+        if(xtzInfo?.address) meta += " · tz1 " + shortAddr(xtzInfo.address);
+        if(tezosErr) meta += " · Tezos: " + tezosErr;
+        if(solErr) meta += " · SOL: " + solErr;
+        $("nftDashMeta").textContent = meta;
+      }
+      if($("nftCount")) $("nftCount").textContent = String(list.length);
+
+      let empty = "No NFTs yet. Mint on Howlcoin, or receive Tezos FA2 to your tz1 (Assets → Tezos).";
+      if(!xtzInfo?.address) empty += " Tezos needs a 12-word seed wallet.";
+      else if(!tezosList.length && !howlList.length)
+        empty = `No NFTs on HOWL or tz1 ${shortAddr(xtzInfo.address)}. Send FA2 to that tz1 (not KT1), then Refresh.`;
+
+      renderNftCards(list, {
+        empty,
+        canSend: true,
+        showOwner: false,
         howl: true,
       });
     }catch(e){
