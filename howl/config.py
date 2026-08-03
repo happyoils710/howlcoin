@@ -5,7 +5,7 @@ from pathlib import Path
 # --- Identity ---
 COIN_NAME = "Howlcoin"
 TICKER = "HOWL"
-VERSION = "0.6.0"
+VERSION = "0.6.1"
 GENESIS_MESSAGE = (
     "2026-08-01 Howlcoin: the moon heard a howl and howled back. "
     "Scrypt free. Much chain. Very wow."
@@ -51,6 +51,15 @@ STALL_SECONDS = 2 * 60 * 60  # 2 hours
 STALL_MAX_ADJUST = 16.0  # max extra reduction factor when heavily stalled
 # Block timestamp may not be more than this far ahead of local clock
 MAX_FUTURE_DRIFT_SECONDS = 2 * 60 * 60
+
+# --- v0.6.1 retarget safety (does NOT rewrite historical blocks) ---
+# From this height, upward retarget is softer and never raises difficulty when
+# the last window was already slow or the tip is half-stalled.
+RETARGET_SAFETY_ACTIVATION_HEIGHT = 300
+# Max difficulty *increase* per window after safety activation (down still 4×)
+DIFFICULTY_MAX_UP = 2.0
+# If tip age ≥ this when retargeting, never increase difficulty
+RETARGET_NO_UP_GAP_SECONDS = STALL_SECONDS // 2  # 1 hour
 
 # Block subsidy schedule (in HOWL, not howlies)
 # Early Doge vibes: generous early rewards, then taper

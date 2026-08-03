@@ -5,7 +5,7 @@ from __future__ import annotations
 import struct
 import time
 from decimal import Decimal, getcontext
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 from Crypto.Protocol.KDF import scrypt as scrypt_kdf
 
@@ -205,6 +205,7 @@ def mine_block(
     start_nonce: int = 0,
     progress_every: int = 400,
     max_seconds: Optional[float] = None,
+    progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
 ) -> Tuple[Dict[str, Any], str, int]:
     """
     Brute-force nonce until scrypt hash meets difficulty.
@@ -222,6 +223,30 @@ def mine_block(
     smooth = is_smooth_difficulty_raw(int(difficulty))
     d_label = format_difficulty(int(difficulty))
 
+    def _emit() -> None:
+        if not progress_callback:
+            return
+        elapsed = max(time.time() - t0, 1e-6)
+        rate = tried / elapsed
+        remain = max(0.0, expect - tried)
+        try:
+            progress_callback(
+                {
+                    "hashes": tried,
+                    "expect": expect,
+                    "hps": rate,
+                    "elapsed": elapsed,
+                    "eta_seconds": (remain / rate) if rate > 0 else None,
+                    "difficulty": int(difficulty),
+                    "difficulty_label": d_label,
+                    "pct": min(999.0, 100.0 * tried / expect) if expect > 0 else 0.0,
+                    "slice_seconds": max_seconds,
+                    "nonce": nonce,
+                }
+            )
+        except Exception:
+            pass
+
     while True:
         header["nonce"] = nonce
         h = pow_hash_hex(header)
@@ -229,12 +254,14 @@ def mine_block(
         if meets_difficulty(h, difficulty):
             # clear progress line
             print(" " * 100, end="\r", flush=True)
+            _emit()
             return header, h, tried
         nonce += 1
         if max_nonce is not None and nonce > max_nonce:
             raise RuntimeError("max_nonce exceeded without finding block")
         if max_seconds is not None and (time.time() - t0) >= float(max_seconds):
             print(" " * 100, end="\r", flush=True)
+            _emit()
             raise MiningSliceTimeout(tried, time.time() - t0)
         if progress_every and tried % progress_every == 0:
             elapsed = max(time.time() - t0, 1e-6)
@@ -255,6 +282,7 @@ def mine_block(
                 end="\r",
                 flush=True,
             )
+            _emit()
 
 
 def estimate_hashrate(seconds: float = 2.0) -> float:

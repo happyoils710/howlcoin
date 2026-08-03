@@ -13,12 +13,15 @@ from .config import (
     COIN,
     DIFFICULTY_ADJUST_INTERVAL,
     DIFFICULTY_MAX_ADJUST,
+    DIFFICULTY_MAX_UP,
     GENESIS_MESSAGE,
     INITIAL_DIFFICULTY,
     MAX_DIFFICULTY_FLOAT,
     MAX_FUTURE_DRIFT_SECONDS,
     MIN_DIFFICULTY_FLOAT,
     MIN_TX_FEE_HOWLIES,
+    RETARGET_NO_UP_GAP_SECONDS,
+    RETARGET_SAFETY_ACTIVATION_HEIGHT,
     SMOOTH_DIFF_ACTIVATION_HEIGHT,
     STALL_MAX_ADJUST,
     STALL_SECONDS,
@@ -245,7 +248,13 @@ class Blockchain:
             return float(INITIAL_DIFFICULTY)
         return difficulty_float_from_raw(self.current_difficulty())
 
-    def _retarget_float(self, current_d: float) -> float:
+    def _retarget_float(
+        self,
+        current_d: float,
+        *,
+        next_height: Optional[int] = None,
+        gap_seconds: int = 0,
+    ) -> float:
         """Adjust nibble-equivalent difficulty from the last retarget window."""
         interval = DIFFICULTY_ADJUST_INTERVAL
         if len(self.blocks) < interval:
@@ -261,6 +270,16 @@ class Blockchain:
         if ratio < 1 / DIFFICULTY_MAX_ADJUST:
             ratio = 1 / DIFFICULTY_MAX_ADJUST
         new_d = current_d / ratio if ratio != 0 else current_d
+
+        # v0.6.1+: never spike upward as hard; never raise when already slow/stalled
+        h = int(next_height if next_height is not None else (self.height() + 1))
+        if h >= RETARGET_SAFETY_ACTIVATION_HEIGHT:
+            # Cap increases (fast windows) more tightly than decreases
+            if new_d > current_d:
+                new_d = min(new_d, current_d * float(DIFFICULTY_MAX_UP))
+            # Last window already slow, or tip is half-stalled → only allow flat/down
+            if ratio >= 1.0 or gap_seconds >= RETARGET_NO_UP_GAP_SECONDS:
+                new_d = min(new_d, current_d)
         return new_d
 
     def _apply_stall_float(self, d: float, gap_seconds: int) -> float:
@@ -297,12 +316,13 @@ class Blockchain:
         at_ts = int(at_timestamp if at_timestamp is not None else time.time())
         d = self.current_difficulty_float()
 
-        # First smooth block: tip may still be legacy nibble — float convert is fine
-        if height >= DIFFICULTY_ADJUST_INTERVAL and height % DIFFICULTY_ADJUST_INTERVAL == 0:
-            d = self._retarget_float(d)
-
         tip_ts = int(self.tip()["header"]["timestamp"])
         gap = max(0, at_ts - tip_ts)
+
+        # First smooth block: tip may still be legacy nibble — float convert is fine
+        if height >= DIFFICULTY_ADJUST_INTERVAL and height % DIFFICULTY_ADJUST_INTERVAL == 0:
+            d = self._retarget_float(d, next_height=height, gap_seconds=gap)
+
         d = self._apply_stall_float(d, gap)
 
         d = max(MIN_DIFFICULTY_FLOAT, min(MAX_DIFFICULTY_FLOAT, d))
@@ -781,8 +801,27 @@ class Blockchain:
             subsidy = template["subsidy"]
             expect = expected_hashes(diff)
             d_f = difficulty_float_from_raw(diff)
+            height = template["height"]
+            slice_started = time.time()
+            self.mine_progress = {
+                "active": True,
+                "height": height,
+                "difficulty": diff,
+                "difficulty_label": format_difficulty(diff),
+                "difficulty_float": d_f,
+                "expect": expect,
+                "hashes": 0,
+                "hps": 0.0,
+                "elapsed": 0.0,
+                "eta_seconds": expect / 1000.0 if expect else None,
+                "slice_seconds": float(slice_seconds),
+                "slice_started": slice_started,
+                "refresh_in": float(slice_seconds),
+                "total_hashes": total_tried,
+                "started_at": t0,
+            }
             print(
-                f"Mining block #{template['height']} | diff={format_difficulty(diff)} | "
+                f"Mining block #{height} | diff={format_difficulty(diff)} | "
                 f"reward={format_howl(subsidy)} | txs={len(template['transactions'])-1}"
             )
             if is_smooth_difficulty_raw(diff):
@@ -799,11 +838,35 @@ class Blockchain:
                 eta = expect / hps
                 print(f"  · at {label} → avg ~{format_duration(eta)}")
             print("  Leave this running — Ctrl+C cancels the block. Luck varies.\n")
+
+            def _prog(p: Dict[str, Any]) -> None:
+                now = time.time()
+                self.mine_progress = {
+                    **getattr(self, "mine_progress", {}),
+                    "active": True,
+                    "height": height,
+                    "difficulty": diff,
+                    "difficulty_label": format_difficulty(diff),
+                    "difficulty_float": d_f,
+                    "expect": expect,
+                    "hashes": p.get("hashes", 0),
+                    "hps": p.get("hps", 0.0),
+                    "elapsed": p.get("elapsed", 0.0),
+                    "eta_seconds": p.get("eta_seconds"),
+                    "pct": p.get("pct", 0.0),
+                    "slice_seconds": float(slice_seconds),
+                    "slice_started": slice_started,
+                    "refresh_in": max(0.0, float(slice_seconds) - (now - slice_started)),
+                    "total_hashes": total_tried + int(p.get("hashes") or 0),
+                    "started_at": t0,
+                }
+
             try:
                 header, block_hash, tried = mine_block(
                     template["header"],
                     difficulty=diff,
                     max_seconds=float(slice_seconds),
+                    progress_callback=_prog,
                 )
             except MiningSliceTimeout as e:
                 total_tried += e.tried
@@ -824,6 +887,15 @@ class Blockchain:
             if not ok:
                 raise RuntimeError(f"mined block rejected: {msg}")
             luck = (expect / tried) if tried else 0.0
+            self.mine_progress = {
+                "active": False,
+                "height": self.height(),
+                "last_found_height": block["height"],
+                "last_found_hash": block_hash,
+                "total_hashes": total_tried,
+                "hps": total_tried / elapsed,
+                "elapsed": elapsed,
+            }
             print(
                 f"\n✓ Block #{block['height']} {block_hash[:16]}… | "
                 f"{format_count(total_tried)} hashes in {format_duration(elapsed)} "
@@ -865,15 +937,86 @@ class Blockchain:
             else f"{nxt_raw} (nibble)",
             "expected_hashes_next": expected_hashes(nxt_raw),
             "stall_seconds": STALL_SECONDS,
+            "retarget_safety_height": RETARGET_SAFETY_ACTIVATION_HEIGHT,
             "tip": tip["hash"],
             "tip_timestamp": tip_ts or None,
             "tip_age_seconds": tip_age,
+            "mine_progress": getattr(self, "mine_progress", None),
             "mempool": len(self.mempool),
             "addresses": len(self.balances),
             "circulating_howlies": supply,
             "circulating": format_howl(supply),
             "algo": "scrypt (N=1024,r=1,p=1)",
             "block_time_target": f"{BLOCK_TIME_SECONDS}s",
+        }
+
+    def network_health(self, window: int = 40) -> Dict[str, Any]:
+        """
+        Rolling block-time / difficulty series for Howlscan health charts.
+        """
+        n = max(5, min(int(window), 120))
+        blocks = self.blocks[-n:] if len(self.blocks) > n else list(self.blocks)
+        series = []
+        times = []
+        for i, b in enumerate(blocks):
+            try:
+                ts = int((b.get("header") or {}).get("timestamp") or 0)
+            except (TypeError, ValueError):
+                ts = 0
+            try:
+                raw = int((b.get("header") or {}).get("difficulty") or 0)
+            except (TypeError, ValueError):
+                raw = 0
+            d_f = difficulty_float_from_raw(raw) if raw else 0.0
+            dt = None
+            if i > 0:
+                try:
+                    prev_ts = int((blocks[i - 1].get("header") or {}).get("timestamp") or 0)
+                    if ts and prev_ts:
+                        dt = max(0, ts - prev_ts)
+                        times.append(dt)
+                except (TypeError, ValueError):
+                    pass
+            series.append(
+                {
+                    "height": b.get("height"),
+                    "timestamp": ts or None,
+                    "difficulty": raw,
+                    "difficulty_float": d_f,
+                    "block_time": dt,
+                }
+            )
+        avg_bt = (sum(times) / len(times)) if times else None
+        tip_age = None
+        try:
+            tip_ts = int((self.tip().get("header") or {}).get("timestamp") or 0)
+            if tip_ts:
+                tip_age = max(0, int(time.time()) - tip_ts)
+        except (TypeError, ValueError):
+            pass
+        healthy = True
+        status = "ok"
+        if tip_age is not None and tip_age > STALL_SECONDS:
+            healthy = False
+            status = "stalled"
+        elif tip_age is not None and tip_age > BLOCK_TIME_SECONDS * 10:
+            status = "slow"
+        return {
+            "height": self.height(),
+            "tip_age_seconds": tip_age,
+            "target_block_time": BLOCK_TIME_SECONDS,
+            "avg_block_time": avg_bt,
+            "window": len(series),
+            "status": status,
+            "healthy": healthy,
+            "stall_seconds": STALL_SECONDS,
+            "retarget_safety_height": RETARGET_SAFETY_ACTIVATION_HEIGHT,
+            "version": VERSION,
+            "series": series,
+            "difficulty_label": format_difficulty(self.current_difficulty()),
+            "next_difficulty_label": format_difficulty(self.next_difficulty()),
+            "expected_hashes_next": expected_hashes(self.next_difficulty()),
+            "mempool": len(self.mempool),
         }
 
     # ---------- explorer queries ----------

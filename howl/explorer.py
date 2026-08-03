@@ -1704,6 +1704,7 @@ tbody tr:hover{background:var(--rowh)}
     <a class="chipbtn" href="/token" style="text-decoration:none;display:inline-flex;align-items:center;color:var(--text)">Token info</a>
     <a class="chipbtn" href="/wallet" style="text-decoration:none;display:inline-flex;align-items:center">Wallet</a>
     <button class="chipbtn" style="border-color:var(--primary-border);color:var(--green)" onclick="location.hash='#/run'">Run a node</button>
+    <button class="chipbtn" onclick="location.hash='#/health'">Health</button>
     <button class="chipbtn" onclick="refreshData()">Refresh</button>
   </div>
   <button class="iconbtn" id="menu-btn" type="button" aria-label="Menu" onclick="toggleDrawer(true)">☰</button>
@@ -1722,6 +1723,7 @@ tbody tr:hover{background:var(--rowh)}
   <button class="ditem" type="button" onclick="navTo('#/'+net+'/block/0')">🌱 Genesis</button>
   <h4 style="margin-top:16px">Get started</h4>
   <button class="ditem primary" type="button" onclick="navTo('#/run')">🐺 Run a node</button>
+  <button class="ditem" type="button" onclick="navTo('#/health')">💓 Network health</button>
   <a class="ditem" href="/wallet">👛 Wallet</a>
   <a class="ditem" href="/token">🏷 Token / contract info</a>
   <a class="ditem" href="/whitepaper">📄 White paper</a>
@@ -2340,6 +2342,80 @@ async function showMempool(){
   </div>`;
 }
 
+function sparkline(values, {w=280,h=56,stroke='var(--green)',fill='rgba(61,255,154,.12)'}={}){
+  const vals = (values||[]).map(Number).filter(v=>isFinite(v));
+  if(vals.length < 2) return `<div class="muted" style="padding:12px 0">Not enough data</div>`;
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const span = (max - min) || 1;
+  const pts = vals.map((v,i)=>{
+    const x = (i/(vals.length-1)) * (w-8) + 4;
+    const y = h - 4 - ((v - min) / span) * (h-12);
+    return x.toFixed(1)+','+y.toFixed(1);
+  }).join(' ');
+  const area = `4,${h-4} ` + pts + ` ${w-4},${h-4}`;
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" style="display:block;background:rgba(0,0,0,.2);border:1px solid var(--border)">
+    <polyline fill="${fill}" stroke="none" points="${area}"/>
+    <polyline fill="none" stroke="${stroke}" stroke-width="2" points="${pts}"/>
+  </svg>`;
+}
+
+async function showHealth(){
+  setHeroVisible(false);
+  setBottomTab('more');
+  await loadNetworks();
+  let h={};
+  try{ h = await api('/api/public/health?window=48'); }catch(e){ h={error:e.message}; }
+  const series = h.series || [];
+  const blockTimes = series.map(x=>x.block_time).filter(v=>v!=null);
+  const diffs = series.map(x=>x.difficulty_float || 0);
+  const age = h.tip_age_seconds;
+  const ageTxt = age==null ? '—' : (age>=3600 ? (age/3600).toFixed(1)+'h' : age>=60 ? Math.round(age/60)+'m' : age+'s');
+  const statusBadge = h.status==='ok' ? 'ok' : (h.status==='slow' ? 'warn' : 'warn');
+  const statusLabel = h.status==='ok' ? 'HEALTHY' : (h.status==='slow' ? 'SLOW' : (h.status==='stalled' ? 'STALLED' : 'UNKNOWN'));
+  app().innerHTML=`<div class="main" style="padding-top:12px">
+    ${crumbs([{label:'Home',href:'#/public'},{label:'Network health'}])}
+    <div class="page-actions"><button class="back" onclick="location.hash='#/public'">← Home</button>
+      <button class="chipbtn" onclick="showHealth()">Refresh</button>
+      <button class="chipbtn" onclick="location.hash='#/run'">Run a node</button>
+    </div>
+    <div class="card detail">
+      <div class="badge ${statusBadge}">${statusLabel}</div>
+      <span class="badge blue" style="margin-left:6px">v${esc(String(h.version||'—'))}</span>
+      <h2 style="margin:8px 0 6px">Network health</h2>
+      <p class="muted" style="margin:0 0 12px">Live seed / public chain. Tip age and rolling charts — no ads, no trackers.</p>
+      <div class="stats">
+        <div class="stat"><div class="k">Height</div><div class="v">${h.height??'—'}</div><div class="s">tip</div></div>
+        <div class="stat"><div class="k">Tip age</div><div class="v" style="font-size:1rem">${esc(ageTxt)}</div><div class="s">target ${h.target_block_time||60}s</div></div>
+        <div class="stat"><div class="k">Avg block</div><div class="v" style="font-size:1rem">${h.avg_block_time!=null?(h.avg_block_time/60).toFixed(1)+'m': '—'}</div><div class="s">last ${h.window||'—'} blocks</div></div>
+        <div class="stat"><div class="k">Mempool</div><div class="v">${h.mempool??'—'}</div><div class="s">pending</div></div>
+      </div>
+      <div class="kv" style="margin-top:12px">
+        <div class="k">Difficulty</div><div>${esc(String(h.difficulty_label||'—'))}</div>
+        <div class="k">Next work</div><div>${esc(String(h.next_difficulty_label||'—'))} · ~${esc(String(h.expected_hashes_next!=null?Math.round(h.expected_hashes_next):'—'))} hashes</div>
+        <div class="k">Stall relief</div><div>after ${esc(String(h.stall_seconds||7200))}s tip age</div>
+        <div class="k">Retarget safety</div><div>from height ${esc(String(h.retarget_safety_height||300))} (max 2× up)</div>
+      </div>
+    </div>
+    <div class="card detail" style="margin-top:12px">
+      <h3 style="margin-top:0">Block time (seconds)</h3>
+      <p class="muted">Lower is faster. Spikes mean sparse hashrate — normal for a young CPU chain.</p>
+      ${sparkline(blockTimes, {stroke:'var(--cyan,#5eb8ff)', fill:'rgba(94,184,255,.12)'})}
+      <div class="muted" style="font-size:.75rem;margin-top:6px">min ${blockTimes.length?Math.min(...blockTimes):'—'}s · max ${blockTimes.length?Math.max(...blockTimes):'—'}s · n=${blockTimes.length}</div>
+    </div>
+    <div class="card detail" style="margin-top:12px">
+      <h3 style="margin-top:0">Difficulty (smooth work index)</h3>
+      <p class="muted">Continuous d-value (not nibble jumps). Safety rules soften upward spikes after h${esc(String(h.retarget_safety_height||300))}.</p>
+      ${sparkline(diffs, {stroke:'var(--green)', fill:'rgba(61,255,154,.12)'})}
+      <div class="muted" style="font-size:.75rem;margin-top:6px">latest ${diffs.length?Number(diffs[diffs.length-1]).toFixed(3):'—'}</div>
+    </div>
+    <div class="card detail" style="margin-top:12px">
+      <h3 style="margin-top:0">Ops note</h3>
+      <p class="muted" style="margin:0">Seed self-heals: auto-mine, 90s template refresh, 2h stall relief. Optional monitor:
+      <span class="mono">scripts/howl-health-check.sh</span> (exit 1 if tip age &gt; 2h).</p>
+    </div>
+  </div>`;
+}
+
 async function showRunNode(){
   setHeroVisible(false);
   setBottomTab('more');
@@ -2626,6 +2702,7 @@ async function route(){
     if(parts.length>=3 && parts[1]==='tx') return await showTx(decodeURIComponent(parts[2]));
     if(parts.length>=3 && parts[1]==='address') return await showAddr(decodeURIComponent(parts[2]));
     if(parts.length>=1 && (parts[0]==='run' || parts[0]==='node' || parts[0]==='sync')) return await showRunNode();
+    if(parts.length>=1 && (parts[0]==='health' || parts[0]==='status' || parts[0]==='charts')) return await showHealth();
     if(parts.length>=2 && parts[1]==='richlist') return await showRichlist();
     if(parts.length>=2 && parts[1]==='mempool') return await showMempool();
     if(parts.length>=2 && parts[0]==='block') return await showBlock(decodeURIComponent(parts[1]));
@@ -2916,6 +2993,23 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
 
                 if path == "/api/networks":
                     return self._json(200, {"networks": hub.list_networks()})
+
+                if path in ("/api/public/health", "/api/health"):
+                    try:
+                        limit = int((qs.get("window") or qs.get("limit") or ["40"])[0])
+                    except (TypeError, ValueError):
+                        limit = 40
+                    chain = hub.get("public")
+                    if not chain:
+                        return self._json(503, {"error": "public chain offline"})
+                    try:
+                        chain.reload_from_disk()
+                    except Exception:
+                        pass
+                    try:
+                        return self._json(200, chain.network_health(window=limit))
+                    except Exception as e:
+                        return self._json(500, {"error": str(e)})
 
                 if path in ("/api/public/fees", "/api/fees"):
                     return self._json(

@@ -334,6 +334,9 @@ label{display:block;font-size:.78rem;color:var(--muted);font-weight:650;margin:0
           <button class="btn secondary" type="button" id="mineStopBtn" onclick="stopMining()" style="margin:0;flex:1" disabled>Stop mining</button>
         </div>
         <p class="hint" id="mineStatus">Idle</p>
+        <div id="minePulse" class="hint" style="margin-top:10px;line-height:1.5;font-family:ui-monospace,Menlo,monospace;font-size:.78rem;color:var(--text)">
+          H/s — · diff — · ETA — · refresh —
+        </div>
       </div>
       <div class="card">
         <h2>Connect peer</h2>
@@ -781,16 +784,30 @@ function setMineButtons(running){
 }
 function paintMiningStatus(m){
   const st = document.getElementById('mineStatus');
+  const pulse = document.getElementById('minePulse');
   if(!st || !m) return;
+  const p = m.progress || {};
+  const fmt = (s)=>{ if(s==null||!isFinite(s)) return '—'; s=Math.max(0,Number(s)); if(s<60)return Math.round(s)+'s'; if(s<3600)return (s/60).toFixed(1)+'m'; return (s/3600).toFixed(1)+'h'; };
+  const hps = (n)=>{ n=Number(n)||0; if(n>=1e3) return (n/1e3).toFixed(1)+'k H/s'; return Math.round(n)+' H/s'; };
   if(m.running || m.continuous){
     setMineButtons(true);
     const n = m.blocks_this_run || 0;
     const h = m.last_height != null ? m.last_height : m.height;
-    st.textContent = '⛏ Mining forever… blocks this run: ' + n + (h!=null ? ' · height ' + h : '') + (m.last_error ? ' · ' + m.last_error : '');
+    st.textContent = '⛏ Mining forever… blocks this run: ' + n + (h!=null ? ' · chain h' + h : '') + (m.last_error ? ' · ' + m.last_error : '');
   } else {
     setMineButtons(false);
     if(m.blocks_this_run){
       st.textContent = 'Stopped · mined ' + m.blocks_this_run + ' block(s) this run · height ' + (m.last_height ?? m.height ?? '—');
+    }
+  }
+  if(pulse){
+    if(p.active){
+      pulse.textContent = hps(p.hps) + ' · ' + (p.difficulty_label||'—') + ' · ETA ' + fmt(p.eta_seconds)
+        + ' · refresh ' + fmt(p.refresh_in) + ' · target #' + (p.height??'—')
+        + ' · tip age ' + fmt(m.tip_age_seconds);
+    } else {
+      pulse.textContent = (m.running ? 'Starting slice…' : 'Idle') + ' · tip age ' + fmt(m.tip_age_seconds)
+        + (m.next_difficulty_label ? ' · next ' + m.next_difficulty_label : '');
     }
   }
 }
@@ -925,9 +942,21 @@ a.secondary{background:#151e32;color:var(--text);border-color:var(--border)}
 <div class="card" id="stats">
   <div class="stat"><span>Status</span><span id="st">…</span></div>
   <div class="stat"><span>Height</span><span id="h">—</span></div>
+  <div class="stat"><span>Tip age</span><span id="tipAge">—</span></div>
+  <div class="stat"><span>Peers</span><span id="peersN">—</span></div>
   <div class="stat"><span>Miner wallet</span><span class="mono" id="a">—</span></div>
   <div class="stat"><span>Balance</span><span id="b" style="color:var(--green)">—</span></div>
   <div class="stat"><span>Mining</span><span id="m">Idle</span></div>
+</div>
+<div class="card" id="minePanel">
+  <h2 style="margin:0 0 10px;font-size:.95rem">Mining pulse</h2>
+  <div class="stat"><span>Target height</span><span id="mpH">—</span></div>
+  <div class="stat"><span>Difficulty</span><span id="mpD">—</span></div>
+  <div class="stat"><span>Hashrate</span><span id="mpR">—</span></div>
+  <div class="stat"><span>Progress</span><span id="mpP">—</span></div>
+  <div class="stat"><span>ETA (avg)</span><span id="mpE">—</span></div>
+  <div class="stat"><span>Template refresh</span><span id="mpT">—</span></div>
+  <p class="mono" id="mpNote" style="margin:10px 0 0">Template rebuilds every ~90s so stall relief can lower work.</p>
 </div>
 <div class="card">
   <button class="btn" type="button" id="connectMineBtn" onclick="connectAndMine()" style="font-size:1.05rem;padding:16px">⚡ Connect seed &amp; mine forever</button>
@@ -946,18 +975,44 @@ async function api(path, opts){
   if(!r.ok) throw new Error(j.error || r.statusText);
   return j;
 }
+function fmtDur(s){
+  if(s==null || !isFinite(s)) return '—';
+  s = Math.max(0, Number(s));
+  if(s < 60) return Math.round(s)+'s';
+  if(s < 3600) return (s/60).toFixed(1)+'m';
+  if(s < 86400) return (s/3600).toFixed(1)+'h';
+  return (s/86400).toFixed(1)+'d';
+}
+function fmtHps(n){
+  n = Number(n)||0;
+  if(n >= 1e6) return (n/1e6).toFixed(2)+' MH/s';
+  if(n >= 1e3) return (n/1e3).toFixed(1)+' kH/s';
+  return Math.round(n)+' H/s';
+}
+function fmtCount(n){
+  n = Number(n)||0;
+  if(n >= 1e9) return (n/1e9).toFixed(2)+'B';
+  if(n >= 1e6) return (n/1e6).toFixed(2)+'M';
+  if(n >= 1e3) return (n/1e3).toFixed(1)+'k';
+  return String(Math.round(n));
+}
 function paintMine(m){
   const el = document.getElementById('m');
   const forever = document.getElementById('mineForeverBtn');
   const stop = document.getElementById('mineStopBtn');
   const msg = document.getElementById('mineMsg');
   if(!m){ el.textContent = 'Idle'; return; }
+  const p = m.progress || {};
   if(m.running){
     el.textContent = '⛏ ON · ' + (m.blocks_this_run||0) + ' blocks';
     el.style.color = 'var(--green)';
     forever.disabled = true;
     stop.disabled = false;
-    msg.textContent = 'Mining forever… height ' + (m.last_height ?? '—') + (m.last_error ? ' · ' + m.last_error : '');
+    const bits = [];
+    if(p.hps) bits.push(fmtHps(p.hps));
+    if(p.difficulty_label) bits.push(p.difficulty_label);
+    if(p.refresh_in!=null) bits.push('refresh '+fmtDur(p.refresh_in));
+    msg.textContent = (bits.length ? bits.join(' · ') : 'Mining forever…') + (m.last_error ? ' · ' + m.last_error : '');
   } else {
     el.textContent = 'Idle';
     el.style.color = 'var(--muted)';
@@ -965,6 +1020,17 @@ function paintMine(m){
     stop.disabled = true;
     if(m.blocks_this_run) msg.textContent = 'Stopped after ' + m.blocks_this_run + ' block(s)';
   }
+  // pulse panel
+  const set = (id, v)=>{ const n=document.getElementById(id); if(n) n.textContent=v; };
+  set('mpH', p.active ? ('#'+p.height) : ('next #'+((m.height||0)+1)));
+  set('mpD', p.difficulty_label || m.next_difficulty_label || '—');
+  set('mpR', p.hps ? fmtHps(p.hps) : '—');
+  set('mpP', p.active ? (fmtCount(p.hashes)+' / '+fmtCount(p.expect)+' ('+(p.pct!=null?Number(p.pct).toFixed(1):'0')+'%)') : '—');
+  set('mpE', p.eta_seconds!=null ? fmtDur(p.eta_seconds) : '—');
+  set('mpT', p.active && p.refresh_in!=null ? fmtDur(p.refresh_in)+' (90s slices)' : 'every ~90s when mining');
+  const age = m.tip_age_seconds;
+  set('tipAge', age==null ? '—' : fmtDur(age));
+  set('peersN', m.peers!=null ? String(m.peers) : '—');
 }
 async function connectAndMine(){
   const msg = document.getElementById('mineMsg');
@@ -989,7 +1055,7 @@ async function refreshPortal(){
     document.getElementById('h').textContent = s.height;
     document.getElementById('a').textContent = s.wallet.address;
     document.getElementById('b').textContent = s.wallet.balance;
-    paintMine(s.mining);
+    paintMine(s.mining || {});
   }catch(e){
     document.getElementById('st').textContent = 'offline';
   }
@@ -1018,7 +1084,7 @@ async function stopMining(){
   }
 }
 refreshPortal();
-setInterval(refreshPortal, 4000);
+setInterval(refreshPortal, 2000);
 </script>
 </body>
 </html>
@@ -1097,6 +1163,20 @@ class Dashboard:
             self._mine_thread and self._mine_thread.is_alive()
         ) or bool(self._mine_stats.get("running"))
         st["height"] = self.chain.height()
+        # Live PoW progress from current mine_one slice
+        prog = getattr(self.chain, "mine_progress", None) or {}
+        st["progress"] = prog
+        try:
+            tip_ts = int((self.chain.tip().get("header") or {}).get("timestamp") or 0)
+            st["tip_age_seconds"] = max(0, int(time.time()) - tip_ts) if tip_ts else None
+        except Exception:
+            st["tip_age_seconds"] = None
+        try:
+            st["next_difficulty_label"] = self.chain.summary().get("next_difficulty_label")
+            st["expected_hashes_next"] = self.chain.summary().get("expected_hashes_next")
+        except Exception:
+            pass
+        st["peers"] = len(self.node.peer_status()) if self.node else 0
         return st
 
     def stop_mining(self) -> Dict[str, Any]:
