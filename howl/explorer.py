@@ -2202,8 +2202,19 @@ EXPLORER_HTML = r"""<!DOCTYPE html>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="theme-color" content="#0c0f14" id="themeColorMeta"/>
+<meta name="description" id="metaDesc" content="Howlscan — Howlcoin block explorer. Blocks, Play pots, culture NFTs, @names, network status."/>
+<meta property="og:site_name" content="Howlscan"/>
+<meta property="og:type" content="website" id="ogType"/>
+<meta property="og:title" content="Howlscan — Howlcoin Block Explorer" id="ogTitle"/>
+<meta property="og:description" content="Public Howlcoin explorer: chain health, Play board, culture gallery, @name profiles." id="ogDesc"/>
+<meta property="og:url" content="https://howlscan.org/" id="ogUrl"/>
+<meta property="og:image" content="https://howlscan.org/assets/howlcoin-logo-meme-pup-coin.jpg" id="ogImage"/>
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Howlscan — Howlcoin Block Explorer" id="twTitle"/>
+<meta name="twitter:description" content="Public Howlcoin explorer: chain health, Play, culture, @names." id="twDesc"/>
 <title>Howlscan — Howlcoin Block Explorer</title>
 <link rel="icon" href="/assets/howlcoin-logo-meme-pup-coin.jpg"/>
+<link rel="canonical" href="https://howlscan.org/" id="canonicalLink"/>
 <script>
 /* Apply theme before paint (site + wallet keys stay in sync) */
 (function(){
@@ -2492,6 +2503,7 @@ tbody tr:hover{background:var(--rowh)}
     <button class="chipbtn" onclick="location.hash='#/contracts'">Contracts</button>
     <button class="chipbtn" onclick="location.hash='#/charts'">Charts</button>
     <button class="chipbtn" onclick="location.hash='#/health'">Network</button>
+    <button class="chipbtn" onclick="location.hash='#/api'">API</button>
     <button class="chipbtn" onclick="location.hash='#/'+net+'/richlist'">Richlist</button>
     <button class="chipbtn" onclick="location.hash='#/'+net+'/mempool'">Mempool</button>
     <a class="chipbtn" href="/app" style="text-decoration:none;display:inline-flex;align-items:center;color:var(--green)">Wallet</a>
@@ -2514,6 +2526,7 @@ tbody tr:hover{background:var(--rowh)}
   <button class="ditem" type="button" onclick="navTo('#/contracts')">📜 Contracts</button>
   <button class="ditem" type="button" onclick="navTo('#/charts')">📈 Charts</button>
   <button class="ditem" type="button" onclick="navTo('#/health')">💓 Network</button>
+  <button class="ditem" type="button" onclick="navTo('#/api')">🔌 API docs</button>
   <button class="ditem" type="button" onclick="navTo('#/'+net+'/richlist')">🏆 Richlist</button>
   <button class="ditem" type="button" onclick="navTo('#/'+net+'/mempool')">⏳ Mempool</button>
   <button class="ditem" type="button" onclick="navTo('#/'+net+'/block/0')">🌱 Genesis</button>
@@ -2557,6 +2570,7 @@ tbody tr:hover{background:var(--rowh)}
     <a href="#/contracts">Contracts</a> ·
     <a href="#/charts">Charts</a> ·
     <a href="#/health">Network</a> ·
+    <a href="#/api">API</a> ·
     <a href="/app">Wallet</a> ·
     <a href="#/run">Run a node</a> ·
     <a href="#/public/richlist">Richlist</a> ·
@@ -2678,6 +2692,82 @@ function linkBlock(h){return `<a href="#/${net}/block/${encodeURIComponent(h)}">
 function linkTx(t){if(!t)return '—'; return `<a class="mono" href="#/${net}/tx/${encodeURIComponent(t)}">${esc(short(t,14))}</a>`}
 function linkAddr(a){if(!a||a==='HOWL_GENESIS_BURN') return `<span class="mono">${esc(a||'—')}</span>`;
   return `<a class="mono" href="#/${net}/address/${encodeURIComponent(a)}">${esc(short(a,12))}</a>`}
+
+/** Current SPA route key for live refresh */
+let __routeKey = '';
+let __liveRefreshOn = true;
+
+function setPageMeta(title, description, path){
+  const t = title || 'Howlscan — Howlcoin Block Explorer';
+  const d = description || 'Howlscan — public Howlcoin explorer.';
+  try{
+    document.title = t;
+    const set = (id, val, attr)=>{
+      const el = document.getElementById(id);
+      if(!el) return;
+      if(attr) el.setAttribute(attr, val);
+      else el.setAttribute('content', val);
+    };
+    set('metaDesc', d);
+    set('ogTitle', t);
+    set('ogDesc', d);
+    set('twTitle', t);
+    set('twDesc', d);
+    const url = 'https://howlscan.org/' + (path || location.hash || '');
+    set('ogUrl', url);
+    const can = document.getElementById('canonicalLink');
+    if(can) can.setAttribute('href', url.split('#')[0] + (path && path.indexOf('#')===0 ? path : (location.hash||'')));
+  }catch(e){}
+}
+
+function groupBlockTxs(txs){
+  const groups = {
+    mine: [],
+    culture: [], // howl, name, nft, oracle culture
+    contracts: [],
+    transfers: [],
+    other: [],
+  };
+  for(const t of (txs||[])){
+    const m = txTypeMeta(t);
+    const k = m.kind;
+    if(k === 'mine') groups.mine.push(t);
+    else if(k === 'howl' || k === 'name' || k === 'nft' || k === 'bond' || k === 'oracle') groups.culture.push(t);
+    else if(k === 'contract') groups.contracts.push(t);
+    else if(k === 'xfer') groups.transfers.push(t);
+    else groups.other.push(t);
+  }
+  return groups;
+}
+
+function renderTxGroupCard(title, badge, list){
+  if(!list || !list.length) return '';
+  return `<div class="card" style="margin-top:12px">
+    <h3>${esc(title)} <span class="badge ${badge}">${list.length}</span></h3>
+    <div class="desktop-only table-wrap">
+      <table>
+        <thead><tr><th>Txid</th><th>Type</th><th>Flow</th><th>Amount</th></tr></thead>
+        <tbody>
+          ${list.map(t=>`<tr onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
+            <td onclick="event.stopPropagation()">${t.txid?linkTx(t.txid):'—'}</td>
+            <td>${txTypeBadge(t)}</td>
+            <td class="mono" onclick="event.stopPropagation()">${txFlowHtml(t)}</td>
+            <td class="amount">${fmtAmt(t.amount)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="mobile-only mlist">
+      ${list.map(t=>{
+        const m = txTypeMeta(t);
+        return `<div class="mrow" onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
+          <div class="ml"><div class="mt">${esc(m.label)}</div><div class="ms mono">${txFlowHtml(t)}</div></div>
+          <div class="mr"><div class="ma">${fmtAmt(t.amount)}</div></div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
 function linkContract(id){
   if(!id) return '—';
   return `<a class="mono" href="#/contract/${encodeURIComponent(id)}">${esc(short(id,14))}</a>`;
@@ -2819,6 +2909,7 @@ function activeTabFromRoute(parts){
   if(parts[0]==='play') return 'play';
   if(parts[0]==='culture' || parts[0]==='nfts' || parts[0]==='gallery') return 'culture';
   if(parts[0]==='health' || parts[0]==='status' || parts[0]==='charts') return 'health';
+  if(parts[0]==='api' || parts[0]==='docs') return 'more';
   if(parts[0]==='run' || parts[0]==='node' || parts[0]==='sync') return 'more';
   if(parts[1]==='richlist' || parts[0]==='richlist') return 'more';
   if(parts[1]==='mempool' || parts[0]==='mempool') return 'more';
@@ -3031,7 +3122,13 @@ async function showBlock(id){
   const h=b.height;
   const prev = h>0 ? h-1 : null;
   const fees = txs.filter(t=>t.type!=='coinbase').reduce((s,t)=>s+(Number(t.fee)||0),0);
-  const xferN = txs.filter(t=>t.type!=='coinbase').length;
+  const g = groupBlockTxs(txs);
+  const cultureN = g.culture.length + g.contracts.length;
+  setPageMeta(
+    `Block #${h} · Howlscan`,
+    `Howlcoin block #${h} — ${txs.length} txs, ${cultureN} culture/contract events, reward ${cb&&cb.amount!=null?fmtAmt(cb.amount):'—'}.`,
+    `#/${net}/block/${h}`
+  );
   app().innerHTML=`<div class="main" style="padding-top:12px">
     ${crumbs([{label:'Home',href:'#/'+net},{label:'Block #'+h}])}
     <div class="page-actions">
@@ -3043,12 +3140,13 @@ async function showBlock(id){
     <div class="stats" style="margin-bottom:10px">
       <div class="stat"><div class="k">Height</div><div class="v">#${b.height}</div><div class="s">${esc(ago(b.header.timestamp))}</div></div>
       <div class="stat"><div class="k">Mined</div><div class="v" style="font-size:.9rem">${esc(fmtTime(b.header.timestamp))}</div><div class="s">block time</div></div>
-      <div class="stat"><div class="k">Txs</div><div class="v">${txs.length}</div><div class="s">${xferN} transfer · fees ${fmtAmt(fees)}</div></div>
+      <div class="stat"><div class="k">Txs</div><div class="v">${txs.length}</div><div class="s">${g.transfers.length} transfer · ${cultureN} culture</div></div>
       <div class="stat"><div class="k">Reward</div><div class="v" style="font-size:.95rem">${fmtAmt(cb&&cb.amount)}</div><div class="s">miner ${cb&&cb.to?esc(short(cb.to,10)):'—'}</div></div>
     </div>
     <div class="card detail">
       <div class="badge blue">Block</div>
       <span class="badge ok" style="margin-left:6px">Verified on Howlcoin</span>
+      ${cultureN?`<span class="badge ok" style="margin-left:6px">${cultureN} culture</span>`:''}
       <h2 style="margin:8px 0 4px;font-size:1.25rem">Block #${b.height}</h2>
       <div class="mono">${esc(b.hash)}${copyBtn(b.hash)}</div>
       <div class="kv" style="margin-top:12px">
@@ -3061,37 +3159,15 @@ async function showBlock(id){
         <div class="k">Miner</div><div>${linkAddr(cb&&cb.to)}${cb&&cb.to?copyBtn(cb.to):''}</div>
         <div class="k">Reward</div><div class="amount">${fmtAmt(cb&&cb.amount)}</div>
         <div class="k">Fees in block</div><div>${fmtAmt(fees)}</div>
-        <div class="k">Transactions</div><div>${txs.length}</div>
+        <div class="k">Breakdown</div><div>mine ${g.mine.length} · culture ${g.culture.length} · contracts ${g.contracts.length} · transfers ${g.transfers.length}</div>
       </div>
     </div>
-    <div class="card" style="margin-top:12px">
-      <h3>Transactions</h3>
-      <div class="desktop-only table-wrap">
-      <table>
-        <thead><tr><th>Txid</th><th>Type</th><th>Flow</th><th>Amount</th></tr></thead>
-        <tbody>
-          ${txs.map(t=>`<tr onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
-            <td onclick="event.stopPropagation()">${t.txid?linkTx(t.txid):'—'}</td>
-            <td>${txTypeBadge(t)}</td>
-            <td class="mono" onclick="event.stopPropagation()">${txFlowHtml(t)}</td>
-            <td class="amount">${fmtAmt(t.amount)}</td>
-          </tr>`).join('')}
-        </tbody>
-      </table>
-      </div>
-      <div class="mobile-only mlist">
-        ${txs.map(t=>{
-          const m = txTypeMeta(t);
-          return `<div class="mrow" onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
-          <div class="ml">
-            <div class="mt">${esc(m.label)}</div>
-            <div class="ms mono">${txFlowHtml(t)}</div>
-          </div>
-          <div class="mr"><div class="ma">${fmtAmt(t.amount)}</div></div>
-        </div>`;
-        }).join('')||'<div class="mrow"><div class="muted">No txs</div></div>'}
-      </div>
-    </div>
+    ${renderTxGroupCard('Mining reward', 'ok', g.mine)}
+    ${renderTxGroupCard('Culture · howls · names · NFTs', 'ok', g.culture)}
+    ${renderTxGroupCard('Contracts', 'blue', g.contracts)}
+    ${renderTxGroupCard('Transfers', 'blue', g.transfers)}
+    ${renderTxGroupCard('Other', 'blue', g.other)}
+    ${!txs.length?`<div class="card" style="margin-top:12px"><p class="muted" style="padding:16px">No transactions in this block</p></div>`:''}
   </div>`;
 }
 
@@ -3346,12 +3422,17 @@ function sparkline(values, {w=280,h=56,stroke='var(--green)',fill='rgba(61,255,1
 
 async function showHealth(){
   setHeroVisible(false);
-  setBottomTab('more');
+  setBottomTab('health');
   await loadNetworks();
   let h={};
   try{ h = await api('/api/public/status?window=48'); }catch(e){
     try{ h = await api('/api/public/health?window=48'); }catch(e2){ h={error:e2.message}; }
   }
+  setPageMeta(
+    'Network status · Howlscan',
+    `Howlcoin network: height ${h.height??'—'}, tip age ${h.tip_age_seconds??'—'}s, status ${h.status||'—'}.`,
+    '#/health'
+  );
   const series = h.series || [];
   const blockTimes = series.map(x=>x.block_time).filter(v=>v!=null);
   const diffs = series.map(x=>x.difficulty_float || 0);
@@ -3728,6 +3809,11 @@ async function showPlayBoard(){
   const cul = st.culture || {};
   const hNow = st.height != null ? Number(st.height) : null;
   const openPots = pots.filter(c => (c.status||'active')==='active');
+  setPageMeta(
+    'Play board · Howlscan',
+    `Howlcoin Play: ${cul.packpots_open??openPots.length} open pots, ${cul.howls??howls.length} howls, ${cul.names??names.length} names.`,
+    '#/play'
+  );
   app().innerHTML = `<div class="main" style="padding-top:12px">
     ${crumbs([{label:'Home',href:'#/'+net},{label:'Play'}])}
     <div class="page-actions">
@@ -3735,11 +3821,13 @@ async function showPlayBoard(){
       <button class="chipbtn" onclick="location.hash='#/culture'">Culture</button>
       <button class="chipbtn" onclick="location.hash='#/app'">Open wallet to act</button>
       <button class="chipbtn" onclick="showPlayBoard()">↻ Refresh</button>
+      <span class="muted" style="font-size:.72rem;align-self:center" id="liveHint">Live · 20s</span>
     </div>
     <div class="card detail">
       <div class="badge ok">PLAY</div>
+      <span class="badge ok" style="margin-left:6px" id="playLiveDot">● live</span>
       <h2 style="margin:8px 0 6px">Howlcoin Play board</h2>
-      <p class="muted" style="margin:0 0 10px">Public view of on-chain pots, howls, tip jars, and names. To join, howl, or tip — use the <a href="/app">wallet</a>.</p>
+      <p class="muted" style="margin:0 0 10px">Public view of on-chain pots, howls, tip jars, and names. Auto-refreshes. To join, howl, or tip — use the <a href="/app">wallet</a>.</p>
       <div class="stats" style="margin:0">
         <div class="stat"><div class="k">Open pots</div><div class="v">${cul.packpots_open??openPots.length}</div><div class="s">of ${cul.packpots??pots.length}</div></div>
         <div class="stat"><div class="k">Howls</div><div class="v">${cul.howls??howls.length}</div><div class="s">posts</div></div>
@@ -3823,6 +3911,11 @@ async function showCultureGallery(){
     events = ej.events || [];
     cul = st.culture || {};
   }catch(e){}
+  setPageMeta(
+    'Culture gallery · Howlscan',
+    `${cul.nfts??nfts.length} Howlcoin NFTs on-chain — mint-from-howl and photo mints.`,
+    '#/culture'
+  );
   app().innerHTML = `<div class="main" style="padding-top:12px">
     ${crumbs([{label:'Home',href:'#/'+net},{label:'Culture'}])}
     <div class="page-actions">
@@ -3830,9 +3923,11 @@ async function showCultureGallery(){
       <button class="chipbtn" onclick="location.hash='#/play'">Play</button>
       <button class="chipbtn" onclick="location.hash='#/app'">Mint in wallet</button>
       <button class="chipbtn" onclick="showCultureGallery()">↻ Refresh</button>
+      <span class="muted" style="font-size:.72rem;align-self:center">Live · 30s</span>
     </div>
     <div class="card detail">
       <div class="badge blue">CULTURE</div>
+      <span class="badge ok" style="margin-left:6px">● live</span>
       <h2 style="margin:8px 0 6px">Howlcoin NFT gallery</h2>
       <p class="muted" style="margin:0 0 10px">${cul.nfts??nfts.length} NFTs on-chain · including mint-from-howl collectibles. Mint in the <a href="/app">wallet</a>.</p>
     </div>
@@ -3898,6 +3993,11 @@ async function showNameProfile(slug){
       howls = (hj.howls||[]).filter(h=>(h.from||h.reporter)===addr).slice(0,12);
     }catch(e){}
   }
+  setPageMeta(
+    `@${s} · Howlscan`,
+    `Howlcoin @${s}${addr?' · '+addr.slice(0,12)+'…':''} · balance ${bal&&bal.balance_fmt||'—'} · ${nfts.length} NFTs · ${howls.length} howls.`,
+    `#/name/${encodeURIComponent(s)}`
+  );
   app().innerHTML = `<div class="main" style="padding-top:12px">
     ${crumbs([{label:'Home',href:'#/'+net},{label:'Play',href:'#/play'},{label:'@'+s}])}
     <div class="page-actions">
@@ -3964,6 +4064,12 @@ async function showChartsBoard(){
   const coins = markets.coins || [];
   const btcPts = sparkPts(chart.points, 320, 80);
   const howlPts = sparkPts(howlChart.points, 320, 80);
+  const howlPx = howlChart.close!=null?Number(howlChart.close):(coins.find(c=>c.id==='howlcoin')?Number(coins.find(c=>c.id==='howlcoin').usd):null);
+  setPageMeta(
+    'Howl Charts · Howlscan',
+    `Howlcoin markets board${howlPx!=null?': HOWL ~ $'+howlPx.toPrecision(4):''}. On-chain spots + Howl Swap index.`,
+    '#/charts'
+  );
   app().innerHTML = `<div class="main" style="padding-top:12px">
     ${crumbs([{label:'Home',href:'#/'+net},{label:'Charts'}])}
     <div class="page-actions">
@@ -3971,6 +4077,7 @@ async function showChartsBoard(){
       <button class="chipbtn" onclick="location.hash='#/health'">Network</button>
       <a class="chipbtn" href="/app" style="text-decoration:none">Wallet charts</a>
       <button class="chipbtn" onclick="showChartsBoard()">↻ Refresh</button>
+      <span class="muted" style="font-size:.72rem;align-self:center">Live · 45s</span>
     </div>
     <div class="card detail">
       <div class="badge ok">HOWL CHARTS</div>
@@ -4021,6 +4128,87 @@ async function showChartsBoard(){
   </div>`;
 }
 
+async function showApiDocs(){
+  setHeroVisible(false);
+  setBottomTab('more');
+  await loadNetworks();
+  setPageMeta(
+    'Howlscan API · Howlcoin',
+    'Public JSON APIs for Howlcoin: blocks, txs, play, culture, charts, status.',
+    '#/api'
+  );
+  const base = location.origin;
+  const rows = [
+    ['GET', '/api/networks', 'Known networks + tip heights'],
+    ['GET', '/api/public/summary', 'Chain summary (height, tip, supply)'],
+    ['GET', '/api/public/status?window=40', 'Ops theater: tip age, est. hashrate, culture, charts sampler'],
+    ['GET', '/api/public/health?window=40', 'Alias of status (health + culture)'],
+    ['GET', '/api/public/blocks?limit=25', 'Recent blocks'],
+    ['GET', '/api/public/txs?limit=25', 'Recent transactions'],
+    ['GET', '/api/public/mempool', 'Pending mempool'],
+    ['GET', '/api/public/richlist?limit=50', 'Top balances'],
+    ['GET', '/api/public/block/<height|hash>', 'Block detail'],
+    ['GET', '/api/public/tx/<txid>', 'Transaction detail'],
+    ['GET', '/api/public/address/<H…>', 'Address history'],
+    ['GET', '/api/public/howls?limit=40', 'Social howl feed'],
+    ['GET', '/api/public/names?limit=100', 'On-chain name directory'],
+    ['GET', '/api/public/name/<slug>', 'Resolve @name'],
+    ['GET', '/api/public/names?address=H…', 'Name for address'],
+    ['GET', '/api/public/contracts?kind=packpot', 'Contracts (optional kind, status, owner)'],
+    ['GET', '/api/public/contract/<id>', 'Contract detail'],
+    ['GET', '/api/public/nfts?limit=48', 'NFT gallery (optional owner=)'],
+    ['GET', '/api/public/nft/<id>', 'Single NFT'],
+    ['GET', '/api/public/nft-events?limit=50', 'NFT mint/transfer events'],
+    ['GET', '/api/public/markets', 'Howl Charts live board'],
+    ['GET', '/api/public/chart?id=bitcoin&days=7', 'Price series (howlcoin|bitcoin|…)'],
+    ['GET', '/api/public/coin?id=ethereum', 'Spot + sample ATH/ATL'],
+    ['GET', '/api/public/fees', 'Min/default fees'],
+    ['GET', '/api/public/token-info', 'Listing / token metadata'],
+    ['POST', '/api/public/broadcast', 'Broadcast signed tx JSON {tx:…}'],
+  ];
+  app().innerHTML = `<div class="main" style="padding-top:12px">
+    ${crumbs([{label:'Home',href:'#/'+net},{label:'API'}])}
+    <div class="page-actions">
+      <button class="back" onclick="location.hash='#/${net}'">← Home</button>
+      <button class="chipbtn" onclick="copyText(${JSON.stringify(base+'/api/public/status')}, this)">Copy status URL</button>
+      <a class="chipbtn" href="/api/public/status" target="_blank" rel="noopener">Open status JSON</a>
+    </div>
+    <div class="card detail">
+      <div class="badge ok">API</div>
+      <h2 style="margin:8px 0 6px">Howlscan public API</h2>
+      <p class="muted" style="margin:0 0 10px">JSON over HTTPS. CORS open for public read endpoints. Base: <span class="mono">${esc(base)}</span>. Network id for chain routes is usually <span class="mono">public</span>.</p>
+      <p class="muted" style="margin:0;font-size:.85rem">SPA pages: <a href="#/play">#/play</a> · <a href="#/culture">#/culture</a> · <a href="#/contracts">#/contracts</a> · <a href="#/charts">#/charts</a> · <a href="#/health">#/health</a> · <a href="#/name/howler">#/name/&lt;slug&gt;</a></p>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <h3>Endpoints</h3>
+      <div class="desktop-only table-wrap">
+        <table>
+          <thead><tr><th>Method</th><th>Path</th><th>Notes</th></tr></thead>
+          <tbody>
+            ${rows.map(([m,p,n])=>`<tr>
+              <td><span class="badge ${m==='GET'?'ok':'blue'}">${m}</span></td>
+              <td class="mono" style="font-size:.78rem">${esc(p)}</td>
+              <td class="muted">${esc(n)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="mobile-only mlist">
+        ${rows.map(([m,p,n])=>`<div class="mrow">
+          <div class="ml"><div class="mt"><span class="badge ${m==='GET'?'ok':'blue'}">${m}</span> <span class="mono" style="font-size:.72rem">${esc(p)}</span></div>
+          <div class="ms">${esc(n)}</div></div>
+        </div>`).join('')}
+      </div>
+    </div>
+    <div class="card detail" style="margin-top:12px">
+      <h3 style="margin-top:0">Quick curl</h3>
+      ${cmdBox('Status', `curl -sS ${base}/api/public/status | python3 -m json.tool`)}
+      ${cmdBox('Howls', `curl -sS '${base}/api/public/howls?limit=10'`)}
+      ${cmdBox('Pack pots', `curl -sS '${base}/api/public/contracts?kind=packpot'`)}
+    </div>
+  </div>`;
+}
+
 async function showContractsBrowser(kindFilter){
   setHeroVisible(false);
   setBottomTab('play');
@@ -4033,6 +4221,11 @@ async function showContractsBrowser(kindFilter){
     rows = j.contracts || [];
   }catch(e){}
   const kinds = ['','packpot','tipjar','barkbond','timelock','escrow'];
+  setPageMeta(
+    `Contracts${kind?' · '+kind:''} · Howlscan`,
+    `Howl Script contracts on Howlcoin${kind?': '+kind:''}. ${rows.length} listed.`,
+    `#/contracts${kind?'/'+kind:''}`
+  );
   app().innerHTML = `<div class="main" style="padding-top:12px">
     ${crumbs([{label:'Home',href:'#/'+net},{label:'Contracts'}])}
     <div class="page-actions">
@@ -4175,6 +4368,7 @@ async function route(){
   }
   renderNav();
   setBottomTab(activeTabFromRoute(parts));
+  __routeKey = parts.join('/') || 'home';
   // scroll to top on navigation (mobile)
   try{ window.scrollTo({top:0, behavior:'instant' in window ? 'instant' : 'auto'}); }catch(e){ window.scrollTo(0,0); }
   try{
@@ -4182,6 +4376,7 @@ async function route(){
     if(parts[0]==='play') return await showPlayBoard();
     if(parts[0]==='culture' || parts[0]==='nfts' || parts[0]==='gallery') return await showCultureGallery();
     if(parts[0]==='charts' || parts[0]==='markets') return await showChartsBoard();
+    if(parts[0]==='api' || parts[0]==='docs') return await showApiDocs();
     if(parts[0]==='contracts') return await showContractsBrowser(parts[1] || '');
     if(parts[0]==='contract' && parts[1]) return await showContractDetail(decodeURIComponent(parts.slice(1).join('/')));
     if(parts[0]==='name' && parts[1]) return await showNameProfile(decodeURIComponent(parts[1]));
@@ -4197,6 +4392,7 @@ async function route(){
     if(parts.length>=2 && parts[0]==='block') return await showBlock(decodeURIComponent(parts[1]));
     if(parts.length>=1 && parts[0]==='richlist') return await showRichlist();
     if(parts.length>=1 && parts[0]==='mempool') return await showMempool();
+    setPageMeta('Howlscan — Howlcoin Block Explorer', 'Public Howlcoin explorer: blocks, Play, culture NFTs, @names, network status.', '#/'+net);
     return await loadHome();
   }catch(e){
     app().innerHTML=`<div class="main"><div class="card detail err">${esc(e.message)}</div></div>`;
@@ -4208,17 +4404,48 @@ function isHomeHash(){
   if(h.length===1 && networks.find(n=>n.id===h[0])) return true;
   return false;
 }
+function liveRouteKind(){
+  const h=(location.hash||'').replace(/^#\/?/,'').split('/').filter(Boolean);
+  if(!h.length || (h.length===1 && networks.find(n=>n.id===h[0]))) return 'home';
+  if(h[0]==='play') return 'play';
+  if(h[0]==='culture' || h[0]==='nfts' || h[0]==='gallery') return 'culture';
+  if(h[0]==='charts' || h[0]==='markets') return 'charts';
+  if(h[0]==='health' || h[0]==='status') return 'health';
+  if(h[0]==='mempool' || h[1]==='mempool') return 'mempool';
+  if(h[0]==='contracts') return 'contracts';
+  return '';
+}
 function refreshData(){
   // Manual refresh of numbers only — never remounts the banner animation
-  if(isHomeHash()) loadHome().catch(()=>{});
-  else route().catch(()=>{});
+  softLiveRefresh(true);
+}
+function softLiveRefresh(force){
+  if(!__liveRefreshOn && !force) return;
+  const kind = liveRouteKind();
+  const keyBefore = __routeKey;
+  const run = async ()=>{
+    if(kind==='home') await loadHome();
+    else if(kind==='play') await showPlayBoard();
+    else if(kind==='culture') await showCultureGallery();
+    else if(kind==='charts') await showChartsBoard();
+    else if(kind==='health') await showHealth();
+    else if(kind==='mempool') await showMempool();
+    else if(kind==='contracts'){
+      const h=(location.hash||'').replace(/^#\/?/,'').split('/').filter(Boolean);
+      await showContractsBrowser(h[1]||'');
+    } else if(force) await route();
+  };
+  run().catch(()=>{}).then(()=>{
+    // if user navigated away mid-refresh, don't fight them
+    if(__routeKey !== keyBefore && !force) return;
+  });
 }
 window.addEventListener('hashchange', ()=>route());
 ensureBanner();
 loadNetworks().then(route);
-// Background data refresh only (banner stays mounted, animation uninterrupted)
-setInterval(()=>{ if(isHomeHash()) loadHome().catch(()=>{}); }, 20000);
-// Tip ticker: flash when height/tip changes
+// Background live refresh by surface
+setInterval(()=>{ softLiveRefresh(false); }, 20000);
+// Tip ticker: flash when height/tip changes (home only)
 let __lastTipKey = '';
 setInterval(async ()=>{
   if(!isHomeHash()) return;
