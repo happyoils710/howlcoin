@@ -173,14 +173,18 @@ _YAHOO_SYMBOLS = {
 
 
 def _markets_allowed_ids() -> set:
-    allowed = {x.strip() for x in _PRICE_COIN_IDS.split(",") if x.strip()}
-    allowed |= {x.strip() for x in _MARKETS_COIN_IDS.split(",") if x.strip()}
-    allowed |= set(_MARKETS_META.keys())
+    """Assets Howl Charts can price from on-chain sources (+ legacy meta ids)."""
+    allowed = set(_CHAINLINK_FEEDS.keys()) if "_CHAINLINK_FEEDS" in globals() else set()
     allowed |= {_HOWL_CHART_ID, "howl"}
+    # keep portfolio CG ids for fetch_market_prices only via separate allow list
     return allowed
 
 
-def _howl_charts_data_path() -> Path:
+def _charts_allowed_ids() -> set:
+    return set(_CHAINLINK_FEEDS.keys()) | {_HOWL_CHART_ID, "howl"}
+
+
+def _howl_charts_root() -> Path:
     root = Path(
         os.environ.get("HOWL_PUBLIC_DATA")
         or os.environ.get("HOWL_DATA_DIR")
@@ -190,7 +194,201 @@ def _howl_charts_data_path() -> Path:
         root.mkdir(parents=True, exist_ok=True)
     except OSError:
         pass
-    return root / "howl_charts_howl_index.json"
+    return root
+
+
+def _howl_charts_data_path() -> Path:
+    """Legacy HOWL-only samples file (migrated into multi-asset store)."""
+    return _howl_charts_root() / "howl_charts_howl_index.json"
+
+
+def _howl_charts_samples_path() -> Path:
+    """Own multi-asset price history — Howl Charts product DB (not a market API)."""
+    return _howl_charts_root() / "howl_charts_samples.json"
+
+
+# Ethereum Chainlink USD proxy feeds (on-chain oracles — not CoinGecko/Yahoo).
+# answer has 8 decimals for these aggregators.
+_CHAINLINK_ETH_RPCS = (
+    os.environ.get("HOWL_ETH_RPC", "").strip(),
+    "https://ethereum.publicnode.com",
+    "https://rpc.ankr.com/eth",
+    "https://1rpc.io/eth",
+    "https://cloudflare-eth.com",
+)
+_CHAINLINK_FEEDS: Dict[str, Tuple[str, str, str, int]] = {
+    # id: (proxy_address, symbol, name, decimals)
+    "bitcoin": ("0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c", "BTC", "Bitcoin", 8),
+    "ethereum": ("0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419", "ETH", "Ethereum", 8),
+    "solana": ("0x4ffC43a60e009B551865A93d232E33Fce9f01507", "SOL", "Solana", 8),
+    "binancecoin": ("0x14e613AC84a31f709eadbdF89C6CC390fDc9540A", "BNB", "BNB", 8),
+    "chainlink": ("0x2c1d072e956AFFC0D435Cb7AC38EF18d24d9127c", "LINK", "Chainlink", 8),
+    "avalanche-2": ("0xFF3EEb22B5E3dE6e705b44749C2559d704923FD7", "AVAX", "Avalanche", 8),
+    "matic-network": ("0x7bAC85A8a13A4BcD8abb3eB7d6b4d632c5a57676", "MATIC", "Polygon", 8),
+    "uniswap": ("0x553303d460EE0afB37EdFf9bE42922D8FF63220e", "UNI", "Uniswap", 8),
+    "aave": ("0x547a514d5e3769680Ce22B2361c10Ea13619e8a9", "AAVE", "Aave", 8),
+    # Note: only verified AggregatorV3 proxies — add more feeds as we confirm on-chain.
+}
+
+
+def _eth_json_rpc(method: str, params: list, timeout: int = 14) -> Any:
+    body = json.dumps(
+        {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+    ).encode("utf-8")
+    last_err: Optional[Exception] = None
+    for rpc in _CHAINLINK_ETH_RPCS:
+        if not rpc:
+            continue
+        try:
+            raw = _http_post(
+                rpc,
+                body,
+                headers={
+                    "Content-Type": "application/json",
+                    "User-Agent": "Howlscan/0.6 (+https://howlscan.org)",
+                    "Accept": "application/json",
+                },
+                timeout=timeout,
+            )
+            j = json.loads(raw.decode("utf-8", errors="ignore"))
+            if isinstance(j, dict) and j.get("error"):
+                last_err = RuntimeError(str(j["error"]))
+                continue
+            return j.get("result") if isinstance(j, dict) else None
+        except Exception as e:
+            last_err = e
+            continue
+    raise RuntimeError(f"eth rpc failed: {last_err}")
+
+
+def _chainlink_latest(feed: str) -> Dict[str, Any]:
+    """
+    Read Chainlink AggregatorV3 latestRoundData() on Ethereum.
+    selector 0xfeaf968c → (roundId, answer, startedAt, updatedAt, answeredInRound)
+    """
+    addr = feed
+    # latestRoundData()
+    res = _eth_json_rpc(
+        "eth_call",
+        [{"to": addr, "data": "0xfeaf968c"}, "latest"],
+        timeout=12,
+    )
+    if not isinstance(res, str) or not res.startswith("0x") or len(res) < 2 + 64 * 5:
+        raise RuntimeError("empty chainlink result")
+    b = bytes.fromhex(res[2:])
+    answer = int.from_bytes(b[32:64], "big", signed=True)
+    updated = int.from_bytes(b[96:128], "big", signed=False)
+    return {"answer": answer, "updated": updated}
+
+
+def _load_all_chart_samples() -> Dict[str, List[Dict[str, Any]]]:
+    path = _howl_charts_samples_path()
+    store: Dict[str, List[Dict[str, Any]]] = {}
+    if path.exists():
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(raw, dict):
+                for k, v in raw.items():
+                    if not isinstance(v, list):
+                        continue
+                    pts: List[Dict[str, Any]] = []
+                    for row in v:
+                        if not isinstance(row, dict):
+                            continue
+                        try:
+                            pts.append({"t": int(row["t"]), "p": float(row["p"])})
+                        except (KeyError, TypeError, ValueError):
+                            continue
+                    store[str(k)] = pts
+        except Exception:
+            store = {}
+    # migrate legacy HOWL-only file once
+    legacy = _howl_charts_data_path()
+    if _HOWL_CHART_ID not in store and legacy.exists():
+        try:
+            raw = json.loads(legacy.read_text(encoding="utf-8"))
+            if isinstance(raw, list):
+                pts = []
+                for row in raw:
+                    if not isinstance(row, dict):
+                        continue
+                    try:
+                        pts.append({"t": int(row["t"]), "p": float(row["p"])})
+                    except (KeyError, TypeError, ValueError):
+                        continue
+                if pts:
+                    store[_HOWL_CHART_ID] = pts
+        except Exception:
+            pass
+    return store
+
+
+def _save_all_chart_samples(store: Dict[str, List[Dict[str, Any]]]) -> None:
+    path = _howl_charts_samples_path()
+    try:
+        path.write_text(json.dumps(store), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _record_price_sample(cid: str, usd: float, now: float, min_gap: int = 900) -> None:
+    """Append sparse samples into Howl Charts' own history store."""
+    store = _load_all_chart_samples()
+    samples = store.get(cid) or []
+    if samples:
+        last_t = float(samples[-1].get("t") or 0)
+        if now - last_t < min_gap:
+            return
+    samples.append({"t": int(now), "p": float(usd)})
+    if len(samples) > 20000:
+        samples = samples[-20000:]
+    store[cid] = samples
+    _save_all_chart_samples(store)
+
+
+def _load_price_samples(cid: str) -> List[Dict[str, Any]]:
+    return list(_load_all_chart_samples().get(cid) or [])
+
+
+def _series_from_samples(
+    cid: str, days: str, usd: float, now: float
+) -> List[Dict[str, Any]]:
+    samples = _load_price_samples(cid)
+    if days == "max":
+        cutoff = 0
+    else:
+        try:
+            n = int(days)
+        except ValueError:
+            n = 7
+        cutoff = int(now) - n * 86400
+    pts = [p for p in samples if p["t"] >= cutoff]
+    if not pts or pts[-1]["t"] < int(now) - 30:
+        pts.append({"t": int(now), "p": float(usd)})
+    if len(pts) < 2:
+        span = 86400 if days == "1" else (7 * 86400 if days != "max" else 30 * 86400)
+        pts = [
+            {"t": int(now) - span, "p": float(usd)},
+            {"t": int(now), "p": float(usd)},
+        ]
+    return pts
+
+
+def _change_from_samples(cid: str, usd: float, now: float, window_s: int = 86400) -> Optional[float]:
+    samples = _load_price_samples(cid)
+    target = int(now) - window_s
+    past = None
+    for s in samples:
+        if s["t"] <= target:
+            past = s["p"]
+        else:
+            break
+    if past is None or not past:
+        return None
+    try:
+        return round((float(usd) - float(past)) / float(past) * 100.0, 3)
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
 
 
 def howl_swap_index(record: bool = True) -> Dict[str, Any]:
@@ -226,88 +424,54 @@ def howl_swap_index(record: bool = True) -> Dict[str, Any]:
     }
     if record and usd is not None:
         try:
-            _record_howl_index_sample(usd, now)
+            _record_price_sample(_HOWL_CHART_ID, float(usd), now)
         except Exception:
             pass
     return out
 
 
-def _record_howl_index_sample(usd: float, now: float) -> None:
-    """Append sparse samples so Howl Charts can grow a real HOWL history."""
-    path = _howl_charts_data_path()
-    samples: List[Dict[str, Any]] = []
-    if path.exists():
+def fetch_onchain_spot(cid: str, record: bool = True) -> Dict[str, Any]:
+    """
+    Live USD from blockchain data only:
+      - howlcoin → Howl Swap index (our chain/product rate)
+      - majors → Chainlink AggregatorV3 on Ethereum (on-chain oracle)
+    No CoinGecko / Yahoo price APIs.
+    """
+    now = time.time()
+    key = (cid or "").strip().lower()
+    if key in ("howl", _HOWL_CHART_ID):
+        return howl_swap_index(record=record)
+    meta = _CHAINLINK_FEEDS.get(key)
+    if not meta:
+        raise RuntimeError(f"no on-chain feed for {key}")
+    addr, sym, name, dec = meta
+    raw = _chainlink_latest(addr)
+    usd = float(raw["answer"]) / float(10**dec)
+    if record:
         try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-            if isinstance(raw, list):
-                samples = [x for x in raw if isinstance(x, dict)]
+            _record_price_sample(key, usd, now)
         except Exception:
-            samples = []
-    # keep at most ~1 sample / 15 min
-    if samples:
-        last_t = float(samples[-1].get("t") or 0)
-        if now - last_t < 900:
-            return
-    samples.append({"t": int(now), "p": float(usd)})
-    # retain ~2 years of 15-min samples max (~70k) — prune to 20k
-    if len(samples) > 20000:
-        samples = samples[-20000:]
-    try:
-        path.write_text(json.dumps(samples), encoding="utf-8")
-    except OSError:
-        pass
-
-
-def _load_howl_index_samples() -> List[Dict[str, Any]]:
-    path = _howl_charts_data_path()
-    if not path.exists():
-        return []
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(raw, list):
-            return []
-        out: List[Dict[str, Any]] = []
-        for row in raw:
-            if not isinstance(row, dict):
-                continue
-            try:
-                out.append({"t": int(row["t"]), "p": float(row["p"])})
-            except (KeyError, TypeError, ValueError):
-                continue
-        return out
-    except Exception:
-        return []
-
-
-def _howl_index_points(days: str, usd: float, now: float) -> List[Dict[str, Any]]:
-    """HOWL series from recorded Howl Swap index samples (+ current tick)."""
-    samples = _load_howl_index_samples()
-    if days == "max":
-        cutoff = 0
-    else:
-        try:
-            n = int(days)
-        except ValueError:
-            n = 7
-        cutoff = int(now) - n * 86400
-    pts = [p for p in samples if p["t"] >= cutoff]
-    # always include current index
-    if not pts or pts[-1]["t"] < int(now) - 30:
-        pts.append({"t": int(now), "p": float(usd)})
-    # seed a minimal 2-point series so the canvas renders for new installs
-    if len(pts) < 2:
-        span = 86400 if days == "1" else (7 * 86400 if days != "max" else 30 * 86400)
-        pts = [
-            {"t": int(now) - span, "p": float(usd)},
-            {"t": int(now), "p": float(usd)},
-        ]
-    return pts
+            pass
+    return {
+        "id": key,
+        "symbol": sym,
+        "name": name,
+        "usd": usd,
+        "feed": addr,
+        "oracle": "chainlink",
+        "chain": "ethereum",
+        "updated_onchain": int(raw.get("updated") or now),
+        "updated": int(now),
+        "product": "Howl Charts",
+        "source": "chainlink",
+        "note": _HOWL_CHARTS_NOTE,
+    }
 
 
 def fetch_markets_board(force: bool = False) -> Dict[str, Any]:
     """
-    Howl Charts live board: HOWL (Howl Swap index) + major market coverage.
-    First-party Howlcoin product.
+    Howl Charts live board from on-chain sources only:
+    HOWL (Howl Swap) + Chainlink feeds. Charts history is our own samples.
     """
     now = time.time()
     if (
@@ -318,135 +482,105 @@ def fetch_markets_board(force: bool = False) -> Dict[str, Any]:
         out = dict(_markets_board_cache["data"])  # type: ignore[arg-type]
         out["cached"] = True
         return out
-    url = (
-        "https://api.coingecko.com/api/v3/simple/price?"
-        + urllib.parse.urlencode(
+
+    coins: List[Dict[str, Any]] = []
+    errors: List[str] = []
+
+    # HOWL first
+    try:
+        howl = howl_swap_index(record=True)
+        coins.append(
             {
-                "ids": _MARKETS_COIN_IDS,
-                "vs_currencies": "usd",
-                "include_24hr_change": "true",
-                "include_24hr_vol": "true",
-                "include_market_cap": "true",
+                "id": _HOWL_CHART_ID,
+                "symbol": "HOWL",
+                "name": "Howlcoin",
+                "usd": howl.get("usd"),
+                "change_24h": _change_from_samples(
+                    _HOWL_CHART_ID, float(howl["usd"]), now
+                )
+                if howl.get("usd") is not None
+                else None,
+                "market_cap": None,
+                "vol_24h": None,
+                "product": True,
+                "index": "howl-swap",
+                "oracle": "howl-swap",
+                "badge": "Howlcoin",
             }
         )
-    )
-    howl = howl_swap_index(record=True)
-    howl_row = {
-        "id": _HOWL_CHART_ID,
-        "symbol": "HOWL",
-        "name": "Howlcoin",
-        "usd": howl.get("usd"),
-        "change_24h": None,
-        "market_cap": None,
-        "vol_24h": None,
-        "product": True,
-        "index": "howl-swap",
-        "badge": "Howlcoin",
+    except Exception as e:
+        errors.append(f"howl: {e}")
+
+    # Parallel Chainlink reads
+    def _one(cid: str) -> Optional[Dict[str, Any]]:
+        try:
+            spot = fetch_onchain_spot(cid, record=True)
+            usd = spot.get("usd")
+            chg = (
+                _change_from_samples(cid, float(usd), now)
+                if usd is not None
+                else None
+            )
+            return {
+                "id": cid,
+                "symbol": spot.get("symbol"),
+                "name": spot.get("name"),
+                "usd": usd,
+                "change_24h": chg,
+                "market_cap": None,
+                "vol_24h": None,
+                "oracle": "chainlink",
+                "feed": spot.get("feed"),
+            }
+        except Exception as e:
+            errors.append(f"{cid}: {e}")
+            return None
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+        futs = [pool.submit(_one, cid) for cid in _CHAINLINK_FEEDS.keys()]
+        for fut in concurrent.futures.as_completed(futs):
+            row = fut.result()
+            if row:
+                coins.append(row)
+
+    # HOWL pinned; rest by usd desc
+    howl_rows = [c for c in coins if c.get("id") == _HOWL_CHART_ID]
+    rest = [c for c in coins if c.get("id") != _HOWL_CHART_ID]
+    rest.sort(key=lambda c: (-(c.get("usd") or 0), c.get("symbol") or ""))
+    coins = howl_rows + rest
+
+    out = {
+        "coins": coins,
+        "count": len(coins),
+        "updated": int(now),
+        "source": "howl-charts-onchain",
+        "feeds": ["howl-swap", "chainlink-ethereum"],
+        "product": "Howl Charts",
+        "note": _HOWL_CHARTS_NOTE
+        + " · prices from chain oracles + Howl Swap (no market-price APIs)",
+        "cached": False,
     }
-    try:
-        raw = json.loads(
-            _http_get(
-                url,
-                headers={
-                    "User-Agent": "Howlscan/0.6 (+https://howlscan.org)",
-                    "Accept": "application/json",
-                },
-                timeout=14,
-            ).decode("utf-8", errors="ignore")
-        )
-        if not isinstance(raw, dict):
-            raise RuntimeError("empty markets board")
-        coins = [howl_row]
-        for cid, row in raw.items():
-            if not isinstance(row, dict):
-                continue
-            sym, name = _MARKETS_META.get(cid, (cid[:6].upper(), cid))
-            try:
-                usd = float(row["usd"]) if row.get("usd") is not None else None
-            except (TypeError, ValueError):
-                usd = None
-            try:
-                chg = (
-                    float(row["usd_24h_change"])
-                    if row.get("usd_24h_change") is not None
-                    else None
-                )
-            except (TypeError, ValueError):
-                chg = None
-            try:
-                mcap = (
-                    float(row["usd_market_cap"])
-                    if row.get("usd_market_cap") is not None
-                    else None
-                )
-            except (TypeError, ValueError):
-                mcap = None
-            try:
-                vol = (
-                    float(row["usd_24h_vol"])
-                    if row.get("usd_24h_vol") is not None
-                    else None
-                )
-            except (TypeError, ValueError):
-                vol = None
-            coins.append(
-                {
-                    "id": cid,
-                    "symbol": sym,
-                    "name": name,
-                    "usd": usd,
-                    "change_24h": round(chg, 3) if chg is not None else None,
-                    "market_cap": mcap,
-                    "vol_24h": vol,
-                }
-            )
-        # keep HOWL first; rest by market cap
-        rest = coins[1:]
-        rest.sort(
-            key=lambda c: (
-                -(c["market_cap"] or 0),
-                c.get("symbol") or "",
-            )
-        )
-        coins = [coins[0]] + rest
-        out = {
-            "coins": coins,
-            "count": len(coins),
-            "updated": int(now),
-            "source": "howl-charts",
-            "feeds": ["howl-swap", "coingecko"],
-            "product": "Howl Charts",
-            "note": _HOWL_CHARTS_NOTE,
-            "cached": False,
-        }
+    if errors and not coins:
+        out["error"] = "; ".join(errors[:6])
+    elif errors:
+        out["warnings"] = errors[:8]
+    if coins:
         _markets_board_cache["ts"] = now
         _markets_board_cache["data"] = {**out, "cached": True}
-        return out
-    except Exception as e:
-        if _markets_board_cache.get("data"):
-            stale = dict(_markets_board_cache["data"])  # type: ignore[arg-type]
-            stale["stale"] = True
-            stale["error"] = str(e)
-            return stale
-        # still return HOWL so the product surface works offline from feeds
-        return {
-            "coins": [howl_row],
-            "count": 1,
-            "updated": int(now),
-            "source": "howl-charts",
-            "feeds": ["howl-swap"],
-            "product": "Howl Charts",
-            "error": str(e),
-            "note": _HOWL_CHARTS_NOTE,
-        }
+    elif _markets_board_cache.get("data"):
+        stale = dict(_markets_board_cache["data"])  # type: ignore[arg-type]
+        stale["stale"] = True
+        stale["error"] = "; ".join(errors[:6]) if errors else "empty board"
+        return stale
+    return out
 
 
 def fetch_coin_profile(coin_id: str = "bitcoin", force: bool = False) -> Dict[str, Any]:
-    """Live price + ATH/ATL for Howl Charts (HOWL index or market coverage)."""
+    """Live price + sample ATH/ATL from on-chain spots + Howl Charts history."""
     cid = (coin_id or "bitcoin").strip().lower()[:64]
     if cid in ("howl", _HOWL_CHART_ID):
         cid = _HOWL_CHART_ID
-    if cid not in _markets_allowed_ids():
+    if cid not in _charts_allowed_ids():
         cid = _HOWL_CHART_ID
     now = time.time()
     hit = _coin_profile_cache.get(cid)
@@ -460,11 +594,10 @@ def fetch_coin_profile(coin_id: str = "bitcoin", force: bool = False) -> Dict[st
         out["cached"] = True
         return out
 
-    # First-party HOWL profile from Howl Swap index + recorded samples
-    if cid == _HOWL_CHART_ID:
-        idx = howl_swap_index(record=True)
-        usd = idx.get("usd")
-        samples = _load_howl_index_samples()
+    try:
+        spot = fetch_onchain_spot(cid, record=True)
+        usd = spot.get("usd")
+        samples = _load_price_samples(cid)
         prices = [float(s["p"]) for s in samples if s.get("p") is not None]
         if usd is not None:
             prices.append(float(usd))
@@ -475,14 +608,28 @@ def fetch_coin_profile(coin_id: str = "bitcoin", force: bool = False) -> Dict[st
         if usd is not None:
             day_prices.append(float(usd))
         out = {
-            "id": _HOWL_CHART_ID,
-            "symbol": "HOWL",
-            "name": "Howlcoin",
+            "id": cid,
+            "symbol": spot.get("symbol") or cid[:6].upper(),
+            "name": spot.get("name") or cid,
             "usd": usd,
-            "change_24h": None,
-            "change_7d": None,
-            "change_30d": None,
-            "change_1y": None,
+            "change_24h": (
+                _change_from_samples(cid, float(usd), now) if usd is not None else None
+            ),
+            "change_7d": (
+                _change_from_samples(cid, float(usd), now, 7 * 86400)
+                if usd is not None
+                else None
+            ),
+            "change_30d": (
+                _change_from_samples(cid, float(usd), now, 30 * 86400)
+                if usd is not None
+                else None
+            ),
+            "change_1y": (
+                _change_from_samples(cid, float(usd), now, 365 * 86400)
+                if usd is not None
+                else None
+            ),
             "ath": ath,
             "ath_date": None,
             "ath_change_pct": (
@@ -501,84 +648,16 @@ def fetch_coin_profile(coin_id: str = "bitcoin", force: bool = False) -> Dict[st
             "vol_24h": None,
             "high_24h": max(day_prices) if day_prices else usd,
             "low_24h": min(day_prices) if day_prices else usd,
-            "index": "howl-swap",
-            "howl_per_usdc": idx.get("howl_per_usdc"),
-            "bridge_enabled": idx.get("bridge_enabled"),
+            "oracle": spot.get("oracle") or spot.get("index") or spot.get("source"),
+            "feed": spot.get("feed"),
+            "index": spot.get("index"),
+            "howl_per_usdc": spot.get("howl_per_usdc"),
+            "bridge_enabled": spot.get("bridge_enabled"),
             "product": "Howl Charts",
             "updated": int(now),
-            "source": "howl-swap",
-            "note": _HOWL_CHARTS_NOTE,
-            "cached": False,
-        }
-        _coin_profile_cache[cid] = {"ts": now, "data": {**out, "cached": True}}
-        return out
-
-    url = (
-        f"https://api.coingecko.com/api/v3/coins/{urllib.parse.quote(cid)}?"
-        + urllib.parse.urlencode(
-            {
-                "localization": "false",
-                "tickers": "false",
-                "market_data": "true",
-                "community_data": "false",
-                "developer_data": "false",
-                "sparkline": "false",
-            }
-        )
-    )
-    try:
-        raw = json.loads(
-            _http_get(
-                url,
-                headers={
-                    "User-Agent": "Howlscan/0.6 (+https://howlscan.org)",
-                    "Accept": "application/json",
-                },
-                timeout=16,
-            ).decode("utf-8", errors="ignore")
-        )
-        md = (raw or {}).get("market_data") or {}
-        def _f(obj, *keys):
-            cur = obj
-            for k in keys:
-                if not isinstance(cur, dict):
-                    return None
-                cur = cur.get(k)
-            try:
-                return float(cur) if cur is not None else None
-            except (TypeError, ValueError):
-                return None
-
-        sym, name = _MARKETS_META.get(
-            cid,
-            (
-                str((raw or {}).get("symbol") or cid).upper(),
-                str((raw or {}).get("name") or cid),
-            ),
-        )
-        out = {
-            "id": cid,
-            "symbol": sym,
-            "name": name,
-            "usd": _f(md, "current_price", "usd"),
-            "change_24h": _f(md, "price_change_percentage_24h"),
-            "change_7d": _f(md, "price_change_percentage_7d"),
-            "change_30d": _f(md, "price_change_percentage_30d"),
-            "change_1y": _f(md, "price_change_percentage_1y"),
-            "ath": _f(md, "ath", "usd"),
-            "ath_date": (md.get("ath_date") or {}).get("usd"),
-            "ath_change_pct": _f(md, "ath_change_percentage", "usd"),
-            "atl": _f(md, "atl", "usd"),
-            "atl_date": (md.get("atl_date") or {}).get("usd"),
-            "atl_change_pct": _f(md, "atl_change_percentage", "usd"),
-            "market_cap": _f(md, "market_cap", "usd"),
-            "vol_24h": _f(md, "total_volume", "usd"),
-            "high_24h": _f(md, "high_24h", "usd"),
-            "low_24h": _f(md, "low_24h", "usd"),
-            "product": "Howl Charts",
-            "updated": int(now),
-            "source": "coingecko",
-            "note": _HOWL_CHARTS_NOTE,
+            "source": spot.get("source") or "onchain",
+            "note": _HOWL_CHARTS_NOTE
+            + " · on-chain spot · history from Howl Charts samples",
             "cached": False,
         }
         _coin_profile_cache[cid] = {"ts": now, "data": {**out, "cached": True}}
@@ -623,6 +702,8 @@ def _chart_payload(
     chg = ((last - first) / first * 100.0) if first else 0.0
     if cid == _HOWL_CHART_ID:
         sym, name = "HOWL", "Howlcoin"
+    elif cid in _CHAINLINK_FEEDS:
+        _addr, sym, name, _dec = _CHAINLINK_FEEDS[cid]
     else:
         sym, name = _MARKETS_META.get(cid, (cid[:6].upper(), cid))
     return {
@@ -641,124 +722,18 @@ def _chart_payload(
         "updated": int(now),
         "source": source,
         "product": "Howl Charts",
-        "note": _HOWL_CHARTS_NOTE,
+        "note": _HOWL_CHARTS_NOTE
+        + " · chart from Howlscan samples of on-chain spots",
         "cached": False,
     }
-
-
-def _fetch_chart_coingecko(cid: str, d: str) -> List[Dict[str, Any]]:
-    """
-    CoinGecko market_chart. Public free API no longer allows days=max
-    (HTTP 401 / error 10012 time-range limit); use ≤365 only.
-    """
-    cg_days = "365" if d == "max" else d
-    url = (
-        f"https://api.coingecko.com/api/v3/coins/{urllib.parse.quote(cid)}/market_chart?"
-        + urllib.parse.urlencode({"vs_currency": "usd", "days": cg_days})
-    )
-    raw = json.loads(
-        _http_get(
-            url,
-            headers={
-                "User-Agent": "Howlscan/0.6 (+https://howlscan.org)",
-                "Accept": "application/json",
-            },
-            timeout=18,
-        ).decode("utf-8", errors="ignore")
-    )
-    series = raw.get("prices") if isinstance(raw, dict) else None
-    if not isinstance(series, list) or not series:
-        raise RuntimeError("empty coingecko series")
-    points: List[Dict[str, Any]] = []
-    for row in series:
-        if not isinstance(row, (list, tuple)) or len(row) < 2:
-            continue
-        try:
-            t_ms = float(row[0])
-            p = float(row[1])
-        except (TypeError, ValueError):
-            continue
-        points.append({"t": int(t_ms / 1000), "p": p})
-    if len(points) < 2:
-        raise RuntimeError("empty coingecko series")
-    return points
-
-
-def _fetch_chart_yahoo(cid: str, d: str) -> List[Dict[str, Any]]:
-    """
-    Yahoo Finance chart API — multi-year / true lifetime for majors.
-    Used for Lifetime button and as fallback when CoinGecko rate-limits.
-    """
-    ysym = _YAHOO_SYMBOLS.get(cid)
-    if not ysym:
-        raise RuntimeError(f"no yahoo symbol for {cid}")
-    now = int(time.time())
-    # interval + lookback
-    if d == "1":
-        interval, period1 = "15m", now - 2 * 86400
-    elif d == "7":
-        interval, period1 = "1h", now - 8 * 86400
-    elif d in ("14", "30"):
-        interval, period1 = "1h", now - 35 * 86400
-    elif d in ("90", "180"):
-        interval, period1 = "1d", now - int(d) * 86400 - 86400
-    elif d == "365":
-        interval, period1 = "1d", now - 370 * 86400
-    else:  # max / lifetime — full available history
-        interval, period1 = "1d", 1262304000  # 2010-01-01 UTC
-    url = (
-        "https://query1.finance.yahoo.com/v8/finance/chart/"
-        + urllib.parse.quote(ysym)
-        + "?"
-        + urllib.parse.urlencode(
-            {
-                "period1": str(period1),
-                "period2": str(now),
-                "interval": interval,
-                "events": "div,splits",
-            }
-        )
-    )
-    raw = json.loads(
-        _http_get(
-            url,
-            headers={
-                "User-Agent": "Mozilla/5.0 (compatible; Howlscan/0.6; +https://howlscan.org)",
-                "Accept": "application/json",
-            },
-            timeout=20,
-        ).decode("utf-8", errors="ignore")
-    )
-    results = ((raw or {}).get("chart") or {}).get("result") or []
-    if not results:
-        err = ((raw or {}).get("chart") or {}).get("error")
-        raise RuntimeError(str(err or "empty yahoo chart"))
-    res = results[0] or {}
-    ts = res.get("timestamp") or []
-    quote = ((res.get("indicators") or {}).get("quote") or [{}])[0] or {}
-    closes = quote.get("close") or []
-    points: List[Dict[str, Any]] = []
-    for i, t in enumerate(ts):
-        if i >= len(closes):
-            break
-        c = closes[i]
-        if c is None:
-            continue
-        try:
-            points.append({"t": int(t), "p": float(c)})
-        except (TypeError, ValueError):
-            continue
-    if len(points) < 2:
-        raise RuntimeError("empty yahoo series")
-    return points
 
 
 def fetch_market_chart(
     coin_id: str = "bitcoin", days: str = "7", force: bool = False
 ) -> Dict[str, Any]:
     """
-    Howl Charts series for our own canvas (first-party Howlcoin product).
-    HOWL: Howl Swap index history. Majors: CoinGecko / Yahoo feeds.
+    Howl Charts canvas series — no CoinGecko/Yahoo.
+    Live tick from on-chain (Chainlink / Howl Swap); history from our samples.
     """
     cid = (coin_id or "bitcoin").strip().lower()[:64]
     if cid in ("howl", _HOWL_CHART_ID):
@@ -766,13 +741,11 @@ def fetch_market_chart(
     d = (days or "7").strip()
     if d not in ("1", "7", "14", "30", "90", "180", "365", "max"):
         d = "7"
-    allowed = _markets_allowed_ids()
-    if cid not in allowed:
+    if cid not in _charts_allowed_ids():
         cid = _HOWL_CHART_ID
     key = f"{cid}:{d}"
     now = time.time()
-    # Lifetime history changes slowly; cache longer to avoid upstream rate limits
-    ttl = 1800 if d == "max" else (600 if d in ("90", "180", "365") else 300)
+    ttl = 180 if d in ("1", "7") else 300
     hit = _chart_cache.get(key)
     if (
         not force
@@ -785,73 +758,41 @@ def fetch_market_chart(
         out["cached"] = True
         return out
 
-    # First-party HOWL index chart
-    if cid == _HOWL_CHART_ID:
-        idx = howl_swap_index(record=True)
-        usd = float(idx["usd"]) if idx.get("usd") is not None else 0.1
-        points = _howl_index_points(d, usd, now)
-        out = _chart_payload(cid, d, points, "howl-swap", now)
-        out["index"] = "howl-swap"
-        out["howl_per_usdc"] = idx.get("howl_per_usdc")
-        _chart_cache[key] = {"ts": now, "data": {**out, "cached": True}}
-        return out
-
-    errors: List[str] = []
-    points: Optional[List[Dict[str, Any]]] = None
-    source = "none"
-
-    # Lifetime → Yahoo first (true multi-year). Short ranges → CoinGecko first.
-    order = (
-        ("yahoo", "coingecko") if d == "max" else ("coingecko", "yahoo")
-    )
-    for src in order:
-        try:
-            if src == "yahoo":
-                points = _fetch_chart_yahoo(cid, d)
-            else:
-                # CG free API rejects true max; skip that call
-                if d == "max":
-                    points = _fetch_chart_coingecko(cid, "365")
-                else:
-                    points = _fetch_chart_coingecko(cid, d)
-            source = src if d != "max" or src != "coingecko" else "coingecko-1y"
-            break
-        except Exception as e:
-            errors.append(f"{src}: {e}")
-            points = None
-
-    # Last resort for lifetime: CG 365 if Yahoo failed
-    if points is None and d == "max":
-        try:
-            points = _fetch_chart_coingecko(cid, "365")
-            source = "coingecko-1y"
-        except Exception as e:
-            errors.append(f"coingecko-1y: {e}")
-
-    if points and len(points) >= 2:
+    try:
+        spot = fetch_onchain_spot(cid, record=True)
+        usd = float(spot["usd"]) if spot.get("usd") is not None else None
+        if usd is None:
+            raise RuntimeError("no on-chain spot")
+        points = _series_from_samples(cid, d, usd, now)
+        source = "howl-swap" if cid == _HOWL_CHART_ID else "chainlink+howl-samples"
         out = _chart_payload(cid, d, points, source, now)
-        if d == "max" and source == "coingecko-1y":
-            out["range"] = "lifetime (~1y free feed)"
-            out["partial"] = True
+        if cid == _HOWL_CHART_ID:
+            out["index"] = "howl-swap"
+            out["howl_per_usdc"] = spot.get("howl_per_usdc")
+        else:
+            out["oracle"] = "chainlink"
+            out["feed"] = spot.get("feed")
+        # Lifetime for our product = full Howl Charts sample history
+        if d == "max":
+            out["range"] = "lifetime (Howl Charts history)"
         _chart_cache[key] = {"ts": now, "data": {**out, "cached": True}}
         return out
-
-    err = "; ".join(errors) if errors else "no chart data"
-    if hit and hit.get("data") and (hit["data"].get("points") or []):
-        stale = dict(hit["data"])
-        stale["stale"] = True
-        stale["error"] = err
-        return stale
-    return {
-        "id": cid,
-        "days": d,
-        "points": [],
-        "error": err,
-        "source": "none",
-        "product": "Howl Charts",
-        "updated": int(now),
-        "note": _HOWL_CHARTS_NOTE,
-    }
+    except Exception as e:
+        if hit and hit.get("data") and (hit["data"].get("points") or []):
+            stale = dict(hit["data"])
+            stale["stale"] = True
+            stale["error"] = str(e)
+            return stale
+        return {
+            "id": cid,
+            "days": d,
+            "points": [],
+            "error": str(e),
+            "source": "none",
+            "product": "Howl Charts",
+            "updated": int(now),
+            "note": _HOWL_CHARTS_NOTE,
+        }
 
 
 def fetch_market_prices(force: bool = False) -> Dict[str, Any]:
