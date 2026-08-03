@@ -151,6 +151,8 @@ def tx_sighash(tx_body: Dict[str, Any]) -> bytes:
         "counterparty",
         "arbiter",
         "call_value",
+        "bond_phrase",
+        "min_join",
     ):
         if tx_body.get(k) is not None and tx_body.get(k) != "":
             body[k] = tx_body[k]

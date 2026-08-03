@@ -567,6 +567,8 @@ export function txSighash(txBody) {
     "counterparty",
     "arbiter",
     "call_value",
+    "bond_phrase",
+    "min_join",
   ]) {
     if (txBody[k] != null && txBody[k] !== "") body[k] = txBody[k];
   }

@@ -1419,17 +1419,21 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>Contracts</h1></div>
       <div class="panel">
         <h2>Howl Script Contracts</h2>
-        <p class="hint">Native on-chain templates — not EVM. Deploy a tip jar, timelock, or escrow. Funds lock in the contract until you call a method. Fee ≈ <b>1 HOWL</b> per deploy/call.</p>
+        <p class="hint">Native on-chain templates — not EVM. Fee ≈ <b>1 HOWL</b> per deploy/call. <b style="color:var(--green)">Pack pot</b> &amp; <b style="color:var(--green)">bark bond</b> are Howl-unique social games.</p>
         <ol class="steps" style="margin:8px 0 0;padding-left:1.2rem;color:var(--muted);font-size:.88rem;line-height:1.45">
-          <li><b style="color:var(--text)">Tip jar</b> — friends donate HOWL; you withdraw anytime.</li>
-          <li><b style="color:var(--text)">Timelock</b> — lock HOWL until a future block height, then claim.</li>
-          <li><b style="color:var(--text)">Escrow</b> — buyer funds; release to seller or refund after height / via arbiter.</li>
+          <li><b style="color:var(--text)">Pack pot</b> — everyone joins with HOWL until a height; <b>last joiner wins the pot</b>.</li>
+          <li><b style="color:var(--text)">Bark bond</b> — lock HOWL until you post an on-chain howl containing your phrase.</li>
+          <li><b style="color:var(--text)">Tip jar</b> — friends donate; you withdraw anytime.</li>
+          <li><b style="color:var(--text)">Timelock</b> — lock until a future block height.</li>
+          <li><b style="color:var(--text)">Escrow</b> — buyer / seller / arbiter release or refund.</li>
         </ol>
       </div>
       <div class="panel">
         <h2>Deploy</h2>
         <label>Kind</label>
         <select class="field" id="hcKind" onchange="renderHcDeployFields()">
+          <option value="packpot">Pack pot (last joiner wins)</option>
+          <option value="barkbond">Bark bond (howl to unlock)</option>
           <option value="tipjar">Tip jar</option>
           <option value="timelock">Timelock</option>
           <option value="escrow">Escrow</option>
@@ -7425,14 +7429,29 @@ let hcSelectedId = null;
 let hcCache = [];
 
 function renderHcDeployFields(){
-  const kind = ($("hcKind")?.value || "tipjar");
+  const kind = ($("hcKind")?.value || "packpot");
   const box = $("hcExtraFields");
   if(!box) return;
-  if(kind === "timelock"){
+  const hHint = (chainInfo && chainInfo.height != null) ? ` (chain now ~#${chainInfo.height})` : "";
+  if(kind === "packpot"){
+    box.innerHTML = `
+      <label>Join window ends at height</label>
+      <input class="field" id="hcUnlock" inputmode="numeric" placeholder="e.g. current height + 50"/>
+      <label>Min join (HOWL, optional)</label>
+      <input class="field" id="hcMinJoin" inputmode="decimal" placeholder="0 = any amount"/>
+      <p class="hint"><b>Pack pot:</b> anyone joins with HOWL until height${escHtml(hHint)}. After that, the <b>last joiner</b> claims the whole pot. Optional initial fund seeds the pot and counts as first join.</p>`;
+  } else if(kind === "barkbond"){
+    box.innerHTML = `
+      <label>Bond phrase (must appear in your howl)</label>
+      <input class="field" id="hcBondPhrase" maxlength="80" placeholder="awoo moon pack"/>
+      <label>Earliest claim height (optional)</label>
+      <input class="field" id="hcUnlock" inputmode="numeric" placeholder="0 = claim anytime after howl"/>
+      <p class="hint"><b>Bark bond:</b> lock HOWL. Post oracle key <span class="mono">howl.bond.&lt;id&gt;</span> (or use the button after deploy) with text containing this phrase, then claim.</p>`;
+  } else if(kind === "timelock"){
     box.innerHTML = `
       <label>Unlock height (block # in the future)</label>
       <input class="field" id="hcUnlock" inputmode="numeric" placeholder="e.g. current + 100"/>
-      <p class="hint">Funds locked until chain height ≥ this number. Tip: check Howlscan height first.</p>`;
+      <p class="hint">Funds locked until chain height ≥ this number${escHtml(hHint)}.</p>`;
   } else if(kind === "escrow"){
     box.innerHTML = `
       <label>Seller (counterparty) HOWL address</label>
@@ -7452,7 +7471,7 @@ async function deployHowlContract(){
   if($("hcTx")) $("hcTx").textContent = "";
   try{
     if(!keypair) throw new Error("Unlock wallet first");
-    const kind = ($("hcKind")?.value || "tipjar").trim();
+    const kind = ($("hcKind")?.value || "packpot").trim();
     const name = ($("hcName")?.value || "").trim();
     if(!name) throw new Error("Name required");
     let fundHowl = 0n;
@@ -7462,6 +7481,24 @@ async function deployHowlContract(){
     const nonce = await nextLocalNonce();
     const contract_id = makeContractId(keypair.address, kind, name, nonce);
     const extra = { contract_id, contract_kind: kind, name };
+    if(kind === "packpot"){
+      const uh = parseInt(($("hcUnlock")?.value || "").trim(), 10);
+      if(!uh || uh < 1) throw new Error("Unlock height required for pack pot");
+      extra.unlock_height = uh;
+      const mjTxt = ($("hcMinJoin")?.value || "").trim();
+      if(mjTxt){
+        const mj = parseHowl(mjTxt);
+        extra.min_join = howliesJsonSafe(mj);
+      }
+    }
+    if(kind === "barkbond"){
+      const phrase = ($("hcBondPhrase")?.value || "").trim();
+      if(!phrase) throw new Error("Bond phrase required");
+      extra.bond_phrase = phrase;
+      if(fundHowl <= 0n) throw new Error("Bark bond needs initial fund > 0");
+      const uh = parseInt(($("hcUnlock")?.value || "0").trim() || "0", 10);
+      if(uh > 0) extra.unlock_height = uh;
+    }
     if(kind === "timelock"){
       const uh = parseInt(($("hcUnlock")?.value || "").trim(), 10);
       if(!uh || uh < 1) throw new Error("Unlock height required for timelock");
@@ -7564,12 +7601,37 @@ async function openHcDetail(cid){
     const role = keypair && (
       c.owner === keypair.address ? "owner" :
       c.counterparty === keypair.address ? "seller" :
-      c.arbiter === keypair.address ? "arbiter" : "viewer"
+      c.arbiter === keypair.address ? "arbiter" :
+      c.last_joiner === keypair.address ? "last joiner" : "viewer"
     );
     const hist = (c.history || []).slice().reverse().slice(0, 12);
+    const hNow = chainInfo.height != null ? Number(chainInfo.height) : null;
     let actions = "";
     if(c.status === "closed"){
       actions = `<p class="hint">Contract closed.</p>`;
+    } else if(c.kind === "packpot"){
+      const open = hNow == null || hNow < Number(c.unlock_height || 0);
+      actions = `
+        <p class="hint">${open ? "Join window <b>open</b> — last joiner when height hits wins." : "Join closed — last joiner can claim."}</p>
+        <p class="hint">Last joiner: <span class="mono">${escHtml(c.last_joiner || "—")}</span> · joins: ${escHtml(String(c.join_count||0))}</p>
+        ${open?`<label>Join amount (HOWL)</label>
+        <input class="field" id="hcCallAmt" inputmode="decimal" placeholder="10"/>
+        <button class="btn" type="button" onclick="callHowlContract('join')">Join pack pot</button>`:""}
+        ${!open && keypair && c.last_joiner === keypair.address
+          ? `<button class="btn" type="button" onclick="callHowlContract('claim')">Claim pot (you are last joiner)</button>`
+          : (!open ? `<p class="hint">Waiting for last joiner to claim.</p>` : "")}`;
+    } else if(c.kind === "barkbond"){
+      const okey = "howl.bond." + c.contract_id;
+      actions = `
+        <p class="hint">Phrase: <b>${escHtml(c.bond_phrase || "—")}</b></p>
+        <p class="hint">Post howl with key <span class="mono">${escHtml(okey)}</span> containing that phrase, then claim.</p>
+        ${role==="owner"?`
+        <label>Add fund (HOWL)</label>
+        <input class="field" id="hcCallAmt" inputmode="decimal" placeholder="5"/>
+        <button class="btn sec" type="button" onclick="callHowlContract('fund')">Fund more</button>
+        <button class="btn" type="button" onclick="postBarkBondHowl(${JSON.stringify(c.contract_id)}, ${JSON.stringify(c.bond_phrase||"")})">1. Post bond howl</button>
+        <button class="btn" type="button" onclick="callHowlContract('claim')">2. Claim (after howl is mined)</button>
+        `: `<p class="hint">Only the bond owner can claim.</p>`}`;
     } else if(c.kind === "tipjar"){
       actions = `
         <label>Donate (HOWL)</label>
@@ -7600,7 +7662,8 @@ async function openHcDetail(cid){
         <div class="mono" style="font-size:.72rem;word-break:break-all;margin:8px 0">${escHtml(c.contract_id)}</div>
         <p>Locked: <b style="color:var(--green)">${escHtml(c.balance_fmt||"0")}</b></p>
         <p class="hint">Owner: <span class="mono">${escHtml(c.owner||"")}</span></p>
-        ${c.unlock_height?`<p class="hint">Unlock height: <b>#${escHtml(String(c.unlock_height))}</b></p>`:""}
+        ${c.unlock_height?`<p class="hint">Unlock / end height: <b>#${escHtml(String(c.unlock_height))}</b>${hNow!=null?` · now #${hNow}`:""}</p>`:""}
+        ${c.min_join?`<p class="hint">Min join: ${escHtml(formatHowl(c.min_join))}</p>`:""}
         <div style="margin:12px 0">${actions}</div>
         <p class="err" id="hcCallErr"></p>
         <p class="hint" id="hcCallTx"></p>
@@ -7619,6 +7682,33 @@ async function openHcDetail(cid){
   }
 }
 
+async function postBarkBondHowl(contractId, phrase){
+  try{
+    if(!keypair) throw new Error("Unlock first");
+    const cid = contractId || hcSelectedId;
+    const p = (phrase || "").trim() || "awoo";
+    const key = "howl.bond." + cid;
+    const val = p + " · howl bond " + (cid || "").slice(0, 12);
+    openSlideConfirm({
+      title: "Slide to post bond howl",
+      rows: [
+        { k: "Oracle key", v: key.slice(0, 28) + "…" },
+        { k: "Value", v: val.slice(0, 40) },
+        { k: "Fee", v: "1 HOWL" },
+      ],
+      onConfirm: async () => {
+        await postOracle({
+          source_chain: "howlcoin",
+          oracle_key: key,
+          oracle_value: val,
+        });
+        toast("Bond howl queued — wait for a block, then Claim");
+        fireConfetti("howl");
+      },
+    });
+  }catch(e){ toast(e.message || String(e)); }
+}
+
 async function callHowlContract(method, usePartial){
   if($("hcCallErr")) $("hcCallErr").textContent = "";
   if($("hcCallTx")) $("hcCallTx").textContent = "";
@@ -7634,7 +7724,7 @@ async function callHowlContract(method, usePartial){
     let to = keypair.address;
     const extra = { contract_id: hcSelectedId, method };
 
-    if(method === "donate" || method === "fund"){
+    if(method === "donate" || method === "fund" || method === "join"){
       const t = ($("hcCallAmt")?.value || "").trim();
       if(!t) throw new Error("Amount required");
       amountHowlies = howliesJsonSafe(parseHowl(t));
@@ -7648,7 +7738,12 @@ async function callHowlContract(method, usePartial){
       }
       if(call_value != null) extra.call_value = call_value;
     } else if(method === "claim"){
-      to = keypair.address;
+      if(c.kind === "packpot"){
+        to = c.last_joiner || keypair.address;
+        if(to !== keypair.address) throw new Error("Only last joiner can claim");
+      } else {
+        to = keypair.address;
+      }
     } else if(method === "release"){
       to = c.counterparty;
       if(!to) throw new Error("No seller on contract");
@@ -9166,7 +9261,7 @@ function boot(skipInstallPrompt){
       }
     }
   }catch(_){}
-  if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=6").catch(()=>{});
+  if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=7").catch(()=>{});
   if(!skipInstallPrompt && !isStandalone() && !sessionStorage.getItem("howl_skip_install") && !sessionStorage.getItem("howl_saw_install")){
     sessionStorage.setItem("howl_saw_install","1");
     uiInstall();
@@ -9288,6 +9383,7 @@ window.openJumpSheet = openJumpSheet;
 window.closeJumpSheet = closeJumpSheet;
 window.runMoreAction = runMoreAction;
 window.renderMoreMenu = renderMoreMenu;
+window.postBarkBondHowl = postBarkBondHowl;
 
 boot();
 </script>

@@ -122,7 +122,9 @@ class Blockchain:
     # ---------- state ----------
 
     # Native smart-contract templates (Howl Script Contracts)
-    CONTRACT_KINDS = ("tipjar", "timelock", "escrow")
+    # packpot = social pot: join until unlock_height; last joiner claims all
+    # barkbond = lock HOWL until you post an on-chain howl with the bond phrase
+    CONTRACT_KINDS = ("tipjar", "timelock", "escrow", "packpot", "barkbond")
 
     def _rebuild_state(self) -> None:
         self.balances: Dict[str, int] = {}
@@ -166,6 +168,10 @@ class Blockchain:
             kind = (tx.get("contract_kind") or "").strip().lower()
             if not cid:
                 return
+            try:
+                min_join = int(tx.get("min_join") or 0)
+            except (TypeError, ValueError):
+                min_join = 0
             use_c[cid] = {
                 "contract_id": cid,
                 "kind": kind,
@@ -177,6 +183,10 @@ class Blockchain:
                 "counterparty": (tx.get("counterparty") or "").strip(),
                 "arbiter": (tx.get("arbiter") or "").strip(),
                 "funded_by": frm if amount else "",
+                "last_joiner": frm if (kind == "packpot" and amount > 0) else "",
+                "join_count": 1 if (kind == "packpot" and amount > 0) else 0,
+                "min_join": max(0, min_join),
+                "bond_phrase": (tx.get("bond_phrase") or "").strip()[:80],
                 "deploy_txid": tx.get("txid"),
                 "deploy_height": height,
                 "deploy_timestamp": block_ts,
@@ -207,10 +217,13 @@ class Blockchain:
         if not c or c.get("status") == "closed":
             return
         hist = list(c.get("history") or [])
-        if method in ("donate", "fund"):
+        if method in ("donate", "fund", "join"):
             c["balance"] = int(c.get("balance") or 0) + amount
             if amount and not c.get("funded_by"):
                 c["funded_by"] = frm
+            if method == "join" or (c.get("kind") == "packpot" and method == "fund"):
+                c["last_joiner"] = frm
+                c["join_count"] = int(c.get("join_count") or 0) + 1
             hist.append(
                 {
                     "event": method,
@@ -632,6 +645,32 @@ class Blockchain:
                 uh = 0
             if uh and uh <= self.height():
                 return False, "escrow unlock_height must be future or 0"
+        elif kind == "packpot":
+            try:
+                uh = int(tx.get("unlock_height") or 0)
+            except (TypeError, ValueError):
+                return False, "unlock_height required for pack pot"
+            if uh <= self.height():
+                return False, "pack pot unlock_height must be in the future"
+            try:
+                mj = int(tx.get("min_join") or 0)
+            except (TypeError, ValueError):
+                mj = 0
+            if mj < 0:
+                return False, "min_join must be >= 0"
+            # optional seed pot from creator
+        elif kind == "barkbond":
+            phrase = (tx.get("bond_phrase") or "").strip()
+            if not phrase or len(phrase) > 80:
+                return False, "bond_phrase required (1–80 chars) for bark bond"
+            if amount <= 0:
+                return False, "bark bond requires initial fund amount > 0"
+            try:
+                uh = int(tx.get("unlock_height") or 0)
+            except (TypeError, ValueError):
+                uh = 0
+            if uh and uh <= self.height():
+                return False, "bark bond unlock_height must be future or 0"
         # tipjar: amount optional initial seed
         return True, "ok"
 
@@ -729,6 +768,80 @@ class Blockchain:
                     return False, "escrow empty"
             else:
                 return False, "escrow methods: fund, release, refund"
+
+        elif kind == "packpot":
+            # Social pot: join (fund) until unlock_height; last joiner claims all
+            if method == "join":
+                if amount <= 0:
+                    return False, "join amount must be > 0"
+                if to != frm:
+                    return False, "join to must be self"
+                uh = int(c.get("unlock_height") or 0)
+                if self.height() >= uh:
+                    return False, f"join window closed at height {uh}"
+                try:
+                    mj = int(c.get("min_join") or 0)
+                except (TypeError, ValueError):
+                    mj = 0
+                if mj > 0 and amount < mj:
+                    return False, f"join below min ({mj} howlies)"
+            elif method == "claim":
+                if amount != 0:
+                    return False, "claim amount field must be 0"
+                uh = int(c.get("unlock_height") or 0)
+                if self.height() < uh:
+                    return False, f"pack pot still open until height {uh}"
+                last = (c.get("last_joiner") or "").strip()
+                if not last:
+                    return False, "no joiners yet"
+                if frm != last:
+                    return False, "only the last joiner can claim the pack pot"
+                if to != last:
+                    return False, "claim to must be last joiner"
+                if int(c.get("balance") or 0) <= 0:
+                    return False, "pack pot empty"
+            else:
+                return False, "pack pot methods: join, claim"
+
+        elif kind == "barkbond":
+            # Lock HOWL; release after posting howl with bond_phrase (oracle howl.bond.<cid>)
+            if method == "fund":
+                if amount <= 0:
+                    return False, "fund amount must be > 0"
+                if frm != c.get("owner"):
+                    return False, "only bond owner can fund more"
+                if to != frm:
+                    return False, "fund to must be self"
+            elif method == "claim":
+                if amount != 0:
+                    return False, "claim amount field must be 0"
+                if frm != c.get("owner"):
+                    return False, "only bond owner can claim"
+                if to != frm:
+                    return False, "claim to must be owner"
+                uh = int(c.get("unlock_height") or 0)
+                if uh and self.height() < uh:
+                    return False, f"bark bond locked until height {uh}"
+                if int(c.get("balance") or 0) <= 0:
+                    return False, "bark bond empty"
+                phrase = (c.get("bond_phrase") or "").strip().lower()
+                if not phrase:
+                    return False, "bond has no phrase"
+                # Proof: owner posted oracle key howl.bond.<cid> with matching value
+                okey = f"howl.bond.{cid}"
+                row = self.oracle.get(okey) if hasattr(self, "oracle") else None
+                if not row:
+                    return False, (
+                        f"post an on-chain howl first: oracle key {okey} "
+                        f"with value containing your bond phrase"
+                    )
+                if (row.get("reporter") or "") != frm:
+                    return False, "bond howl must be posted by the bond owner"
+                val = str(row.get("value") or "").lower()
+                if phrase not in val:
+                    return False, "oracle value must contain the bond phrase"
+            else:
+                return False, "bark bond methods: fund, claim"
         else:
             return False, "unknown contract kind"
 
@@ -1644,6 +1757,12 @@ class Blockchain:
                 if c.get("owner") == o
                 or c.get("counterparty") == o
                 or c.get("arbiter") == o
+                or c.get("last_joiner") == o
+                # open pack pots are public join games
+                or (
+                    (c.get("kind") or "").lower() == "packpot"
+                    and c.get("status") == "active"
+                )
             ]
         if kind:
             k = kind.strip().lower()
