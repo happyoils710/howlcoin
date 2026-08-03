@@ -536,9 +536,18 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .qr-scan-bar video.on{display:block}
 /* Confetti overlay */
 #confettiCanvas{position:fixed;inset:0;z-index:120;pointer-events:none}
-.play-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
-.play-tabs button{border:1px solid var(--border);background:transparent;color:var(--muted);font:inherit;font-size:.75rem;font-weight:700;padding:8px 12px;cursor:pointer}
+.play-tabs{display:flex;flex-wrap:nowrap;gap:6px;margin:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.play-tabs::-webkit-scrollbar{display:none}
+.play-tabs button{flex:0 0 auto;border:1px solid var(--border);background:transparent;color:var(--muted);font:inherit;font-size:.75rem;font-weight:700;padding:8px 14px;cursor:pointer;border-radius:999px}
 .play-tabs button.on{color:var(--green);border-color:color-mix(in srgb,var(--green) 45%,transparent);background:rgba(0,255,198,.08)}
+.play-card{width:100%;text-align:left;border:1px solid var(--border);background:var(--card2);color:var(--text);font:inherit;padding:12px;margin:0 0 8px;border-radius:14px;cursor:pointer}
+.play-card .pc-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.play-card .pc-title{font-weight:800;font-size:.95rem}
+.play-card .pc-meta{font-size:.72rem;color:var(--muted);margin-top:4px}
+.play-card .pc-bal{font-weight:800;color:var(--green);font-size:.95rem;white-space:nowrap}
+.play-card .pc-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center}
+.play-card .pc-actions .field{margin:0;flex:1;min-width:90px;padding:8px 10px}
+.play-card .pc-actions .btn,.play-card .pc-actions .btn.sec{margin:0;padding:8px 12px;font-size:.78rem}
 .duel-qr{text-align:center;padding:12px 0}
 .duel-qr img{max-width:220px;width:100%;border:1px solid var(--border);background:#fff}
 .howl-feed .item{flex-direction:column;align-items:stretch;gap:4px}
@@ -897,7 +906,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       <div class="wa-actions" role="navigation" aria-label="Quick actions">
         <button class="wa-act" type="button" onclick="showPage('recv')"><span class="wa-ico" data-icon="recv"></span><span class="wa-lab">Receive</span></button>
         <button class="wa-act" type="button" onclick="showPage('send')"><span class="wa-ico" data-icon="send"></span><span class="wa-lab">Send</span></button>
-        <button class="wa-act" type="button" onclick="showPage('swap')"><span class="wa-ico" data-icon="swap"></span><span class="wa-lab">Swap</span></button>
+        <button class="wa-act" type="button" onclick="showPage('play')"><span class="wa-ico" data-icon="spark"></span><span class="wa-lab">Play</span></button>
         <button class="wa-act" type="button" onclick="showPage('markets')"><span class="wa-ico" data-icon="chart"></span><span class="wa-lab">Charts</span></button>
       </div>
 
@@ -1579,49 +1588,67 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       </div>
     </div>
 
-    <!-- PLAY / SOCIAL / DEMO -->
+    <!-- PLAY HUB — native Howlcoin L1 social (pots · howls · names · tips) -->
     <div class="page" id="p-play">
-      <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>Play &amp; social</h1></div>
-      <div class="panel">
+      <div class="page-head"><button type="button" class="back" onclick="showPage('home')">‹ Home</button><h1>Play</h1></div>
+      <p class="hint" style="margin:0 0 10px"><b>Howl Play</b> — on-chain only. Pack pots, howls, @names, tip jars. Fee ≈ 1 HOWL to miners.</p>
+      <div class="panel" style="padding-bottom:10px">
         <div class="play-tabs" id="playTabs">
-          <button type="button" class="on" data-pt="request" onclick="setPlayTab('request')">Request</button>
-          <button type="button" data-pt="howl" onclick="setPlayTab('howl')">Howl</button>
+          <button type="button" class="on" data-pt="pots" onclick="setPlayTab('pots')">Pots</button>
+          <button type="button" data-pt="howl" onclick="setPlayTab('howl')">Howls</button>
           <button type="button" data-pt="names" onclick="setPlayTab('names')">Names</button>
-          <button type="button" data-pt="duel" onclick="setPlayTab('duel')">QR duel</button>
-          <button type="button" data-pt="share" onclick="setPlayTab('share')">Share</button>
+          <button type="button" data-pt="tips" onclick="setPlayTab('tips')">Tips</button>
+          <button type="button" data-pt="more" onclick="setPlayTab('more')">More</button>
         </div>
       </div>
-      <div class="panel" id="playRequest">
-        <h2>Request HOWL</h2>
-        <p class="hint">Make a pay-request link + QR. Friend opens it in Howl wallet to prefill Send.</p>
-        <label>Amount (HOWL)</label>
-        <input class="field" id="reqAmt" inputmode="decimal" placeholder="10"/>
-        <label>Memo (optional)</label>
-        <input class="field" id="reqMemo" placeholder="coffee · tips · gas"/>
-        <button class="btn" type="button" onclick="buildPayRequest()">Make request</button>
-        <div id="reqOut" class="hidden" style="margin-top:12px">
-          <div class="mono" id="reqLink" style="font-size:.72rem;word-break:break-all;margin-bottom:8px" onclick="copyText($('reqLink').textContent)"></div>
-          <div class="duel-qr"><img id="reqQr" alt="request QR"/></div>
-          <button class="btn sec" type="button" onclick="copyText($('reqLink').textContent)">Copy link</button>
-          <button class="btn sec" type="button" onclick="sharePayRequest()">Share…</button>
+
+      <!-- PACK POTS -->
+      <div class="panel" id="playPots">
+        <div class="wa-section" style="margin:0 0 10px">
+          <h2 style="margin:0">Pack pots</h2>
+          <button type="button" class="wa-link" onclick="refreshPlayPots()">↻</button>
         </div>
+        <p class="hint">Join with HOWL before unlock height. <b>Last joiner wins the pot</b>.</p>
+        <div id="playPotsList"><p class="hint">Loading pots…</p></div>
+        <div class="panel" style="margin:12px 0 0;padding:12px;background:var(--card2)">
+          <h3 style="margin:0 0 8px;font-size:.9rem">Start a pot</h3>
+          <label>Name</label>
+          <input class="field" id="playPotName" placeholder="Moon pack" maxlength="80"/>
+          <label>Seed (HOWL, optional)</label>
+          <input class="field" id="playPotFund" inputmode="decimal" placeholder="10"/>
+          <label>Unlock in blocks from now</label>
+          <input class="field" id="playPotBlocks" inputmode="numeric" placeholder="50" value="50"/>
+          <label>Min join (HOWL, optional)</label>
+          <input class="field" id="playPotMin" inputmode="decimal" placeholder="0"/>
+          <button class="btn" type="button" onclick="playDeployPot()">Deploy pack pot</button>
+          <p class="err" id="playPotErr"></p>
+          <p class="hint" id="playPotTx"></p>
+        </div>
+        <p class="hint" style="margin-top:10px"><a href="#" onclick="showPage('contracts');return false" style="color:var(--cyan)">Full contract tools ›</a> (bark bond, escrow, timelock)</p>
       </div>
+
+      <!-- HOWLS -->
       <div class="panel hidden" id="playHowl">
-        <h2>Howl on-chain</h2>
-        <p class="hint">Post a short howl (max 80 chars) as an oracle note. Costs <b>1 HOWL</b> fee to miners. Visible on Howlscan activity for your address.</p>
+        <h2>Howl feed</h2>
+        <p class="hint">Short on-chain posts (max 80 chars). Costs <b>1 HOWL</b> fee. Everyone can read the global feed.</p>
         <label>Your howl</label>
         <input class="field" id="howlMsg" maxlength="80" placeholder="awoo — block party 🐺"/>
         <button class="btn" type="button" onclick="postHowlMemo()">Broadcast howl</button>
         <p class="err" id="howlErr"></p>
         <p class="hint" id="howlTx"></p>
-        <h3 style="margin:16px 0 8px;font-size:.85rem">Recent howls (yours)</h3>
-        <div class="howl-feed" id="howlFeed"><p class="hint">—</p></div>
+        <div class="wa-section" style="margin:14px 0 8px">
+          <h3 style="margin:0;font-size:.9rem">Global feed</h3>
+          <button type="button" class="wa-link" onclick="refreshPlayHowls()">↻</button>
+        </div>
+        <div class="howl-feed" id="howlFeed"><p class="hint">Loading…</p></div>
       </div>
+
+      <!-- NAMES -->
       <div class="panel hidden" id="playNames">
         <h2>On-chain names</h2>
-        <p class="hint">Claim a unique <b>@name</b> on Howlcoin (3–16 chars, a–z 0–9 _). First claim wins. Costs <b>1 HOWL</b> fee. Shows in Activity &amp; Send.</p>
+        <p class="hint">Claim a unique <b>@name</b> (3–16 chars). First claim wins. <b>1 HOWL</b> fee. Use @name in Send.</p>
         <p class="hint" id="myOnchainName" style="margin:0 0 10px">Your name: <b>—</b></p>
-        <label>Register name</label>
+        <label>Register</label>
         <div style="display:flex;gap:8px;align-items:center">
           <span style="color:var(--muted);font-weight:700">@</span>
           <input class="field" id="pubName" maxlength="16" placeholder="howler" style="margin:0;flex:1" spellcheck="false" autocapitalize="off"/>
@@ -1629,24 +1656,63 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <button class="btn" type="button" onclick="postPublicName()">Claim name (1 HOWL)</button>
         <p class="err" id="pubNameErr"></p>
         <p class="hint" id="pubNameTx"></p>
-        <label style="margin-top:14px">Lookup name → address</label>
+        <label style="margin-top:14px">Lookup / open profile</label>
         <div style="display:flex;gap:8px">
           <input class="field" id="nameLookup" placeholder="@howler or howler.howl" style="margin:0;flex:1" spellcheck="false"/>
           <button type="button" class="chip" style="cursor:pointer" onclick="lookupOnchainName()">Lookup</button>
         </div>
         <div id="nameLookupOut" class="hint" style="margin-top:8px"></div>
+        <div id="playProfile" class="hidden" style="margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--card2)"></div>
         <h3 style="margin:16px 0 8px;font-size:.85rem">Directory</h3>
         <button class="btn sec" type="button" onclick="refreshNameDirectory()">↻ Refresh names</button>
         <div id="nameDirectory" style="margin-top:10px"><p class="hint">Loading…</p></div>
-        <h3 style="margin:16px 0 8px;font-size:.85rem">Local nicknames (this device only)</h3>
+        <h3 style="margin:16px 0 8px;font-size:.85rem">Local nicknames (this device)</h3>
         <input class="field" id="nickName" placeholder="Friend"/>
         <input class="field" id="nickAddr" placeholder="H…"/>
         <button class="btn sec" type="button" onclick="saveNickname()">Save local name</button>
         <div id="nickList" style="margin-top:10px"></div>
       </div>
-      <div class="panel hidden" id="playDuel">
+
+      <!-- TIP JARS -->
+      <div class="panel hidden" id="playTips">
+        <div class="wa-section" style="margin:0 0 10px">
+          <h2 style="margin:0">Tip jars</h2>
+          <button type="button" class="wa-link" onclick="refreshPlayTips()">↻</button>
+        </div>
+        <p class="hint">Donate HOWL to any open tip jar. Owners withdraw anytime.</p>
+        <div id="playTipsList"><p class="hint">Loading…</p></div>
+        <div class="panel" style="margin:12px 0 0;padding:12px;background:var(--card2)">
+          <h3 style="margin:0 0 8px;font-size:.9rem">Create your tip jar</h3>
+          <label>Name</label>
+          <input class="field" id="playTipName" placeholder="Coffee tips" maxlength="80"/>
+          <label>Seed (HOWL, optional)</label>
+          <input class="field" id="playTipFund" inputmode="decimal" placeholder="0"/>
+          <button class="btn" type="button" onclick="playDeployTipjar()">Deploy tip jar</button>
+          <p class="err" id="playTipErr"></p>
+          <p class="hint" id="playTipTx"></p>
+          <p class="hint" id="playTipShare" style="margin-top:8px"></p>
+        </div>
+        <div class="panel" style="margin:12px 0 0;padding:12px;background:var(--card2)">
+          <h3 style="margin:0 0 8px;font-size:.9rem">Request payment</h3>
+          <p class="hint">Link + QR for a friend to open Send prefilled.</p>
+          <label>Amount (HOWL)</label>
+          <input class="field" id="reqAmt" inputmode="decimal" placeholder="10"/>
+          <label>Memo (optional)</label>
+          <input class="field" id="reqMemo" placeholder="coffee · tips · gas"/>
+          <button class="btn sec" type="button" onclick="buildPayRequest()">Make request</button>
+          <div id="reqOut" class="hidden" style="margin-top:12px">
+            <div class="mono" id="reqLink" style="font-size:.72rem;word-break:break-all;margin-bottom:8px" onclick="copyText($('reqLink').textContent)"></div>
+            <div class="duel-qr"><img id="reqQr" alt="request QR"/></div>
+            <button class="btn sec" type="button" onclick="copyText($('reqLink').textContent)">Copy link</button>
+            <button class="btn sec" type="button" onclick="sharePayRequest()">Share…</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MORE (duel / share / advanced) -->
+      <div class="panel hidden" id="playMore">
         <h2>QR duel</h2>
-        <p class="hint">Show your deposit QR. Scan a friend’s QR to open Send prefilled — IRL demo mode.</p>
+        <p class="hint">Show your deposit QR. Scan a friend’s QR to open Send prefilled.</p>
         <div class="duel-qr">
           <img id="duelMyQr" alt="my QR"/>
           <p class="mono" id="duelMyAddr" style="font-size:.72rem;margin-top:8px" onclick="copyText(keypair&&keypair.address)"></p>
@@ -1654,13 +1720,14 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <button class="btn" type="button" onclick="toggleDuelScan()">Scan friend → Send</button>
         <video id="duelVideo" playsinline muted style="width:100%;max-height:220px;margin-top:10px;display:none;border:1px solid var(--border);background:#000"></video>
         <p class="hint" id="duelHint">Uses camera + BarcodeDetector when available.</p>
-      </div>
-      <div class="panel hidden" id="playShare">
-        <h2>Share cards</h2>
-        <p class="hint">PNG cards for Twitter / Discord / memes.</p>
-        <button class="btn" type="button" onclick="openShareCard('address')">Share my address</button>
-        <button class="btn sec" type="button" onclick="openShareCard('block')">Share current block height</button>
+        <h2 style="margin-top:20px">Share cards</h2>
+        <p class="hint">PNG cards for social posts.</p>
+        <button class="btn sec" type="button" onclick="openShareCard('address')">Share my address</button>
+        <button class="btn sec" type="button" onclick="openShareCard('block')">Share block height</button>
         <button class="btn sec" type="button" onclick="openShareCard('howl')">Share a howl card</button>
+        <h2 style="margin-top:20px">Advanced</h2>
+        <button class="btn sec" type="button" onclick="showPage('contracts')">All contract kinds ›</button>
+        <button class="btn sec" type="button" onclick="showPage('oracle')">Oracle tools ›</button>
       </div>
     </div>
 
@@ -1870,7 +1937,7 @@ const TOOLBAR_CATALOG = [
   { id: "more", label: "Me", icon: "user", page: "more", fixed: true },
 ];
 /** Wallet · Markets · Browser · Me */
-const DEFAULT_TOOLBAR = ["home", "markets", "browser", "more"];
+const DEFAULT_TOOLBAR = ["home", "play", "markets", "more"];
 
 /** Structured More menu + jump sheet destinations */
 const MORE_MENU = [
@@ -1885,14 +1952,14 @@ const MORE_MENU = [
   { section: "Collectibles", items: [
     { id: "nft", icon: "nft", title: "NFTs", sub: "Howl · Tezos · mint", page: "nft" },
     { id: "names", icon: "at", title: "Names", sub: "Claim @name", page: "names" },
-    { id: "contracts", icon: "contract", title: "Contracts", sub: "Pack pot · bonds", page: "contracts" },
+    { id: "contracts", icon: "contract", title: "Contracts", sub: "Advanced Howl Script", page: "contracts" },
   ]},
   { section: "Apps", items: [
+    { id: "play", icon: "spark", title: "Play", sub: "Pots · howls · names · tips", page: "play" },
     { id: "browser", icon: "globe", title: "Browser", sub: "Search · dApps", page: "browser" },
     { id: "discover", icon: "spark", title: "Discover", sub: "Crypto radar", page: "discover" },
     { id: "wc", icon: "link", title: "Connect", sub: "WalletConnect", page: "wc", hintId: "moreWcHint" },
     { id: "oracle", icon: "oracle", title: "Oracle", sub: "On-chain posts", page: "oracle" },
-    { id: "play", icon: "spark", title: "Social", sub: "Howl · request · duel", page: "play" },
     { id: "share", icon: "share", title: "Share", sub: "Address card", action: "share" },
   ]},
   { section: "Settings", items: [
@@ -3082,30 +3149,310 @@ function celebrateIfNew(sum, addr){
 }
 
 /* —— Play tabs · request · howl · names · duel —— */
-let playTab = "request";
+let playTab = "pots";
 let duelStream = null, duelTimer = null;
 function setPlayTab(tab){
-  playTab = tab || "request";
+  playTab = tab || "pots";
   document.querySelectorAll("#playTabs [data-pt]").forEach(b=>{
     b.classList.toggle("on", b.getAttribute("data-pt") === playTab);
   });
-  ["request","howl","names","duel","share"].forEach(id=>{
-    const el = $("play" + id.charAt(0).toUpperCase() + id.slice(1));
-    // ids: playRequest playHowl playNames playDuel playShare
-  });
-  const map = { request:"playRequest", howl:"playHowl", names:"playNames", duel:"playDuel", share:"playShare" };
-  Object.entries(map).forEach(([k, id])=>{
+  const map = {
+    pots: "playPots",
+    howl: "playHowl",
+    names: "playNames",
+    tips: "playTips",
+    more: "playMore",
+    // legacy aliases
+    request: "playTips",
+    duel: "playMore",
+    share: "playMore",
+  };
+  const activeId = map[playTab] || "playPots";
+  Object.values(map).filter((v,i,a)=>a.indexOf(v)===i).forEach(id=>{
     const el = $(id);
-    if(el) el.classList.toggle("hidden", k !== playTab);
+    if(el) el.classList.toggle("hidden", id !== activeId);
   });
-  if(playTab === "duel") renderDuelMyQr();
+  if(playTab === "pots") refreshPlayPots();
+  if(playTab === "howl") refreshPlayHowls();
   if(playTab === "names"){
     renderNickList();
     refreshNameDirectory();
     refreshMyOnchainName();
   }
-  if(playTab === "howl") refreshHowlFeed();
-  if(playTab !== "duel") stopDuelScan();
+  if(playTab === "tips") refreshPlayTips();
+  if(playTab === "more" || playTab === "duel") renderDuelMyQr();
+  if(playTab !== "more" && playTab !== "duel") stopDuelScan();
+}
+
+function fmtBlocksLeft(unlockH){
+  const hNow = chainInfo?.height != null ? Number(chainInfo.height) : null;
+  const uh = Number(unlockH || 0);
+  if(hNow == null || !uh) return "—";
+  const left = uh - hNow;
+  if(left <= 0) return "unlocked";
+  const mins = left; // ~60s blocks
+  if(mins < 120) return `~${left} blocks / ~${mins}m`;
+  return `~${left} blocks / ~${Math.round(mins/60)}h`;
+}
+
+async function refreshPlayPots(){
+  const el = $("playPotsList");
+  if(!el) return;
+  el.innerHTML = `<p class="hint">Loading pots…</p>`;
+  try{
+    // ensure height for open/closed
+    try{
+      const s = await api("/api/public/summary");
+      if(s && s.height != null) chainInfo = { ...(chainInfo||{}), height: s.height };
+    }catch(_){}
+    const j = await api("/api/public/contracts?kind=packpot&limit=40");
+    const pots = j.contracts || [];
+    if(!pots.length){
+      el.innerHTML = `<p class="hint">No pack pots yet — seed the first one below.</p>`;
+      return;
+    }
+    const hNow = chainInfo?.height != null ? Number(chainInfo.height) : null;
+    el.innerHTML = pots.map(c=>{
+      const open = hNow == null || hNow < Number(c.unlock_height || 0);
+      const cid = c.contract_id || "";
+      return `<div class="play-card" data-cid="${escAttr(cid)}">
+        <div class="pc-top">
+          <div>
+            <div class="pc-title">${escHtml(c.name || "Pack pot")}</div>
+            <div class="pc-meta">${open?"🟢 open":"⚪ claim phase"} · joins ${escHtml(String(c.join_count||0))} · unlock #${escHtml(String(c.unlock_height||"—"))} · ${escHtml(fmtBlocksLeft(c.unlock_height))}</div>
+            <div class="pc-meta">Last: ${escHtml(displayName(c.last_joiner || "—"))}</div>
+          </div>
+          <div class="pc-bal">${escHtml(c.balance_fmt || "0 HOWL")}</div>
+        </div>
+        <div class="pc-actions">
+          ${open?`<input class="field" id="joinAmt_${escAttr(cid)}" inputmode="decimal" placeholder="join HOWL"/>
+          <button type="button" class="btn" data-join="${escAttr(cid)}">Join</button>`:""}
+          ${!open && keypair && c.last_joiner === keypair.address
+            ? `<button type="button" class="btn" data-claim="${escAttr(cid)}">Claim pot</button>`
+            : (!open ? `<span class="hint">Waiting for last joiner</span>` : "")}
+          <button type="button" class="btn sec" data-open="${escAttr(cid)}">Details</button>
+        </div>
+      </div>`;
+    }).join("");
+    el.querySelectorAll("[data-join]").forEach(btn=>{
+      btn.onclick = ()=>{
+        const cid = btn.getAttribute("data-join");
+        const amtEl = $("joinAmt_" + cid);
+        playCallContract(cid, "join", amtEl?.value || "");
+      };
+    });
+    el.querySelectorAll("[data-claim]").forEach(btn=>{
+      btn.onclick = ()=> playCallContract(btn.getAttribute("data-claim"), "claim", "");
+    });
+    el.querySelectorAll("[data-open]").forEach(btn=>{
+      btn.onclick = ()=>{ showPage("contracts"); setTimeout(()=> openHcDetail(btn.getAttribute("data-open")), 80); };
+    });
+  }catch(e){
+    el.innerHTML = `<p class="err">${escHtml(e.message||e)}</p>`;
+  }
+}
+
+async function playDeployPot(){
+  if($("playPotErr")) $("playPotErr").textContent = "";
+  if($("playPotTx")) $("playPotTx").textContent = "";
+  try{
+    if(!keypair) throw new Error("Unlock first");
+    const name = ($("playPotName")?.value || "").trim() || "Pack pot";
+    let fundHowl = 0n;
+    const fundTxt = ($("playPotFund")?.value || "").trim();
+    if(fundTxt) fundHowl = parseHowl(fundTxt);
+    let blocks = parseInt(($("playPotBlocks")?.value || "50").trim(), 10);
+    if(!blocks || blocks < 5) blocks = 50;
+    let hNow = chainInfo?.height;
+    if(hNow == null){
+      const s = await api("/api/public/summary");
+      hNow = s.height;
+      chainInfo = { ...(chainInfo||{}), height: hNow };
+    }
+    const unlock = Number(hNow) + blocks;
+    // reuse deploy fields on contracts page
+    if($("hcKind")) $("hcKind").value = "packpot";
+    renderHcDeployFields();
+    if($("hcName")) $("hcName").value = name;
+    if($("hcFund")) $("hcFund").value = fundTxt || "";
+    if($("hcUnlock")) $("hcUnlock").value = String(unlock);
+    const mj = ($("playPotMin")?.value || "").trim();
+    if($("hcMinJoin")) $("hcMinJoin").value = mj;
+    await deployHowlContract();
+    if($("playPotTx")) $("playPotTx").textContent = "Deploy submitted — wait for a block, then refresh pots.";
+    setTimeout(refreshPlayPots, 2000);
+  }catch(e){
+    if($("playPotErr")) $("playPotErr").textContent = e.message || String(e);
+  }
+}
+
+async function refreshPlayHowls(){
+  const el = $("howlFeed");
+  if(!el) return;
+  el.innerHTML = `<p class="hint">Loading howls…</p>`;
+  try{
+    const j = await api("/api/public/howls?limit=40");
+    const rows = j.howls || j.feed || [];
+    if(!rows.length){
+      el.innerHTML = `<p class="hint">No howls yet — be the first awoo on-chain.</p>`;
+      return;
+    }
+    el.innerHTML = rows.map(e=>{
+      const msg = String(e.message || e.value || e.oracle_value || "");
+      const who = e.reporter || e.from || "";
+      const h = e.pending ? "pending" : ("#" + (e.height ?? "—"));
+      return `<div class="item">
+        <div><b>🐺 ${escHtml(msg)}</b></div>
+        <div class="m">${escHtml(displayName(who))} · ${escHtml(h)}${e.pending?" · mempool":""}</div>
+      </div>`;
+    }).join("");
+  }catch(e){
+    // fallback to legacy personal feed
+    try{ await refreshHowlFeed(); }catch(_){
+      el.innerHTML = `<p class="hint">${escHtml(e.message||e)}</p>`;
+    }
+  }
+}
+
+async function refreshPlayTips(){
+  const el = $("playTipsList");
+  if(!el) return;
+  el.innerHTML = `<p class="hint">Loading tip jars…</p>`;
+  try{
+    const j = await api("/api/public/contracts?kind=tipjar&limit=40");
+    const tips = (j.contracts || []).filter(c => (c.status || "active") === "active");
+    if(!tips.length){
+      el.innerHTML = `<p class="hint">No tip jars yet — create yours below.</p>`;
+      return;
+    }
+    el.innerHTML = tips.map(c=>{
+      const cid = c.contract_id || "";
+      const mine = keypair && c.owner === keypair.address;
+      return `<div class="play-card">
+        <div class="pc-top">
+          <div>
+            <div class="pc-title">${escHtml(c.name || "Tip jar")}${mine?" · yours":""}</div>
+            <div class="pc-meta">Owner ${escHtml(displayName(c.owner || "—"))}</div>
+          </div>
+          <div class="pc-bal">${escHtml(c.balance_fmt || "0 HOWL")}</div>
+        </div>
+        <div class="pc-actions">
+          <input class="field" id="tipAmt_${escAttr(cid)}" inputmode="decimal" placeholder="donate HOWL"/>
+          <button type="button" class="btn" data-donate="${escAttr(cid)}">Donate</button>
+          ${mine?`<button type="button" class="btn sec" data-withdraw="${escAttr(cid)}">Withdraw</button>`:""}
+          <button type="button" class="btn sec" data-share-tip="${escAttr(cid)}">Share</button>
+        </div>
+      </div>`;
+    }).join("");
+    el.querySelectorAll("[data-donate]").forEach(btn=>{
+      btn.onclick = ()=>{
+        const cid = btn.getAttribute("data-donate");
+        const amt = $("tipAmt_" + cid)?.value || "";
+        playCallContract(cid, "donate", amt);
+      };
+    });
+    el.querySelectorAll("[data-withdraw]").forEach(btn=>{
+      btn.onclick = ()=> playCallContract(btn.getAttribute("data-withdraw"), "withdraw", "");
+    });
+    el.querySelectorAll("[data-share-tip]").forEach(btn=>{
+      btn.onclick = ()=>{
+        const cid = btn.getAttribute("data-share-tip");
+        const link = location.origin + location.pathname + "?play=tips&tip=" + encodeURIComponent(cid);
+        copyText(link, "Tip jar link");
+      };
+    });
+  }catch(e){
+    el.innerHTML = `<p class="err">${escHtml(e.message||e)}</p>`;
+  }
+}
+
+async function playDeployTipjar(){
+  if($("playTipErr")) $("playTipErr").textContent = "";
+  if($("playTipTx")) $("playTipTx").textContent = "";
+  try{
+    if(!keypair) throw new Error("Unlock first");
+    const name = ($("playTipName")?.value || "").trim() || "Tip jar";
+    const fundTxt = ($("playTipFund")?.value || "").trim();
+    if($("hcKind")) $("hcKind").value = "tipjar";
+    renderHcDeployFields();
+    if($("hcName")) $("hcName").value = name;
+    if($("hcFund")) $("hcFund").value = fundTxt || "";
+    await deployHowlContract();
+    if($("playTipTx")) $("playTipTx").textContent = "Tip jar deploy queued — refresh after a block.";
+    if($("playTipShare")) $("playTipShare").textContent = "Share link appears after deploy confirms (use Share on your jar).";
+    setTimeout(refreshPlayTips, 2000);
+  }catch(e){
+    if($("playTipErr")) $("playTipErr").textContent = e.message || String(e);
+  }
+}
+
+async function playCallContract(cid, method, amountStr){
+  try{
+    if(!keypair) throw new Error("Unlock first");
+    if(!cid) throw new Error("No contract");
+    hcSelectedId = cid;
+    // inject amount into the field callHowlContract reads
+    let fake = $("hcCallAmt");
+    if(!fake){
+      fake = document.createElement("input");
+      fake.id = "hcCallAmt";
+      fake.className = "hidden";
+      document.body.appendChild(fake);
+    }
+    fake.value = amountStr || "";
+    await callHowlContract(method, false);
+    setTimeout(()=>{
+      if(method === "join" || method === "claim") refreshPlayPots();
+      if(method === "donate" || method === "withdraw") refreshPlayTips();
+    }, 1600);
+  }catch(e){
+    toast(e.message || String(e));
+  }
+}
+
+async function openPlayNameProfile(slugOrAddr){
+  const box = $("playProfile");
+  if(!box) return;
+  box.classList.remove("hidden");
+  box.innerHTML = `<p class="hint">Loading profile…</p>`;
+  try{
+    let nameRow = null;
+    let addr = "";
+    const q = String(slugOrAddr || "").trim();
+    if(q.startsWith("H") && q.length > 20){
+      addr = q;
+      const j = await api("/api/public/names?address=" + encodeURIComponent(addr));
+      nameRow = j.name ? { name: j.name, address: addr } : { address: addr };
+    } else {
+      const slug = normalizeNameSlug(q);
+      const j = await api("/api/public/name/" + encodeURIComponent(slug));
+      nameRow = j.name || j;
+      addr = nameRow.address || "";
+    }
+    if(!addr) throw new Error("Profile not found");
+    const [balJ, potsJ, tipsJ] = await Promise.all([
+      api("/api/public/address/" + encodeURIComponent(addr)).catch(()=>({})),
+      api("/api/public/contracts?kind=packpot&limit=30").catch(()=>({contracts:[]})),
+      api("/api/public/contracts?kind=tipjar&limit=30").catch(()=>({contracts:[]})),
+    ]);
+    const slug = nameRow.name || nameRow.name_display || "";
+    const pots = (potsJ.contracts||[]).filter(c => c.owner === addr || c.last_joiner === addr).slice(0, 5);
+    const tips = (tipsJ.contracts||[]).filter(c => c.owner === addr).slice(0, 5);
+    const bal = balJ.balance_fmt || balJ.balance || "—";
+    box.innerHTML = `
+      <div style="font-weight:800;font-size:1.05rem">${slug ? "@"+escHtml(String(slug).replace(/^@/,"")) : "Profile"}</div>
+      <div class="mono" style="font-size:.72rem;margin:6px 0;word-break:break-all" onclick="copyText('${escAttr(addr)}')">${escHtml(addr)}</div>
+      <div class="hint">Balance · ${escHtml(String(bal))}</div>
+      <div class="pc-actions" style="margin-top:10px">
+        <button type="button" class="btn" onclick="showPage('send');if($('sendTo'))$('sendTo').value='${escAttr(slug?"@"+String(slug).replace(/^@/,""):addr)}'">Send HOWL</button>
+        <button type="button" class="btn sec" onclick="copyText('${escAttr(addr)}','Address')">Copy address</button>
+      </div>
+      ${tips.length?`<h4 style="margin:12px 0 6px;font-size:.8rem">Tip jars</h4>${tips.map(t=>`<div class="hint">· ${escHtml(t.name||"jar")} · ${escHtml(t.balance_fmt||"")}</div>`).join("")}`:""}
+      ${pots.length?`<h4 style="margin:12px 0 6px;font-size:.8rem">Pots</h4>${pots.map(t=>`<div class="hint">· ${escHtml(t.name||"pot")} · ${escHtml(t.balance_fmt||"")}</div>`).join("")}`:""}
+    `;
+  }catch(e){
+    box.innerHTML = `<p class="err">${escHtml(e.message||e)}</p>`;
+  }
 }
 function buildPayRequest(){
   if(!keypair){ toast("Unlock first"); return; }
@@ -3156,24 +3503,26 @@ async function postHowlMemo(){
     const msg = ($("howlMsg")?.value || "").trim();
     if(!msg) throw new Error("Type a howl first");
     if(msg.length > 80) throw new Error("Max 80 characters");
+    // Unique key so howls stack in history (not overwrite one global slot)
+    const oracle_key = "howl.howl." + Date.now().toString(36);
     openSlideConfirm({
       title: "Slide to howl",
       rows: [
         { k: "Message", v: msg },
         { k: "Fee", v: "1 HOWL (miner)" },
-        { k: "Type", v: "oracle · howl.howl" },
+        { k: "Type", v: "on-chain howl" },
       ],
       onConfirm: async () => {
         await postOracle({
           source_chain: "howlcoin",
-          oracle_key: "howl.howl",
+          oracle_key,
           oracle_value: msg,
         });
         if($("howlTx")) $("howlTx").textContent = "Howl queued (1 HOWL fee) — needs a mined block";
         toast("Howl broadcast · awoo!");
         fireConfetti("howl");
         if($("howlMsg")) $("howlMsg").value = "";
-        setTimeout(refreshHowlFeed, 1200);
+        setTimeout(refreshPlayHowls, 1200);
       },
     });
   }catch(e){
@@ -3181,36 +3530,8 @@ async function postHowlMemo(){
   }
 }
 async function refreshHowlFeed(){
-  const el = $("howlFeed");
-  if(!el || !keypair) return;
-  try{
-    const j = await api("/api/public/address/" + encodeURIComponent(keypair.address));
-    const howls = (j.transactions || []).filter(t =>
-      t.type === "oracle" || (t.memo && String(t.memo).toLowerCase().includes("oracle"))
-    ).slice(0, 8);
-    // also read oracle feed for howl.howl from us
-    let feed = [];
-    try{
-      const o = await api("/api/public/oracle?limit=30");
-      feed = (o.feed || o.entries || []).filter(e =>
-        (e.key === "howl.howl" || e.oracle_key === "howl.howl") &&
-        (e.reporter === keypair.address || e.from === keypair.address)
-      );
-    }catch(_){}
-    if(feed.length){
-      el.innerHTML = feed.slice(0, 10).map(e => `
-        <div class="item">
-          <div><b>🐺 ${escHtml(String(e.value || e.oracle_value || ""))}</b></div>
-          <div class="m">#${escHtml(String(e.height ?? "—"))} · ${escHtml(displayName(e.reporter || e.from || keypair.address))}</div>
-        </div>`).join("");
-    } else if(howls.length){
-      el.innerHTML = howls.map(t => `
-        <div class="item"><div class="m">Oracle / howl activity · #${escHtml(String(t.block_height ?? "—"))}</div></div>
-      `).join("");
-    } else el.innerHTML = `<p class="hint">No howls yet — be first</p>`;
-  }catch(e){
-    el.innerHTML = `<p class="hint">${escHtml(e.message)}</p>`;
-  }
+  // legacy alias → global play feed
+  return refreshPlayHowls();
 }
 function loadNicks(){
   try{ return JSON.parse(localStorage.getItem(LS_NICKS) || "{}"); }catch{ return {}; }
@@ -3337,7 +3658,10 @@ async function refreshNameDirectory(){
           <div class="m mono" style="font-size:.72rem">${escHtml(r.address || "")}</div>
           <div class="m">#${escHtml(String(r.height ?? "—"))}${r.legacy ? " · legacy" : ""}</div>
         </div>
-        <button type="button" class="chip" style="cursor:pointer" onclick="pickSendAddress(${JSON.stringify(r.address||"")});showPage('send')">Send</button>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button type="button" class="chip" style="cursor:pointer" onclick="openPlayNameProfile(${JSON.stringify(r.name||"")})">Profile</button>
+          <button type="button" class="chip" style="cursor:pointer" onclick="pickSendAddress(${JSON.stringify(r.address||"")});showPage('send')">Send</button>
+        </div>
       </div>`).join("");
     await refreshMyOnchainName();
   }catch(e){
@@ -3361,9 +3685,11 @@ async function lookupOnchainName(){
     nameCache.byAddr[a] = slug;
     if(out){
       out.innerHTML = `<b>@${escHtml(slug)}</b> → <span class="mono">${escHtml(a)}</span>
-        <button type="button" class="chip" style="cursor:pointer;margin-left:8px" onclick="pickSendAddress(${JSON.stringify(a)});showPage('send')">Send HOWL</button>
+        <button type="button" class="chip" style="cursor:pointer;margin-left:8px" onclick="openPlayNameProfile(${JSON.stringify(slug)})">Profile</button>
+        <button type="button" class="chip" style="cursor:pointer" onclick="pickSendAddress(${JSON.stringify(a)});showPage('send')">Send HOWL</button>
         <button type="button" class="chip" style="cursor:pointer" onclick="copyText(${JSON.stringify(a)},'address')">Copy</button>`;
     }
+    openPlayNameProfile(slug);
   }catch(e){
     if(out) out.innerHTML = `<span class="err">Not found · ${escHtml(e.message || "try another name")}</span>`;
   }
@@ -4556,12 +4882,20 @@ function showPage(name){
   if(name==="activity"){ renderActivityFull(); }
   if(name==="send"){ renderSendAddrChips(); renderAddressBookUI(); loadNameCache(); }
   if(name==="play"){
-    setPlayTab(openNamesTab ? "names" : (playTab || "request"));
-    if(openNamesTab || playTab === "names"){
-      refreshNameDirectory();
-      refreshMyOnchainName();
-      renderNickList();
-    }
+    // deep links: ?play=pots|howls|names|tips  or openNamesTab
+    let tab = playTab || "pots";
+    try{
+      const sp = new URLSearchParams(location.search);
+      const p = (sp.get("play") || "").toLowerCase();
+      if(p === "howls" || p === "howl") tab = "howl";
+      else if(p === "names" || p === "name") tab = "names";
+      else if(p === "tips" || p === "tip") tab = "tips";
+      else if(p === "pots" || p === "pot") tab = "pots";
+      else if(p === "more") tab = "more";
+      if(sp.get("tip")) tab = "tips";
+    }catch(_){}
+    if(openNamesTab) tab = "names";
+    setPlayTab(tab);
   }
   if(name!=="send") try{ stopSendQrScan(); }catch(_){}
   if(name!=="play") try{ stopDuelScan(); }catch(_){}
@@ -7958,7 +8292,11 @@ async function deployHowlContract(){
         toast("Contract deploy queued");
         fireConfetti("howl");
         if($("hcName")) $("hcName").value = "";
-        setTimeout(refreshHowlContracts, 1500);
+        setTimeout(()=>{
+          refreshHowlContracts();
+          try{ refreshPlayPots(); }catch(_){}
+          try{ refreshPlayTips(); }catch(_){}
+        }, 1500);
       },
     });
   }catch(e){
@@ -10087,6 +10425,13 @@ window.pickSendAddress = pickSendAddress;
 window.addAddressBookEntry = addAddressBookEntry;
 window.removeAddressBookEntry = removeAddressBookEntry;
 window.setPlayTab = setPlayTab;
+window.refreshPlayPots = refreshPlayPots;
+window.refreshPlayHowls = refreshPlayHowls;
+window.refreshPlayTips = refreshPlayTips;
+window.playDeployPot = playDeployPot;
+window.playDeployTipjar = playDeployTipjar;
+window.playCallContract = playCallContract;
+window.openPlayNameProfile = openPlayNameProfile;
 window.buildPayRequest = buildPayRequest;
 window.sharePayRequest = sharePayRequest;
 window.postHowlMemo = postHowlMemo;

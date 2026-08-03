@@ -1753,6 +1753,66 @@ class Blockchain:
     def oracle_get(self, key: str) -> Optional[Dict[str, Any]]:
         return self.oracle.get(key)
 
+    def list_howls(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """
+        Social howl history from chain txs (not just latest oracle overwrite).
+        Keys: howl.howl or howl.howl.<suffix> (excludes howl.name.* / howl.bond.*).
+        """
+        limit = max(1, min(200, int(limit or 50)))
+        out: List[Dict[str, Any]] = []
+        for b in reversed(self.blocks):
+            height = b.get("height")
+            ts = (b.get("header") or {}).get("timestamp")
+            bhash = b.get("hash")
+            for tx in reversed(b.get("transactions") or []):
+                if (tx.get("type") or "") != "oracle":
+                    continue
+                key = str(tx.get("oracle_key") or "").strip()
+                if key == "howl.howl" or key.startswith("howl.howl."):
+                    pass
+                else:
+                    continue
+                out.append(
+                    {
+                        "key": key,
+                        "value": tx.get("oracle_value"),
+                        "message": tx.get("oracle_value"),
+                        "reporter": tx.get("from"),
+                        "from": tx.get("from"),
+                        "txid": tx.get("txid"),
+                        "height": height,
+                        "timestamp": ts,
+                        "block_hash": bhash,
+                        "source_chain": tx.get("source_chain") or "howlcoin",
+                    }
+                )
+                if len(out) >= limit:
+                    return out
+        # pending mempool howls
+        for tx in reversed(self.mempool):
+            if (tx.get("type") or "") != "oracle":
+                continue
+            key = str(tx.get("oracle_key") or "").strip()
+            if key != "howl.howl" and not key.startswith("howl.howl."):
+                continue
+            out.append(
+                {
+                    "key": key,
+                    "value": tx.get("oracle_value"),
+                    "message": tx.get("oracle_value"),
+                    "reporter": tx.get("from"),
+                    "from": tx.get("from"),
+                    "txid": tx.get("txid"),
+                    "height": None,
+                    "timestamp": None,
+                    "pending": True,
+                    "source_chain": tx.get("source_chain") or "howlcoin",
+                }
+            )
+            if len(out) >= limit:
+                break
+        return out
+
     # ---------- on-chain names (howl.name.<slug>) ----------
 
     NAME_PREFIX = "howl.name."
@@ -1874,6 +1934,7 @@ class Blockchain:
         self,
         owner: Optional[str] = None,
         kind: Optional[str] = None,
+        status: Optional[str] = None,
         limit: int = 100,
     ) -> List[Dict[str, Any]]:
         items = list(self.contracts.values())
@@ -1895,12 +1956,25 @@ class Blockchain:
         if kind:
             k = kind.strip().lower()
             items = [c for c in items if (c.get("kind") or "").lower() == k]
-        items.sort(
-            key=lambda c: (
+        if status:
+            st = status.strip().lower()
+            items = [c for c in items if (c.get("status") or "").lower() == st]
+        # open pack pots first, then by pot size / recency
+        def _sort_key(c: Dict[str, Any]) -> Tuple:
+            kind_c = (c.get("kind") or "").lower()
+            open_pot = (
+                1
+                if kind_c == "packpot" and (c.get("status") or "") == "active"
+                else 0
+            )
+            return (
+                -open_pot,
+                -(int(c.get("balance") or 0)),
                 -(c.get("last_height") or c.get("deploy_height") or 0),
                 c.get("contract_id") or "",
             )
-        )
+
+        items.sort(key=_sort_key)
         return [self._enrich_contract(c) for c in items[:limit]]
 
     def get_contract(self, contract_id: str) -> Optional[Dict[str, Any]]:

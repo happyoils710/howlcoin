@@ -4284,6 +4284,20 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                             },
                         )
 
+                    # Social howl feed (Play hub) — full history from txs
+                    if rest[0] in ("howls", "howl-feed", "awoo"):
+                        limit = int(qs.get("limit", ["40"])[0])
+                        rows = chain.list_howls(limit=limit)
+                        return self._json(
+                            200,
+                            {
+                                "network": net,
+                                "howls": rows,
+                                "count": len(rows),
+                                "note": "On-chain howls · Howlcoin Play",
+                            },
+                        )
+
                     # On-chain names: howl.name.<slug>
                     if rest[0] in ("names", "name"):
                         if rest[0] == "name" and len(rest) >= 2:
@@ -4332,9 +4346,10 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                             return self._json(200, {"network": net, "contract": row})
                         owner = (qs.get("owner") or [None])[0]
                         kind = (qs.get("kind") or [None])[0]
+                        status = (qs.get("status") or [None])[0]
                         limit = int(qs.get("limit", ["100"])[0])
                         rows = chain.list_contracts(
-                            owner=owner, kind=kind, limit=limit
+                            owner=owner, kind=kind, status=status, limit=limit
                         )
                         return self._json(
                             200,
