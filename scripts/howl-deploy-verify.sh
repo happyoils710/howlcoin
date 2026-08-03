@@ -84,21 +84,41 @@ curl_json() {
 }
 
 # ---------- SSH mode: re-exec on host ----------
+# Note: do NOT use BatchMode — passphrase-protected keys need a prompt / agent.
+ssh_run() {
+  # Prefer ControlMaster if already connected; allow agent + keychain.
+  ssh -o ConnectTimeout=25 -o IdentitiesOnly=no "$@"
+}
+
 if [[ "$MODE" == "ssh" ]]; then
   if [[ -z "$SSH_HOST" ]]; then
     echo "FAIL: --ssh requires a host" >&2
     exit 1
   fi
   echo "== Howlcoin deploy verify (ssh → $SSH_HOST) =="
-  if ssh -o BatchMode=yes -o ConnectTimeout=20 "$SSH_HOST" \
-    "test -x ${INSTALL_DIR}/scripts/howl-deploy-verify.sh || test -f ${INSTALL_DIR}/scripts/howl-deploy-verify.sh"; then
-    ssh -o BatchMode=yes -o ConnectTimeout=20 "$SSH_HOST" \
+  echo "  (enter key passphrase if prompted)"
+
+  if ! ssh_run -o BatchMode=yes "$SSH_HOST" "echo ok" >/dev/null 2>&1; then
+    # Agent empty or BatchMode blocked — try interactive once to unlock key
+    if ! ssh_run "$SSH_HOST" "echo ok" >/dev/null; then
+      echo "  FAIL ssh to $SSH_HOST (Permission denied or host unreachable)"
+      echo "  Fix:"
+      echo "    ssh-add --apple-use-keychain ~/.ssh/id_ed25519_howl"
+      echo "    ssh $SSH_HOST   # confirm login works"
+      echo "    # or run on the VPS:  bash /opt/howlcoin/scripts/howl-deploy-verify.sh --local"
+      exit 1
+    fi
+  fi
+
+  if ssh_run "$SSH_HOST" "test -f ${INSTALL_DIR}/scripts/howl-deploy-verify.sh"; then
+    ssh_run "$SSH_HOST" \
       "bash ${INSTALL_DIR}/scripts/howl-deploy-verify.sh --local --api $(printf %q "$API") --expect $(printf %q "$EXPECT_VER") --data $(printf %q "$DATA_DIR") --dir $(printf %q "$INSTALL_DIR") --max-tip-age $(printf %q "$MAX_TIP_AGE")"
     exit $?
   fi
-  echo "  (remote script missing — mixed checks)"
-  MODE="remote"
-  REMOTE_OUT="$(ssh -o BatchMode=yes -o ConnectTimeout=20 "$SSH_HOST" "
+
+  echo "  WARN remote script missing at ${INSTALL_DIR}/scripts/howl-deploy-verify.sh"
+  echo "  Pull latest main on the VPS, then re-run. Mixed remote snapshot:"
+  REMOTE_OUT="$(ssh_run "$SSH_HOST" "
     echo GIT:\$(cd ${INSTALL_DIR} 2>/dev/null && git log -1 --oneline || echo missing)
     echo VERSION:\$(cd ${INSTALL_DIR} 2>/dev/null && PYTHONPATH=${INSTALL_DIR} python3 -c 'from howl.config import VERSION;print(VERSION)' 2>/dev/null || echo missing)
     systemctl is-active howlcoin 2>/dev/null || echo howlcoin:down
@@ -107,6 +127,7 @@ if [[ "$MODE" == "ssh" ]]; then
     ls -la ${DATA_DIR}/howl_charts_samples.json 2>/dev/null || echo samples:missing
   " 2>&1 || true)"
   echo "$REMOTE_OUT" | sed 's/^/  | /'
+  MODE="remote"
 fi
 
 echo "== Howlcoin deploy verify =="
