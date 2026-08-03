@@ -2487,14 +2487,14 @@ tbody tr:hover{background:var(--rowh)}
       <option value="neo">Neo</option>
       <option value="bones">Bones</option>
     </select>
+    <button class="chipbtn" onclick="location.hash='#/play'">Play</button>
+    <button class="chipbtn" onclick="location.hash='#/culture'">Culture</button>
+    <button class="chipbtn" onclick="location.hash='#/charts'">Charts</button>
+    <button class="chipbtn" onclick="location.hash='#/health'">Network</button>
     <button class="chipbtn" onclick="location.hash='#/'+net+'/richlist'">Richlist</button>
     <button class="chipbtn" onclick="location.hash='#/'+net+'/mempool'">Mempool</button>
-    <button class="chipbtn" onclick="location.hash='#/'+net+'/block/0'">Genesis</button>
-    <a class="chipbtn" href="/whitepaper" style="text-decoration:none;display:inline-flex;align-items:center">White paper</a>
-    <a class="chipbtn" href="/token" style="text-decoration:none;display:inline-flex;align-items:center;color:var(--text)">Token info</a>
-    <a class="chipbtn" href="/wallet" style="text-decoration:none;display:inline-flex;align-items:center">Wallet</a>
+    <a class="chipbtn" href="/app" style="text-decoration:none;display:inline-flex;align-items:center;color:var(--green)">Wallet</a>
     <button class="chipbtn" style="border-color:var(--primary-border);color:var(--green)" onclick="location.hash='#/run'">Run a node</button>
-    <button class="chipbtn" onclick="location.hash='#/health'">Health</button>
     <button class="chipbtn" onclick="refreshData()">Refresh</button>
   </div>
   <button class="iconbtn" id="menu-btn" type="button" aria-label="Menu" onclick="toggleDrawer(true)">☰</button>
@@ -2508,13 +2508,16 @@ tbody tr:hover{background:var(--rowh)}
   </div>
   <h4>Explore</h4>
   <button class="ditem" type="button" onclick="navTo('#/'+net)">🏠 Home</button>
+  <button class="ditem primary" type="button" onclick="navTo('#/play')">🎮 Play</button>
+  <button class="ditem" type="button" onclick="navTo('#/culture')">🖼 Culture</button>
+  <button class="ditem" type="button" onclick="navTo('#/charts')">📈 Charts</button>
+  <button class="ditem" type="button" onclick="navTo('#/health')">💓 Network</button>
   <button class="ditem" type="button" onclick="navTo('#/'+net+'/richlist')">🏆 Richlist</button>
   <button class="ditem" type="button" onclick="navTo('#/'+net+'/mempool')">⏳ Mempool</button>
   <button class="ditem" type="button" onclick="navTo('#/'+net+'/block/0')">🌱 Genesis</button>
   <h4 style="margin-top:16px">Get started</h4>
   <button class="ditem primary" type="button" onclick="navTo('#/run')">🐺 Run a node</button>
-  <button class="ditem" type="button" onclick="navTo('#/health')">💓 Network health</button>
-  <a class="ditem" href="/wallet">👛 Wallet</a>
+  <a class="ditem" href="/app">👛 Wallet</a>
   <a class="ditem" href="/token">🏷 Token / contract info</a>
   <a class="ditem" href="/whitepaper">📄 White paper</a>
   <a class="ditem" href="https://github.com/happyoils710/howlcoin" target="_blank" rel="noopener">⌥ GitHub</a>
@@ -2538,7 +2541,7 @@ tbody tr:hover{background:var(--rowh)}
 </div>
 <div class="searchwrap" id="searchwrap">
   <div class="searchbox">
-    <input id="q" placeholder="Height, hash, txid, or H… address" enterkeyhint="search" autocomplete="off"
+    <input id="q" placeholder="Height, hash, tx, H… address, or @name" enterkeyhint="search" autocomplete="off"
       onkeydown="if(event.key==='Enter')doSearch()"/>
     <button type="button" onclick="doSearch()">Search</button>
   </div>
@@ -2547,13 +2550,14 @@ tbody tr:hover{background:var(--rowh)}
 <div class="footer">
   <div>Howlscan · Scrypt PoW · not financial advice ·
     <a href="#/public">Home</a> ·
-    <a href="/token">Token info</a> ·
-    <a href="/whitepaper">White paper</a> ·
-    <a href="/wallet">Wallet</a> ·
+    <a href="#/play">Play</a> ·
+    <a href="#/culture">Culture</a> ·
+    <a href="#/charts">Charts</a> ·
+    <a href="#/health">Network</a> ·
+    <a href="/app">Wallet</a> ·
     <a href="#/run">Run a node</a> ·
     <a href="#/public/richlist">Richlist</a> ·
-    <a href="#/public/mempool">Mempool</a> ·
-    <a href="#/public/block/0">Genesis</a>
+    <a href="#/public/mempool">Mempool</a>
   </div>
   <div>API <span class="mono">/api/networks</span> · seed <span class="mono">147.182.223.204:42069</span> ·
     <a href="https://github.com/happyoils710/howlcoin" target="_blank" rel="noopener">Code</a>
@@ -2561,9 +2565,9 @@ tbody tr:hover{background:var(--rowh)}
 </div>
 <nav class="bottom-nav" id="bottom-nav" aria-label="Primary">
   <button type="button" class="bnav-item" data-tab="home" onclick="goHome()"><span class="ico">⌂</span>Home</button>
-  <button type="button" class="bnav-item" data-tab="search" onclick="focusSearch()"><span class="ico">⌕</span>Search</button>
-  <button type="button" class="bnav-item" data-tab="richlist" onclick="location.hash='#/'+net+'/richlist'"><span class="ico">★</span>Richlist</button>
-  <button type="button" class="bnav-item" data-tab="mempool" onclick="location.hash='#/'+net+'/mempool'"><span class="ico">◎</span>Mempool</button>
+  <button type="button" class="bnav-item" data-tab="play" onclick="location.hash='#/play'"><span class="ico">🎮</span>Play</button>
+  <button type="button" class="bnav-item" data-tab="culture" onclick="location.hash='#/culture'"><span class="ico">🖼</span>Culture</button>
+  <button type="button" class="bnav-item" data-tab="health" onclick="location.hash='#/health'"><span class="ico">💓</span>Net</button>
   <button type="button" class="bnav-item" data-tab="more" onclick="toggleDrawer(true)"><span class="ico">☰</span>More</button>
 </nav>
 <script>
@@ -2714,9 +2718,13 @@ function setBottomTab(tab){
 }
 function activeTabFromRoute(parts){
   if(!parts.length || (parts.length===1 && networks.find(n=>n.id===parts[0]))) return 'home';
+  if(parts[0]==='play') return 'play';
+  if(parts[0]==='culture' || parts[0]==='nfts' || parts[0]==='gallery') return 'culture';
+  if(parts[0]==='health' || parts[0]==='status' || parts[0]==='charts') return 'health';
   if(parts[0]==='run' || parts[0]==='node' || parts[0]==='sync') return 'more';
-  if(parts[1]==='richlist' || parts[0]==='richlist') return 'richlist';
-  if(parts[1]==='mempool' || parts[0]==='mempool') return 'mempool';
+  if(parts[1]==='richlist' || parts[0]==='richlist') return 'more';
+  if(parts[1]==='mempool' || parts[0]==='mempool') return 'more';
+  if(parts[0]==='name' || (parts[1]==='name')) return 'play';
   return 'home';
 }
 
@@ -2760,12 +2768,14 @@ async function loadHome(){
     app().innerHTML=`<div class="main"><div class="card detail err">Chain <b>${esc(net)}</b> offline.<br><span class="mono">${esc(s.path||'')}</span><br>${esc(s.note||'')}</div></div>`;
     return;
   }
-  const [blocks, txs]=await Promise.all([
+  const [blocks, txs, statusJ]=await Promise.all([
     api(`/api/${net}/blocks?limit=15`),
     api(`/api/${net}/txs?limit=15`),
+    api(`/api/public/status?window=20`).catch(()=>({})),
   ]);
   const bl = blocks.blocks||[];
   const tl = txs.transactions||[];
+  const cul = statusJ.culture || {};
   const tipTs = s.tip_timestamp || (bl[0] && bl[0].timestamp) || 0;
   const tipAge = tipTs ? ago(tipTs) : '—';
   const ageSec = s.tip_age_seconds != null ? s.tip_age_seconds : (tipTs ? Math.max(0, Math.floor(Date.now()/1000 - tipTs)) : 0);
@@ -2797,7 +2807,9 @@ async function loadHome(){
           : ` · smooth difficulty activates at height <b>${s.smooth_diff_activation_height||120}</b> (next blocks).`}
         Nodes must run <b>v0.6+</b>.
         <a href="#/run">Run a node / mine</a>
-        · <a href="#/health">Health</a>
+        · <a href="#/health">Network</a>
+        · <a href="#/play">Play</a>
+        · <a href="#/culture">Culture</a>
       </p>
       <div id="tipTicker" class="mono" style="margin-top:10px;padding:8px 10px;border:1px solid rgba(0,255,198,.2);background:rgba(0,0,0,.25);font-size:.78rem;overflow:hidden;white-space:nowrap;cursor:pointer"
         onclick="location.hash='#/${net}/block/${s.height}'"
@@ -2822,13 +2834,33 @@ async function loadHome(){
     <div class="stat stat-wide" style="cursor:pointer" onclick="location.hash='#/${net}/block/${encodeURIComponent(s.tip)}'">
       <div class="k">Tip hash</div><div class="v mono" style="font-size:.85rem">${esc(short(s.tip,14))}</div><div class="s">tap → tip block</div></div>
   </div>
+  <div class="main" style="padding-bottom:4px;padding-top:0">
+    <div class="card" style="padding:12px 14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <b style="font-size:.95rem">Culture pulse</b>
+        <span class="muted" style="font-size:.78rem">on-chain · live</span>
+      </div>
+      <div class="stats" style="margin:0;padding:0">
+        <div class="stat" style="cursor:pointer" onclick="location.hash='#/play'">
+          <div class="k">Open pots</div><div class="v">${cul.packpots_open??0}</div><div class="s">${cul.packpots??0} total · Play</div></div>
+        <div class="stat" style="cursor:pointer" onclick="location.hash='#/play'">
+          <div class="k">Howls</div><div class="v">${cul.howls??0}</div><div class="s">posts</div></div>
+        <div class="stat" style="cursor:pointer" onclick="location.hash='#/play'">
+          <div class="k">Names</div><div class="v">${cul.names??0}</div><div class="s">@handles</div></div>
+        <div class="stat" style="cursor:pointer" onclick="location.hash='#/culture'">
+          <div class="k">NFTs</div><div class="v">${cul.nfts??0}</div><div class="s">${cul.tipjars??0} tip jars</div></div>
+      </div>
+    </div>
+  </div>
   <div class="main" style="padding-bottom:8px">
     <div class="quick-row">
-      <button class="chipbtn" onclick="location.hash='#/${net}/block/0'">Genesis #0</button>
+      <button class="chipbtn" style="border-color:rgba(61,255,154,.45);color:var(--green)" onclick="location.hash='#/play'">Play board</button>
+      <button class="chipbtn" onclick="location.hash='#/culture'">Culture gallery</button>
+      <button class="chipbtn" onclick="location.hash='#/charts'">Charts</button>
+      <button class="chipbtn" onclick="location.hash='#/health'">Network status</button>
       <button class="chipbtn" onclick="location.hash='#/${net}/block/${s.height}'">Latest #${s.height}</button>
-      <button class="chipbtn" onclick="location.hash='#/${net}/richlist'">Top addresses</button>
       <button class="chipbtn" onclick="location.hash='#/${net}/mempool'">Mempool (${s.mempool})</button>
-      <button class="chipbtn" style="border-color:rgba(61,255,154,.45);color:var(--green)" onclick="location.hash='#/run'">Run a node / sync</button>
+      <button class="chipbtn" onclick="location.hash='#/run'">Run a node</button>
     </div>
   </div>
   <div class="main cols">
@@ -3002,10 +3034,16 @@ async function showAddr(addr){
   await loadNetworks();
   const d=await api(`/api/${net}/address/${encodeURIComponent(addr)}`);
   const hist = d.transactions||[];
+  let onName = null;
+  try{
+    const nm = await api(`/api/${net}/names?address=${encodeURIComponent(d.address||addr)}`);
+    onName = nm.name || nm.name_display || null;
+    if(onName && String(onName).startsWith('@')) onName = String(onName).slice(1);
+  }catch(e){}
   const known = {
     'HOWL_GENESIS_BURN': 'Genesis burn',
   };
-  const tag = known[d.address] || (String(d.address||'').startsWith('H') ? 'Howlcoin address' : 'Address');
+  const tag = known[d.address] || (onName ? '@'+onName : (String(d.address||'').startsWith('H') ? 'Howlcoin address' : 'Address'));
   // mini activity strip (heights)
   const heights = hist.map(t=>t.block_height).filter(h=>h!=null).slice(0,24);
   const maxH = heights.length ? Math.max(...heights) : 1;
@@ -3016,10 +3054,11 @@ async function showAddr(addr){
       }).join('')}</div><div class="muted" style="font-size:.72rem">Recent activity heights (newest left)</div>`
     : `<p class="muted" style="font-size:.85rem;margin:8px 0">No activity spark yet</p>`;
   app().innerHTML=`<div class="main" style="padding-top:12px">
-    ${crumbs([{label:'Home',href:'#/'+net},{label:'Richlist',href:'#/'+net+'/richlist'},{label:'Address'}])}
+    ${crumbs([{label:'Home',href:'#/'+net},{label:'Richlist',href:'#/'+net+'/richlist'},{label:onName?('@'+onName):'Address'}])}
     <div class="page-actions">
       <button class="back" onclick="location.hash='#/${net}'">← Home</button>
       <button class="chipbtn" onclick="location.hash='#/${net}/richlist'">Richlist</button>
+      ${onName?`<button class="chipbtn" onclick="location.hash='#/name/${encodeURIComponent(onName)}'">@${esc(onName)} profile</button>`:''}
       <button class="chipbtn" onclick="copyText(${JSON.stringify(String(d.address||''))}, this)">Copy address</button>
     </div>
     <div class="stats" style="margin-bottom:10px">
@@ -3030,7 +3069,7 @@ async function showAddr(addr){
     <div class="card detail" style="margin-top:4px">
       <div class="badge blue">${esc(tag)}</div>
       <span class="badge ok" style="margin-left:6px">Verified on Howlcoin</span>
-      <h2 style="margin:8px 0 4px;font-size:1.25rem">Wallet</h2>
+      <h2 style="margin:8px 0 4px;font-size:1.25rem">${onName?('@'+esc(onName)):'Wallet'}</h2>
       <div class="mono">${esc(d.address)}${copyBtn(d.address)}</div>
       ${spark}
       <div class="kv" style="margin-top:12px">
@@ -3500,10 +3539,352 @@ python3 -m howl status`;
   </div>`;
 }
 
+function fmtAmtShort(howlies){
+  if(howlies==null) return '—';
+  const n = Number(howlies) / 1e8;
+  if(!isFinite(n)) return String(howlies);
+  if(n >= 1e6) return (n/1e6).toFixed(2)+'M HOWL';
+  if(n >= 1e3) return (n/1e3).toFixed(2)+'k HOWL';
+  return n.toFixed(n >= 1 ? 2 : 4) + ' HOWL';
+}
+function linkName(slug){
+  if(!slug) return '—';
+  const s = String(slug).replace(/^@/,'');
+  return `<a href="#/name/${encodeURIComponent(s)}">@${esc(s)}</a>`;
+}
+function sparkPts(points, w, h){
+  const vals = (points||[]).map(p=>Number(p.p)).filter(v=>isFinite(v));
+  if(vals.length < 2) return '';
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const span = (max - min) || 1;
+  return vals.map((v,i)=>{
+    const x = (i/(vals.length-1)) * (w-8) + 4;
+    const y = h - 4 - ((v - min) / span) * (h-12);
+    return x.toFixed(1)+','+y.toFixed(1);
+  }).join(' ');
+}
+
+async function showPlayBoard(){
+  setHeroVisible(false);
+  setBottomTab('play');
+  await loadNetworks();
+  let pots=[], howls=[], tips=[], names=[], st={};
+  try{
+    [pots, howls, tips, names, st] = await Promise.all([
+      api(`/api/${net}/contracts?kind=packpot&limit=30`).then(j=>j.contracts||[]).catch(()=>[]),
+      api(`/api/${net}/howls?limit=25`).then(j=>j.howls||[]).catch(()=>[]),
+      api(`/api/${net}/contracts?kind=tipjar&limit=20`).then(j=>j.contracts||[]).catch(()=>[]),
+      api(`/api/${net}/names?limit=20`).then(j=>j.names||[]).catch(()=>[]),
+      api('/api/public/status?window=12').catch(()=>({})),
+    ]);
+  }catch(e){}
+  const cul = st.culture || {};
+  const hNow = st.height != null ? Number(st.height) : null;
+  const openPots = pots.filter(c => (c.status||'active')==='active');
+  app().innerHTML = `<div class="main" style="padding-top:12px">
+    ${crumbs([{label:'Home',href:'#/'+net},{label:'Play'}])}
+    <div class="page-actions">
+      <button class="back" onclick="location.hash='#/${net}'">← Home</button>
+      <button class="chipbtn" onclick="location.hash='#/culture'">Culture</button>
+      <button class="chipbtn" onclick="location.hash='#/app'">Open wallet to act</button>
+      <button class="chipbtn" onclick="showPlayBoard()">↻ Refresh</button>
+    </div>
+    <div class="card detail">
+      <div class="badge ok">PLAY</div>
+      <h2 style="margin:8px 0 6px">Howlcoin Play board</h2>
+      <p class="muted" style="margin:0 0 10px">Public view of on-chain pots, howls, tip jars, and names. To join, howl, or tip — use the <a href="/app">wallet</a>.</p>
+      <div class="stats" style="margin:0">
+        <div class="stat"><div class="k">Open pots</div><div class="v">${cul.packpots_open??openPots.length}</div><div class="s">of ${cul.packpots??pots.length}</div></div>
+        <div class="stat"><div class="k">Howls</div><div class="v">${cul.howls??howls.length}</div><div class="s">posts</div></div>
+        <div class="stat"><div class="k">Names</div><div class="v">${cul.names??names.length}</div><div class="s">@handles</div></div>
+        <div class="stat"><div class="k">Tip jars</div><div class="v">${cul.tipjars??tips.length}</div><div class="s">active</div></div>
+      </div>
+    </div>
+    <div class="main cols" style="padding:12px 0 0;margin:0">
+      <div class="card">
+        <h3>Pack pots <a class="more" href="/app#play">act in wallet →</a></h3>
+        <div class="mlist">
+          ${openPots.length?openPots.map(c=>{
+            const uh = Number(c.unlock_height||0);
+            const left = hNow!=null && uh ? uh - hNow : null;
+            const open = left==null || left > 0;
+            return `<div class="mrow">
+              <div class="ml">
+                <div class="mt">${esc(c.name||'Pack pot')} <span class="badge ${open?'ok':'warn'}">${open?'open':'claim'}</span></div>
+                <div class="ms">unlock #${esc(String(c.unlock_height||'—'))}${left!=null && left>0?` · ~${left} blocks`:''} · joins ${esc(String(c.join_count||0))}</div>
+                <div class="ms mono">last ${c.last_joiner?linkAddr(c.last_joiner):'—'}</div>
+              </div>
+              <div class="mr"><div class="ma">${esc(c.balance_fmt||'0')}</div></div>
+            </div>`;
+          }).join(''):`<div class="mrow"><div class="muted">No open pots yet — deploy one in the wallet Play hub.</div></div>`}
+        </div>
+      </div>
+      <div class="card">
+        <h3>Howl feed</h3>
+        <div class="mlist">
+          ${howls.length?howls.map(e=>`<div class="mrow">
+            <div class="ml">
+              <div class="mt">🐺 ${esc(String(e.message||e.value||''))}</div>
+              <div class="ms">${e.from||e.reporter?linkAddr(e.from||e.reporter):'—'} · ${e.pending?'mempool':'#'+esc(String(e.height??'—'))}</div>
+            </div>
+          </div>`).join(''):`<div class="mrow"><div class="muted">No howls yet.</div></div>`}
+        </div>
+      </div>
+    </div>
+    <div class="main cols" style="padding:12px 0 0;margin:0">
+      <div class="card">
+        <h3>Tip jars</h3>
+        <div class="mlist">
+          ${(tips.filter(t=>(t.status||'active')==='active')).length?
+            tips.filter(t=>(t.status||'active')==='active').map(c=>`<div class="mrow">
+              <div class="ml">
+                <div class="mt">${esc(c.name||'Tip jar')}</div>
+                <div class="ms">owner ${c.owner?linkAddr(c.owner):'—'}</div>
+              </div>
+              <div class="mr"><div class="ma">${esc(c.balance_fmt||'0')}</div></div>
+            </div>`).join(''):`<div class="mrow"><div class="muted">No tip jars yet.</div></div>`}
+        </div>
+      </div>
+      <div class="card">
+        <h3>Names directory</h3>
+        <div class="mlist">
+          ${names.length?names.map(r=>`<div class="mrow" onclick="location.hash='#/name/${encodeURIComponent(r.name||'')}'" style="cursor:pointer">
+            <div class="ml">
+              <div class="mt">${linkName(r.name)}</div>
+              <div class="ms mono">${esc(short(r.address,14))} · #${esc(String(r.height??'—'))}</div>
+            </div>
+            <div class="mr"><div class="ms">profile →</div></div>
+          </div>`).join(''):`<div class="mrow"><div class="muted">No names claimed yet.</div></div>`}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function showCultureGallery(){
+  setHeroVisible(false);
+  setBottomTab('culture');
+  await loadNetworks();
+  let nfts=[], events=[], cul={};
+  try{
+    const [nj, ej, st] = await Promise.all([
+      api(`/api/${net}/nfts?limit=48`).catch(()=>({nfts:[]})),
+      api(`/api/${net}/nft-events?limit=30`).catch(()=>({events:[]})),
+      api('/api/public/status').catch(()=>({})),
+    ]);
+    nfts = nj.nfts || [];
+    events = ej.events || [];
+    cul = st.culture || {};
+  }catch(e){}
+  app().innerHTML = `<div class="main" style="padding-top:12px">
+    ${crumbs([{label:'Home',href:'#/'+net},{label:'Culture'}])}
+    <div class="page-actions">
+      <button class="back" onclick="location.hash='#/${net}'">← Home</button>
+      <button class="chipbtn" onclick="location.hash='#/play'">Play</button>
+      <button class="chipbtn" onclick="location.hash='#/app'">Mint in wallet</button>
+      <button class="chipbtn" onclick="showCultureGallery()">↻ Refresh</button>
+    </div>
+    <div class="card detail">
+      <div class="badge blue">CULTURE</div>
+      <h2 style="margin:8px 0 6px">Howlcoin NFT gallery</h2>
+      <p class="muted" style="margin:0 0 10px">${cul.nfts??nfts.length} NFTs on-chain · including mint-from-howl collectibles. Mint in the <a href="/app">wallet</a>.</p>
+    </div>
+    <div class="main" style="padding:12px 0 0;margin:0">
+      <div class="card">
+        <h3>Gallery</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;padding:12px">
+          ${nfts.length?nfts.map(n=>{
+            const uri = n.uri || '';
+            const isHowl = String(uri).startsWith('howl://');
+            const img = (!isHowl && uri && (uri.startsWith('http')||uri.startsWith('/'))) ? `<img src="${esc(uri)}" alt="" style="width:100%;height:100px;object-fit:cover;border-radius:8px;background:#111" onerror="this.style.display='none'"/>` :
+              `<div style="height:100px;border-radius:8px;background:rgba(61,255,154,.08);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:1.6rem">🐺</div>`;
+            return `<div style="border:1px solid var(--border);border-radius:12px;padding:8px;background:var(--panel2);cursor:pointer" onclick="location.hash='#/${net}/address/${encodeURIComponent(n.owner||'')}'">
+              ${img}
+              <div style="font-weight:700;font-size:.82rem;margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(n.name||'NFT')}</div>
+              <div class="muted mono" style="font-size:.68rem">#${esc(String(n.mint_height??n.last_height??'—'))} · ${esc(short(n.owner,10))}</div>
+            </div>`;
+          }).join(''):`<div class="muted" style="padding:16px;grid-column:1/-1">No NFTs yet — mint from a howl in the wallet.</div>`}
+        </div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h3>Recent NFT activity</h3>
+        <div class="mlist">
+          ${events.length?events.map(ev=>`<div class="mrow">
+            <div class="ml">
+              <div class="mt"><span class="badge ok">${esc(ev.kind||ev.type||'event')}</span> ${esc(ev.name||ev.nft_id||'')}</div>
+              <div class="ms">#${esc(String(ev.height??'—'))} · ${ev.owner||ev.to?linkAddr(ev.owner||ev.to):'—'}</div>
+            </div>
+          </div>`).join(''):`<div class="mrow"><div class="muted">No NFT events yet.</div></div>`}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function showNameProfile(slug){
+  setHeroVisible(false);
+  setBottomTab('play');
+  await loadNetworks();
+  const s = String(slug||'').replace(/^@/,'').replace(/\.howl$/i,'').trim().toLowerCase();
+  let row=null, addr='', bal=null, pots=[], tips=[], nfts=[], howls=[];
+  try{
+    const j = await api(`/api/${net}/name/${encodeURIComponent(s)}`);
+    row = j.name || j;
+    addr = row.address || '';
+  }catch(e){
+    app().innerHTML=`<div class="main" style="padding-top:12px"><div class="card detail err">Name @${esc(s)} not found. <a href="#/play">Play board</a></div></div>`;
+    return;
+  }
+  if(addr){
+    try{
+      const [aj, pj, tj, nj, hj] = await Promise.all([
+        api(`/api/${net}/address/${encodeURIComponent(addr)}`).catch(()=>({})),
+        api(`/api/${net}/contracts?kind=packpot&limit=40`).catch(()=>({contracts:[]})),
+        api(`/api/${net}/contracts?kind=tipjar&limit=40`).catch(()=>({contracts:[]})),
+        api(`/api/${net}/nfts?owner=${encodeURIComponent(addr)}&limit=24`).catch(()=>({nfts:[]})),
+        api(`/api/${net}/howls?limit=50`).catch(()=>({howls:[]})),
+      ]);
+      bal = aj;
+      pots = (pj.contracts||[]).filter(c=>c.owner===addr || c.last_joiner===addr);
+      tips = (tj.contracts||[]).filter(c=>c.owner===addr);
+      nfts = nj.nfts||[];
+      howls = (hj.howls||[]).filter(h=>(h.from||h.reporter)===addr).slice(0,12);
+    }catch(e){}
+  }
+  app().innerHTML = `<div class="main" style="padding-top:12px">
+    ${crumbs([{label:'Home',href:'#/'+net},{label:'Play',href:'#/play'},{label:'@'+s}])}
+    <div class="page-actions">
+      <button class="back" onclick="location.hash='#/play'">← Play</button>
+      <button class="chipbtn" onclick="copyText(${JSON.stringify(addr)}, this)">Copy address</button>
+      <a class="chipbtn" href="/app" style="text-decoration:none;color:var(--green)">Send in wallet</a>
+    </div>
+    <div class="card detail">
+      <div class="badge ok">@${esc(s)}</div>
+      <h2 style="margin:8px 0 6px">@${esc(s)}</h2>
+      <div class="mono">${esc(addr)}${copyBtn(addr)}</div>
+      <div class="stats" style="margin-top:12px">
+        <div class="stat"><div class="k">Balance</div><div class="v" style="font-size:.95rem">${esc(bal&&bal.balance_fmt||'—')}</div><div class="s">HOWL</div></div>
+        <div class="stat"><div class="k">NFTs</div><div class="v">${nfts.length}</div><div class="s">owned</div></div>
+        <div class="stat"><div class="k">Pots</div><div class="v">${pots.length}</div><div class="s">related</div></div>
+        <div class="stat"><div class="k">Howls</div><div class="v">${howls.length}</div><div class="s">recent</div></div>
+      </div>
+      <div class="kv" style="margin-top:10px">
+        <div class="k">Registered</div><div>#${esc(String(row.height??'—'))}${row.txid? ' · '+linkTx(row.txid):''}</div>
+        <div class="k">Address page</div><div>${linkAddr(addr)}</div>
+      </div>
+    </div>
+    <div class="main cols" style="padding:12px 0 0;margin:0">
+      <div class="card">
+        <h3>Howls</h3>
+        <div class="mlist">
+          ${howls.length?howls.map(e=>`<div class="mrow"><div class="ml"><div class="mt">🐺 ${esc(String(e.message||e.value||''))}</div><div class="ms">#${esc(String(e.height??'—'))}</div></div></div>`).join(''):`<div class="mrow"><div class="muted">No howls from this name yet.</div></div>`}
+        </div>
+      </div>
+      <div class="card">
+        <h3>Tip jars &amp; pots</h3>
+        <div class="mlist">
+          ${[...tips,...pots].length?[...tips,...pots].map(c=>`<div class="mrow">
+            <div class="ml"><div class="mt">${esc(c.name||c.kind)} <span class="badge blue">${esc(c.kind||'')}</span></div>
+            <div class="ms">${esc(c.balance_fmt||'')} · ${esc(c.status||'')}</div></div>
+          </div>`).join(''):`<div class="mrow"><div class="muted">No contracts.</div></div>`}
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <h3>NFTs owned</h3>
+      <div class="mlist">
+        ${nfts.length?nfts.map(n=>`<div class="mrow">
+          <div class="ml"><div class="mt">${esc(n.name||'NFT')}</div>
+          <div class="ms mono">#${esc(String(n.mint_height??'—'))} · ${esc(short(n.nft_id,12))}</div></div>
+        </div>`).join(''):`<div class="mrow"><div class="muted">No NFTs.</div></div>`}
+      </div>
+    </div>
+  </div>`;
+}
+
+async function showChartsBoard(){
+  setHeroVisible(false);
+  setBottomTab('health');
+  await loadNetworks();
+  let markets={coins:[]}, chart={points:[]}, howlChart={points:[]};
+  try{
+    [markets, chart, howlChart] = await Promise.all([
+      api('/api/public/markets').catch(()=>({coins:[]})),
+      api('/api/public/chart?id=bitcoin&days=7').catch(()=>({points:[]})),
+      api('/api/public/chart?id=howlcoin&days=7').catch(()=>({points:[]})),
+    ]);
+  }catch(e){}
+  const coins = markets.coins || [];
+  const btcPts = sparkPts(chart.points, 320, 80);
+  const howlPts = sparkPts(howlChart.points, 320, 80);
+  app().innerHTML = `<div class="main" style="padding-top:12px">
+    ${crumbs([{label:'Home',href:'#/'+net},{label:'Charts'}])}
+    <div class="page-actions">
+      <button class="back" onclick="location.hash='#/${net}'">← Home</button>
+      <button class="chipbtn" onclick="location.hash='#/health'">Network</button>
+      <a class="chipbtn" href="/app" style="text-decoration:none">Wallet charts</a>
+      <button class="chipbtn" onclick="showChartsBoard()">↻ Refresh</button>
+    </div>
+    <div class="card detail">
+      <div class="badge ok">HOWL CHARTS</div>
+      <h2 style="margin:8px 0 6px">Markets · Howlcoin product</h2>
+      <p class="muted" style="margin:0 0 10px">${esc(markets.note||'On-chain spots + Howl Swap index for HOWL. Built by Howlcoin.')}</p>
+    </div>
+    <div class="main cols" style="padding:12px 0 0;margin:0">
+      <div class="card">
+        <h3>HOWL · Howl Swap index</h3>
+        <div style="padding:8px 12px">
+          <div style="font-size:1.4rem;font-weight:800;color:var(--green)">${howlChart.close!=null?('$'+Number(howlChart.close).toPrecision(4)): (coins.find(c=>c.id==='howlcoin')?('$'+Number(coins.find(c=>c.id==='howlcoin').usd).toPrecision(4)):'—')}</div>
+          <div class="muted" style="font-size:.78rem;margin:4px 0 8px">${esc(howlChart.range||'7d')} · ${howlChart.count||0} pts · ${esc(howlChart.source||'howl-swap')}</div>
+          ${howlPts?`<svg viewBox="0 0 320 80" width="100%" height="80" style="display:block;background:rgba(0,0,0,.2);border:1px solid var(--border)"><polyline fill="none" stroke="var(--green)" stroke-width="2" points="${howlPts}"/></svg>`:`<div class="muted">Not enough samples yet — sampler builds history over time.</div>`}
+        </div>
+      </div>
+      <div class="card">
+        <h3>BTC reference (7d)</h3>
+        <div style="padding:8px 12px">
+          <div style="font-size:1.4rem;font-weight:800">${chart.close!=null?('$'+Number(chart.close).toLocaleString(undefined,{maximumFractionDigits:0})):'—'}</div>
+          <div class="muted" style="font-size:.78rem;margin:4px 0 8px">${chart.change_pct!=null?((chart.change_pct>=0?'+':'')+Number(chart.change_pct).toFixed(2)+'%'):'—'} · on-chain oracle feed</div>
+          ${btcPts?`<svg viewBox="0 0 320 80" width="100%" height="80" style="display:block;background:rgba(0,0,0,.2);border:1px solid var(--border)"><polyline fill="none" stroke="var(--cyan,#5eb8ff)" stroke-width="2" points="${btcPts}"/></svg>`:`<div class="muted">Chart unavailable</div>`}
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <h3>Live board</h3>
+      <div class="desktop-only table-wrap">
+        <table>
+          <thead><tr><th>Asset</th><th>Price</th><th>24h</th><th>Source</th></tr></thead>
+          <tbody>
+            ${coins.map(c=>`<tr>
+              <td><b>${esc(c.symbol||'')}</b> <span class="muted">${esc(c.name||'')}</span>${c.product||c.id==='howlcoin'?' <span class="badge ok">HOWL</span>':''}</td>
+              <td class="amount">${c.usd!=null?('$'+Number(c.usd).toLocaleString(undefined,{maximumSignificantDigits:6})):'—'}</td>
+              <td>${c.change_24h!=null?((c.change_24h>=0?'+':'')+Number(c.change_24h).toFixed(2)+'%'):'—'}</td>
+              <td class="muted">${esc(c.oracle||c.index||markets.source||'—')}</td>
+            </tr>`).join('')||'<tr><td colspan="4" class="muted">No market data</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+      <div class="mobile-only mlist">
+        ${coins.map(c=>`<div class="mrow">
+          <div class="ml"><div class="mt">${esc(c.symbol||'')} · ${esc(c.name||'')}</div>
+          <div class="ms">${c.change_24h!=null?((c.change_24h>=0?'+':'')+Number(c.change_24h).toFixed(2)+'% 24h'):'—'}</div></div>
+          <div class="mr"><div class="ma">${c.usd!=null?('$'+Number(c.usd).toLocaleString(undefined,{maximumSignificantDigits:5})):'—'}</div></div>
+        </div>`).join('')||'<div class="mrow"><div class="muted">No data</div></div>'}
+      </div>
+    </div>
+  </div>`;
+}
+
 function doSearch(){
   const q=($('#q')&&$('#q').value||'').trim();
   if(!q) return loadHome();
   if(/^\d+$/.test(q)) { location.hash=`#/${net}/block/${q}`; return route(); }
+  // @name or name.howl
+  const nameQ = q.replace(/^@/,'').replace(/\.howl$/i,'').trim().toLowerCase();
+  if((q.startsWith('@') || q.toLowerCase().endsWith('.howl') || (/^[a-z0-9_]{3,16}$/.test(nameQ) && !/^[0-9]+$/.test(nameQ) && q.length < 24))
+     && /^[a-z0-9_]{3,16}$/.test(nameQ)){
+    location.hash = `#/name/${encodeURIComponent(nameQ)}`;
+    return route();
+  }
   if(q.startsWith('H') && q.length>20){ location.hash=`#/${net}/address/${encodeURIComponent(q)}`; return route(); }
   // try as block hash then tx
   location.hash=`#/${net}/block/${encodeURIComponent(q)}`;
@@ -3523,11 +3904,17 @@ async function route(){
   // scroll to top on navigation (mobile)
   try{ window.scrollTo({top:0, behavior:'instant' in window ? 'instant' : 'auto'}); }catch(e){ window.scrollTo(0,0); }
   try{
+    // Global product routes (network-agnostic → public chain)
+    if(parts[0]==='play') return await showPlayBoard();
+    if(parts[0]==='culture' || parts[0]==='nfts' || parts[0]==='gallery') return await showCultureGallery();
+    if(parts[0]==='charts' || parts[0]==='markets') return await showChartsBoard();
+    if(parts[0]==='name' && parts[1]) return await showNameProfile(decodeURIComponent(parts[1]));
+    if(parts.length>=3 && parts[1]==='name') return await showNameProfile(decodeURIComponent(parts[2]));
     if(parts.length>=3 && parts[1]==='block') return await showBlock(decodeURIComponent(parts[2]));
     if(parts.length>=3 && parts[1]==='tx') return await showTx(decodeURIComponent(parts[2]));
     if(parts.length>=3 && parts[1]==='address') return await showAddr(decodeURIComponent(parts[2]));
     if(parts.length>=1 && (parts[0]==='run' || parts[0]==='node' || parts[0]==='sync')) return await showRunNode();
-    if(parts.length>=1 && (parts[0]==='health' || parts[0]==='status' || parts[0]==='charts')) return await showHealth();
+    if(parts.length>=1 && (parts[0]==='health' || parts[0]==='status')) return await showHealth();
     if(parts.length>=2 && parts[1]==='richlist') return await showRichlist();
     if(parts.length>=2 && parts[1]==='mempool') return await showMempool();
     if(parts.length>=2 && parts[0]==='block') return await showBlock(decodeURIComponent(parts[1]));
