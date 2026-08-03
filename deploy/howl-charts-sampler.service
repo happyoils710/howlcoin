@@ -1,0 +1,19 @@
+[Unit]
+Description=Howl Charts on-chain price sampler (one shot)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/howlcoin
+Environment=PATH=/opt/howlcoin-venv/bin:/usr/bin
+Environment=HOWL_PUBLIC_DATA=/var/lib/howlcoin
+Environment=HOWL_CHARTS_MIN_GAP=240
+# Prefer venv python when present
+ExecStart=/bin/bash -c 'if [ -x /opt/howlcoin-venv/bin/python3 ]; then PY=/opt/howlcoin-venv/bin/python3; else PY=python3; fi; cd /opt/howlcoin && "$PY" scripts/howl-charts-sampler.py'
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+
+[Install]
+WantedBy=multi-user.target

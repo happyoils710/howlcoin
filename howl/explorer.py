@@ -17,6 +17,7 @@ import json
 import mimetypes
 import os
 import re
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -96,6 +97,7 @@ _price_cache: Dict[str, Any] = {"ts": 0.0, "data": None}
 _chart_cache: Dict[str, Any] = {}  # key -> {ts, data}
 _markets_board_cache: Dict[str, Any] = {"ts": 0.0, "data": None}
 _coin_profile_cache: Dict[str, Any] = {}  # id -> {ts, data}
+_chart_samples_lock = threading.Lock()
 
 # Howl Charts product note (first-party Howlcoin surface; feeds power coverage)
 _HOWL_CHARTS_NOTE = "Howl Charts · Howlcoin product"
@@ -331,19 +333,23 @@ def _save_all_chart_samples(store: Dict[str, List[Dict[str, Any]]]) -> None:
         pass
 
 
-def _record_price_sample(cid: str, usd: float, now: float, min_gap: int = 900) -> None:
-    """Append sparse samples into Howl Charts' own history store."""
-    store = _load_all_chart_samples()
-    samples = store.get(cid) or []
-    if samples:
-        last_t = float(samples[-1].get("t") or 0)
-        if now - last_t < min_gap:
-            return
-    samples.append({"t": int(now), "p": float(usd)})
-    if len(samples) > 20000:
-        samples = samples[-20000:]
-    store[cid] = samples
-    _save_all_chart_samples(store)
+def _record_price_sample(
+    cid: str, usd: float, now: float, min_gap: int = 900, force: bool = False
+) -> bool:
+    """Append sparse samples into Howl Charts' own history store. Returns True if written."""
+    with _chart_samples_lock:
+        store = _load_all_chart_samples()
+        samples = list(store.get(cid) or [])
+        if not force and samples:
+            last_t = float(samples[-1].get("t") or 0)
+            if now - last_t < min_gap:
+                return False
+        samples.append({"t": int(now), "p": float(usd)})
+        if len(samples) > 20000:
+            samples = samples[-20000:]
+        store[cid] = samples
+        _save_all_chart_samples(store)
+        return True
 
 
 def _load_price_samples(cid: str) -> List[Dict[str, Any]]:
@@ -430,7 +436,9 @@ def howl_swap_index(record: bool = True) -> Dict[str, Any]:
     return out
 
 
-def fetch_onchain_spot(cid: str, record: bool = True) -> Dict[str, Any]:
+def fetch_onchain_spot(
+    cid: str, record: bool = True, force_record: bool = False, min_gap: int = 900
+) -> Dict[str, Any]:
     """
     Live USD from blockchain data only:
       - howlcoin → Howl Swap index (our chain/product rate)
@@ -440,18 +448,30 @@ def fetch_onchain_spot(cid: str, record: bool = True) -> Dict[str, Any]:
     now = time.time()
     key = (cid or "").strip().lower()
     if key in ("howl", _HOWL_CHART_ID):
-        return howl_swap_index(record=record)
+        out = howl_swap_index(record=False)
+        if record and out.get("usd") is not None:
+            try:
+                wrote = _record_price_sample(
+                    _HOWL_CHART_ID, float(out["usd"]), now, min_gap=min_gap, force=force_record
+                )
+                out["recorded"] = wrote
+            except Exception as e:
+                out["record_error"] = str(e)
+        return out
     meta = _CHAINLINK_FEEDS.get(key)
     if not meta:
         raise RuntimeError(f"no on-chain feed for {key}")
     addr, sym, name, dec = meta
     raw = _chainlink_latest(addr)
     usd = float(raw["answer"]) / float(10**dec)
+    recorded = False
     if record:
         try:
-            _record_price_sample(key, usd, now)
+            recorded = _record_price_sample(
+                key, usd, now, min_gap=min_gap, force=force_record
+            )
         except Exception:
-            pass
+            recorded = False
     return {
         "id": key,
         "symbol": sym,
@@ -464,7 +484,80 @@ def fetch_onchain_spot(cid: str, record: bool = True) -> Dict[str, Any]:
         "updated": int(now),
         "product": "Howl Charts",
         "source": "chainlink",
+        "recorded": recorded,
         "note": _HOWL_CHARTS_NOTE,
+    }
+
+
+def sample_howl_charts(
+    force: bool = False, min_gap: int = 300
+) -> Dict[str, Any]:
+    """
+    One sampling pass for the 24/7 Howl Charts systemd sampler.
+    Reads on-chain spots (parallel) then records under a file lock.
+    """
+    now = time.time()
+    ids = [_HOWL_CHART_ID] + list(_CHAINLINK_FEEDS.keys())
+    ok: List[Dict[str, Any]] = []
+    errors: List[str] = []
+    spots: Dict[str, Dict[str, Any]] = {}
+
+    def _fetch(cid: str) -> Tuple[str, Optional[Dict[str, Any]], Optional[str]]:
+        try:
+            # Fetch only — record serially below to avoid lost writes
+            return cid, fetch_onchain_spot(cid, record=False), None
+        except Exception as e:
+            return cid, None, str(e)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+        for cid, spot, err in pool.map(_fetch, ids):
+            if err or not spot:
+                errors.append(f"{cid}: {err or 'empty'}")
+                continue
+            spots[cid] = spot
+
+    recorded_n = 0
+    for cid, spot in spots.items():
+        usd = spot.get("usd")
+        wrote = False
+        if usd is not None:
+            try:
+                wrote = _record_price_sample(
+                    cid if cid != "howl" else _HOWL_CHART_ID,
+                    float(usd),
+                    now,
+                    min_gap=min_gap,
+                    force=force,
+                )
+            except Exception as e:
+                errors.append(f"{cid} record: {e}")
+                wrote = False
+        if wrote:
+            recorded_n += 1
+        ok.append(
+            {
+                "id": cid,
+                "symbol": spot.get("symbol"),
+                "usd": usd,
+                "recorded": wrote,
+                "oracle": spot.get("oracle") or spot.get("index") or spot.get("source"),
+            }
+        )
+
+    path = str(_howl_charts_samples_path())
+    store = _load_all_chart_samples()
+    counts = {k: len(v) for k, v in store.items()}
+    return {
+        "ok": True,
+        "product": "Howl Charts",
+        "sampled": len(ok),
+        "recorded": recorded_n,
+        "assets": ok,
+        "errors": errors,
+        "sample_counts": counts,
+        "path": path,
+        "updated": int(now),
+        "note": _HOWL_CHARTS_NOTE + " · 24/7 sampler",
     }
 
 

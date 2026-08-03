@@ -1,0 +1,13 @@
+[Unit]
+Description=Howl Charts 24/7 sample timer (every 5 minutes)
+Requires=howl-charts-sampler.service
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Persistent=true
+Unit=howl-charts-sampler.service
+
+[Install]
+WantedBy=timers.target
