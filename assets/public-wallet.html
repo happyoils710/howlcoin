@@ -889,7 +889,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <div class="addr" id="addr" onclick="copyText(keypair&&keypair.address,'HOWL address')" style="cursor:pointer" title="Copy HOWL address">—</div>
         <div class="empty-cta hidden" id="homeEmptyCta">
           <button type="button" class="cta" onclick="openExternalUrl('https://howlscan.org/#/run')"><span class="ico">⛏</span><div><div class="t">Mine HOWL</div><div class="s">Run a node · public seed</div></div></button>
-          <button type="button" class="cta" onclick="showPage('swap')"><span class="ico">⇄</span><div><div class="t">Get HOWL</div><div class="s">Swap into the ecosystem</div></div></button>
+          <button type="button" class="cta" id="homeGetHowlCta" onclick="openGetHowl()"><span class="ico">⇄</span><div><div class="t">Get HOWL</div><div class="s" id="homeGetHowlSub">Mine · receive · swap</div></div></button>
           <button type="button" class="cta" onclick="showPage('recv')"><span class="ico">↓</span><div><div class="t">Receive</div><div class="s">Deposit on any chain</div></div></button>
         </div>
       </div>
@@ -1126,7 +1126,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       <div class="page-head"><button type="button" class="back" onclick="showPage('home')">‹ Home</button><h1>Swap</h1></div>
       <div class="seg" id="swapModeSeg" style="margin-bottom:12px">
         <button type="button" class="on" data-mode="jup" onclick="setSwapMode('jup',this)">Solana · Jupiter</button>
-        <button type="button" data-mode="howl" onclick="setSwapMode('howl',this)">Howl Swap</button>
+        <button type="button" data-mode="howl" id="swapHowlTab" class="hidden" onclick="setSwapMode('howl',this)">Howl Swap</button>
       </div>
 
       <div id="swapJupPanel">
@@ -1878,7 +1878,7 @@ const MORE_MENU = [
     { id: "send", icon: "send", title: "Send", sub: "HOWL · address book · QR", page: "send" },
     { id: "recv", icon: "recv", title: "Receive", sub: "HOWL · SOL · XTZ · ETH", page: "recv" },
     { id: "assets", icon: "assets", title: "Assets", sub: "Balances by chain", page: "assets" },
-    { id: "swap", icon: "swap", title: "Swap", sub: "Jupiter · Howl Swap", page: "swap" },
+    { id: "swap", icon: "swap", title: "Swap", sub: "Solana · Jupiter", page: "swap" },
     { id: "markets", icon: "chart", title: "Howl Charts", sub: "Howlcoin product", page: "markets" },
     { id: "activity", icon: "list", title: "History", sub: "Txs · pending", page: "activity" },
   ]},
@@ -4014,12 +4014,16 @@ function assetActions(a){
   }
   if(a.kind === "howl"){
     acts.push({ label: "Send HOWL", fn: ()=> showPage("send") });
-    acts.push({ label: "Howl Swap (get HOWL)", fn: ()=>{ showPage("swap"); setSwapMode("howl"); } });
+    if(isHowlSwapLive()){
+      acts.push({ label: "Howl Swap (get HOWL)", fn: ()=>{ showPage("swap"); setSwapMode("howl"); } });
+    } else {
+      acts.push({ label: "Mine HOWL", fn: ()=> openExternalUrl("https://howlscan.org/#/run") });
+    }
     acts.push({ label: "Explorer", fn: ()=> openExternalUrl("https://howlscan.org/#/public/address/"+encodeURIComponent(keypair.address)) });
   }
   if(a.kind === "sol" || a.kind === "spl"){
     acts.push({ label: "Swap (Jupiter)", fn: ()=>{ showPage("swap"); setSwapMode("jup"); } });
-    if(a.id === "sol" || a.id === "usdc_sol"){
+    if(isHowlSwapLive() && (a.id === "sol" || a.id === "usdc_sol")){
       acts.push({ label: "Howl Swap → HOWL", fn: ()=>{ showPage("swap"); setSwapMode("howl"); if($("bridgeAsset")) $("bridgeAsset").value = a.id==="sol"?"sol":"usdc"; } });
     }
     acts.push({ label: "Open Solscan", fn: ()=> openExternalUrl("https://solscan.io/account/"+encodeURIComponent(solInfo?.address||"")) });
@@ -4789,8 +4793,45 @@ let bridgeCfg = null;
 let lastBridgeQuote = null;
 let activeBridgeOrder = null;
 let bridgePollTimer = null;
+/** true only when server reports Howl Swap bridge enabled */
+let howlSwapLive = false;
+
+function isHowlSwapLive(){
+  return !!(howlSwapLive || bridgeCfg?.enabled);
+}
+
+function applyHowlSwapVisibility(enabled){
+  howlSwapLive = !!enabled;
+  const tab = $("swapHowlTab");
+  if(tab) tab.classList.toggle("hidden", !howlSwapLive);
+  document.querySelectorAll("[data-swap-sub], .more-item[data-id='swap'] .sub, #moreMenuHost [data-page='swap'] .sub").forEach(el=>{
+    el.textContent = howlSwapLive ? "Jupiter · Howl Swap" : "Solana · Jupiter";
+  });
+  if($("homeGetHowlSub")){
+    $("homeGetHowlSub").textContent = howlSwapLive
+      ? "Howl Swap · mine · receive"
+      : "Mine · receive · Jupiter";
+  }
+  if(!howlSwapLive && swapMode === "howl"){
+    setSwapMode("jup");
+  }
+}
+
+function openGetHowl(){
+  if(isHowlSwapLive()){
+    showPage("swap");
+    setSwapMode("howl");
+  } else {
+    // Bridge offline — send people to mine / receive, not a dead Howl Swap tab
+    showPage("recv");
+  }
+}
 
 function setSwapMode(mode, btn){
+  if(mode === "howl" && !isHowlSwapLive()){
+    // Soft-hide: never open offline Howl Swap product surface
+    mode = "jup";
+  }
   swapMode = mode === "howl" ? "howl" : "jup";
   document.querySelectorAll("#swapModeSeg button").forEach(b=>{
     b.classList.toggle("on", b.dataset.mode === swapMode);
@@ -4813,7 +4854,10 @@ function initSwapUI(){
   if($("swap2faBox")) $("swap2faBox").classList.toggle("hidden", !(meta.totpEnabled && meta.hasTotp));
   updateSwapBalances();
   if($("swapAmt")) $("swapAmt").oninput = ()=>{ lastSwapQuote=null; $("swapBtn").disabled=true; $("swapOut").value=""; $("swapQuote").classList.add("hidden"); };
-  if(swapMode === "howl") initBridgeUI();
+  // Probe bridge once so tab shows only when live
+  initBridgeUI().catch(()=>{});
+  if(swapMode === "howl" && isHowlSwapLive()) initBridgeUI();
+  else if(!isHowlSwapLive()) setSwapMode("jup");
 }
 function updateSwapBalances(){
   const fid = $("swapFrom").value;
@@ -4927,27 +4971,23 @@ async function initBridgeUI(){
   }
   try{
     bridgeCfg = await api("/api/public/bridge");
-    const off = $("bridgeOffline");
     const enabled = !!bridgeCfg.enabled;
+    applyHowlSwapVisibility(enabled);
+    const off = $("bridgeOffline");
+    // When offline, product surface is hidden — only show offline box if user forced panel
     if(off){
       off.classList.toggle("hidden", enabled);
       if(!enabled){
-        const assets = (bridgeCfg.assets || []).map(a =>
-          `${a.symbol}: ~${a.howl_per_unit} HOWL/${a.symbol} (min ${a.min})`
-        ).join(" · ");
         off.innerHTML =
-          `<b>Howl Swap is offline</b> on this server (operator has not enabled the relayer yet).<br>` +
-          `Use <b>Jupiter</b> tab for SOL↔USDC, or mine HOWL / receive from a friend.<br>` +
-          (assets ? `<span class="hint">When live: ${escHtml(assets)}</span><br>` : "") +
-          `<button class="btn sec" type="button" style="margin-top:8px" onclick="initBridgeUI()">↻ Recheck bridge</button>`;
+          `<b>Howl Swap is not available yet</b><br>` +
+          `Use <b>Jupiter</b> for SOL swaps, <b>Mine</b> for native HOWL, or <b>Receive</b> from a friend.<br>` +
+          `<button class="btn sec" type="button" style="margin-top:8px" onclick="initBridgeUI()">↻ Recheck</button>`;
       }
     }
     if($("bridgeOrderBtn")) $("bridgeOrderBtn").disabled = !enabled;
-    if($("bridgeAsset") && Array.isArray(bridgeCfg.assets) && bridgeCfg.assets.length){
-      // optional: leave static options; rates shown when online
-    }
   }catch(e){
     bridgeCfg = { enabled: false };
+    applyHowlSwapVisibility(false);
     const off = $("bridgeOffline");
     if(off){
       off.classList.remove("hidden");
@@ -4956,8 +4996,10 @@ async function initBridgeUI(){
         `<button class="btn sec" type="button" style="margin-top:8px" onclick="initBridgeUI()">↻ Retry</button>`;
     }
   }
-  loadBridgeOrders();
-  if(activeBridgeOrder) renderBridgeOrder(activeBridgeOrder);
+  if(isHowlSwapLive()){
+    loadBridgeOrders();
+    if(activeBridgeOrder) renderBridgeOrder(activeBridgeOrder);
+  }
 }
 
 async function getBridgeQuote(){
@@ -10000,6 +10042,8 @@ window.getSwapQuote = getSwapQuote;
 window.doSwap = doSwap;
 window.flipSwap = flipSwap;
 window.setSwapMode = setSwapMode;
+window.openGetHowl = openGetHowl;
+window.isHowlSwapLive = isHowlSwapLive;
 window.getBridgeQuote = getBridgeQuote;
 window.createBridgeOrder = createBridgeOrder;
 window.copyBridgeDeposit = copyBridgeDeposit;
