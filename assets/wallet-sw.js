@@ -1,6 +1,6 @@
 // Minimal SW for installability on Howlscan public wallet
 // Bump CACHE when /app HTML/JS balance logic changes so offline shell updates.
-const CACHE = "howl-public-wallet-v10";
+const CACHE = "howl-public-wallet-v11";
 self.addEventListener("install", (e) => {
   e.waitUntil(
     caches.open(CACHE).then((c) => c.addAll(["/app", "/manifest.webmanifest"])).then(() => self.skipWaiting())

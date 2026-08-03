@@ -386,6 +386,23 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .chart-coins button.on{border-color:var(--green);color:var(--text);background:color-mix(in srgb,var(--green) 10%,var(--card))}
 .chart-coins button small{font-weight:600;font-size:.68rem;color:var(--muted)}
 .chart-meta{font-size:.72rem;color:var(--muted);margin-top:6px}
+.chart-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 4px}
+.chart-stats .cs{background:var(--card2);border:1px solid var(--border);padding:8px 10px}
+.chart-stats .cs span{display:block;font-size:.65rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.chart-stats .cs b{display:block;margin-top:3px;font-size:.88rem;font-weight:800;color:var(--text)}
+.mkt-row{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;border-bottom:1px solid color-mix(in srgb,var(--border) 70%,transparent);
+  background:transparent;padding:12px 6px;cursor:pointer;color:var(--text);font:inherit}
+.mkt-row:active{background:color-mix(in srgb,var(--green) 6%,transparent)}
+.mkt-row .mkt-ico{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:.65rem;font-weight:800;background:color-mix(in srgb,var(--green) 12%,var(--card2));color:var(--green);flex-shrink:0}
+.mkt-row .mkt-meta{flex:1;min-width:0}
+.mkt-row .mkt-sym{font-weight:800;font-size:.95rem}
+.mkt-row .mkt-nm{font-size:.72rem;color:var(--muted)}
+.mkt-row .mkt-px{text-align:right;font-weight:800;font-size:.95rem}
+.mkt-row .mkt-chg{display:block;font-size:.72rem;font-weight:700;margin-top:2px}
+.mkt-row .mkt-chg.up{color:var(--green)}
+.mkt-row .mkt-chg.dn{color:var(--danger)}
+#marketsBoard{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:4px 8px}
 .wa-section{display:flex;align-items:center;justify-content:space-between;margin:4px 0 10px}
 .wa-section h2{margin:0;font-family:var(--font-ui);font-size:.95rem;font-weight:800;color:var(--text);text-transform:none;letter-spacing:0}
 .wa-section .wa-link{border:0;background:0;color:var(--cyan);font:inherit;font-size:.8rem;font-weight:700;cursor:pointer;padding:4px 0}
@@ -923,9 +940,11 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       </details>
     </div>
 
-    <!-- MARKETS / HOWL CHARTS -->
+    <!-- MARKETS — external coins (live + lifetime), not Howlcoin -->
     <div class="page" id="p-markets">
       <div class="page-head"><button type="button" class="back" onclick="showPage('home')">‹ Home</button><h1>Markets</h1></div>
+      <p class="hint" style="margin:0 0 12px">Live spot prices &amp; lifetime charts for major cryptos. <b>Not Howlcoin products</b> — independent market data on our canvas.</p>
+
       <div class="chart-card">
         <div class="chart-head">
           <div>
@@ -933,7 +952,13 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
             <div class="ch-price" id="chartPrice">—</div>
             <div class="ch-chg" id="chartChg">—</div>
           </div>
-          <button type="button" class="chip" style="cursor:pointer" onclick="refreshHowlChart(true)">↻</button>
+          <button type="button" class="chip" style="cursor:pointer" onclick="refreshMarketsAll(true)" title="Refresh live + chart">↻ Live</button>
+        </div>
+        <div class="chart-stats" id="chartStats">
+          <div class="cs"><span>24h high</span><b id="csHigh24">—</b></div>
+          <div class="cs"><span>24h low</span><b id="csLow24">—</b></div>
+          <div class="cs"><span>ATH</span><b id="csAth">—</b></div>
+          <div class="cs"><span>ATL</span><b id="csAtl">—</b></div>
         </div>
         <div class="chart-ranges" id="chartRanges">
           <button type="button" data-d="1">1D</button>
@@ -941,18 +966,21 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
           <button type="button" data-d="30">30D</button>
           <button type="button" data-d="90">90D</button>
           <button type="button" data-d="365">1Y</button>
+          <button type="button" data-d="max">Lifetime</button>
         </div>
         <div class="chart-canvas-wrap" id="chartWrap">
-          <canvas id="howlChart" width="400" height="220" aria-label="Price chart"></canvas>
+          <canvas id="howlChart" width="400" height="240" aria-label="Price chart"></canvas>
           <div class="chart-cross" id="chartCross"></div>
         </div>
-        <p class="chart-meta" id="chartMeta">Howl Charts · live market series</p>
+        <p class="chart-meta" id="chartMeta">Loading markets…</p>
       </div>
-      <div class="wa-section"><h2>Watchlist</h2></div>
-      <div class="chart-coins" id="chartCoins"></div>
-      <div class="panel">
-        <p class="hint" style="margin:0">Custom charts for majors — no third-party chart embeds. Tap a coin, scrub the line for price at time. Data refreshes about every few minutes.</p>
+
+      <div class="wa-section">
+        <h2>Live board</h2>
+        <button type="button" class="wa-link" onclick="refreshMarketsBoard(true)">Refresh ›</button>
       </div>
+      <div id="marketsBoard"><p class="hint">Loading live prices…</p></div>
+      <p class="hint" id="marketsBoardMeta" style="margin:8px 0 16px"></p>
     </div>
 
     <!-- ACTIVITY FEED -->
@@ -9580,39 +9608,43 @@ function uiUnlock(){
   $("btnRest2").onclick = uiCreate;
 }
 
-/* —— Howl Charts (custom canvas, not a third-party embed) —— */
-const CHART_COINS = [
-  { id: "bitcoin", symbol: "BTC", name: "Bitcoin" },
-  { id: "ethereum", symbol: "ETH", name: "Ethereum" },
-  { id: "solana", symbol: "SOL", name: "Solana" },
-  { id: "tezos", symbol: "XTZ", name: "Tezos" },
-  { id: "dogecoin", symbol: "DOGE", name: "Dogecoin" },
-  { id: "litecoin", symbol: "LTC", name: "Litecoin" },
-  { id: "ripple", symbol: "XRP", name: "XRP" },
-  { id: "cardano", symbol: "ADA", name: "Cardano" },
-  { id: "avalanche-2", symbol: "AVAX", name: "Avalanche" },
-  { id: "binancecoin", symbol: "BNB", name: "BNB" },
-];
-let chartState = { id: "bitcoin", days: "7", points: [], wired: false };
+/* —— Markets: live board + lifetime charts for external cryptos (not Howlcoin) —— */
+let chartState = { id: "bitcoin", days: "7", points: [], profile: null, wired: false };
+let marketsBoardTimer = null;
+let marketsLive = [];
+
+function fmtUsdPx(n){
+  if(n == null || !Number.isFinite(Number(n))) return "—";
+  const x = Number(n);
+  if(x >= 1000) return "$" + x.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  if(x >= 1) return "$" + x.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  return "$" + x.toPrecision(4);
+}
+function fmtPct(n){
+  if(n == null || !Number.isFinite(Number(n))) return "—";
+  const x = Number(n);
+  return (x >= 0 ? "+" : "") + x.toFixed(2) + "%";
+}
+function fmtUsdCompact(n){
+  if(n == null || !Number.isFinite(Number(n))) return "—";
+  const x = Number(n);
+  if(x >= 1e12) return "$" + (x/1e12).toFixed(2) + "T";
+  if(x >= 1e9) return "$" + (x/1e9).toFixed(2) + "B";
+  if(x >= 1e6) return "$" + (x/1e6).toFixed(2) + "M";
+  return fmtUsdPx(x);
+}
+function fmtAthDate(iso){
+  if(!iso) return "";
+  try{
+    const d = new Date(iso);
+    if(isNaN(d.getTime())) return "";
+    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  }catch(_){ return ""; }
+}
 
 function initHowlCharts(){
   if(!chartState.wired){
     chartState.wired = true;
-    const coins = $("chartCoins");
-    if(coins){
-      coins.innerHTML = CHART_COINS.map(c =>
-        `<button type="button" data-id="${c.id}" class="${c.id===chartState.id?"on":""}">
-          <b>${escHtml(c.symbol)}</b><small>${escHtml(c.name)}</small>
-        </button>`
-      ).join("");
-      coins.querySelectorAll("button").forEach(btn=>{
-        btn.onclick = ()=>{
-          chartState.id = btn.dataset.id;
-          coins.querySelectorAll("button").forEach(b=>b.classList.toggle("on", b===btn));
-          refreshHowlChart(false);
-        };
-      });
-    }
     const ranges = $("chartRanges");
     if(ranges){
       ranges.querySelectorAll("button").forEach(btn=>{
@@ -9637,47 +9669,125 @@ function initHowlCharts(){
       window.addEventListener("resize", ()=>{ if(currentPage==="markets") drawHowlChart(chartState.points); });
     }
   }
-  // sync live prices into coin chips when available
-  refreshHowlChart(false);
+  refreshMarketsAll(false);
+  if(marketsBoardTimer) clearInterval(marketsBoardTimer);
+  marketsBoardTimer = setInterval(()=>{
+    if(currentPage === "markets") refreshMarketsBoard(false);
+  }, 45000);
+}
+
+async function refreshMarketsAll(force){
+  await Promise.all([
+    refreshMarketsBoard(force),
+    refreshHowlChart(force),
+    refreshCoinProfile(force),
+  ]);
+}
+
+async function refreshMarketsBoard(force){
+  const board = $("marketsBoard");
+  const meta = $("marketsBoardMeta");
+  try{
+    const j = await api("/api/public/markets" + (force ? "?force=1" : ""));
+    marketsLive = j.coins || [];
+    if(!board) return;
+    if(!marketsLive.length){
+      board.innerHTML = `<p class="hint" style="padding:12px">No live prices right now — pull to refresh.</p>`;
+      return;
+    }
+    board.innerHTML = marketsLive.map(c=>{
+      const up = (c.change_24h == null) ? true : Number(c.change_24h) >= 0;
+      const chg = c.change_24h == null ? "—" : fmtPct(c.change_24h);
+      return `<button type="button" class="mkt-row" data-id="${escAttr(c.id)}">
+        <span class="mkt-ico">${escHtml((c.symbol||"?").slice(0,4))}</span>
+        <div class="mkt-meta">
+          <div class="mkt-sym">${escHtml(c.symbol||"")}</div>
+          <div class="mkt-nm">${escHtml(c.name||"")}${c.market_cap!=null?` · ${escHtml(fmtUsdCompact(c.market_cap))}`:""}</div>
+        </div>
+        <div class="mkt-px">${escHtml(fmtUsdPx(c.usd))}
+          <span class="mkt-chg ${up?"up":"dn"}">${escHtml(chg)} 24h</span>
+        </div>
+      </button>`;
+    }).join("");
+    board.querySelectorAll(".mkt-row").forEach(btn=>{
+      btn.onclick = ()=>{
+        chartState.id = btn.dataset.id;
+        refreshHowlChart(false);
+        refreshCoinProfile(true);
+        try{ $("chartCard") || $("howlChart")?.scrollIntoView({ behavior:"smooth", block:"start" }); }catch(_){}
+      };
+    });
+    if(meta){
+      const t = j.updated ? new Date(j.updated * 1000).toLocaleTimeString() : "—";
+      meta.textContent = `${marketsLive.length} assets · live board · updated ${t}`
+        + (j.cached ? " · cached" : "")
+        + " · not Howlcoin products";
+    }
+  }catch(e){
+    if(board) board.innerHTML = `<p class="err" style="padding:12px">${escHtml(e.message||e)}</p>`;
+  }
+}
+
+async function refreshCoinProfile(force){
+  try{
+    const id = chartState.id || "bitcoin";
+    const j = await api(`/api/public/coin?id=${encodeURIComponent(id)}${force?"&force=1":""}`);
+    chartState.profile = j;
+    if(j.usd != null && $("chartPrice")) $("chartPrice").textContent = fmtUsdPx(j.usd);
+    if(j.name && $("chartCoinName")){
+      $("chartCoinName").textContent = (j.name || "") + (j.symbol ? " · " + j.symbol : "");
+    }
+    if($("csHigh24")) $("csHigh24").textContent = fmtUsdPx(j.high_24h);
+    if($("csLow24")) $("csLow24").textContent = fmtUsdPx(j.low_24h);
+    if($("csAth")){
+      const d = fmtAthDate(j.ath_date);
+      $("csAth").textContent = fmtUsdPx(j.ath) + (d ? " · " + d : "");
+    }
+    if($("csAtl")){
+      const d = fmtAthDate(j.atl_date);
+      $("csAtl").textContent = fmtUsdPx(j.atl) + (d ? " · " + d : "");
+    }
+    // prefer live 24h change from profile when on 1d view
+    if(chartState.days === "1" && j.change_24h != null && $("chartChg")){
+      const up = Number(j.change_24h) >= 0;
+      $("chartChg").className = "ch-chg " + (up ? "up" : "dn");
+      $("chartChg").textContent = fmtPct(j.change_24h) + " · 24h live";
+    }
+  }catch(_){}
 }
 
 async function refreshHowlChart(force){
   const meta = $("chartMeta");
-  if(meta) meta.textContent = "Loading series…";
+  if(meta) meta.textContent = "Loading chart…";
   try{
     const id = chartState.id || "bitcoin";
     const days = chartState.days || "7";
     const j = await api(`/api/public/chart?id=${encodeURIComponent(id)}&days=${encodeURIComponent(days)}${force?"&force=1":""}`);
     if(j.error && !(j.points||[]).length) throw new Error(j.error);
     chartState.points = j.points || [];
-    const coin = CHART_COINS.find(c=>c.id===id) || { symbol: id, name: id };
-    if($("chartCoinName")) $("chartCoinName").textContent = coin.name + " · " + coin.symbol;
-    const close = j.close != null ? j.close : (chartState.points.slice(-1)[0]?.p);
+    const live = marketsLive.find(c => c.id === id);
+    const name = j.name || live?.name || id;
+    const sym = j.symbol || live?.symbol || "";
+    if($("chartCoinName")) $("chartCoinName").textContent = name + (sym ? " · " + sym : "");
+    const close = j.close != null ? j.close : (live?.usd != null ? live.usd : chartState.points.slice(-1)[0]?.p);
     const chg = j.change_pct;
     if($("chartPrice")){
-      $("chartPrice").textContent = close != null
-        ? (close >= 1 ? "$" + Number(close).toLocaleString(undefined,{maximumFractionDigits:2})
-          : "$" + Number(close).toPrecision(4))
-        : "—";
+      const livePx = chartState.profile?.usd ?? live?.usd ?? close;
+      $("chartPrice").textContent = fmtUsdPx(livePx);
     }
-    if($("chartChg")){
+    if($("chartChg") && !(chartState.days === "1" && chartState.profile?.change_24h != null)){
       const up = Number(chg) >= 0;
       $("chartChg").className = "ch-chg " + (up ? "up" : "dn");
-      $("chartChg").textContent = chg == null ? "—" : ((up?"+":"") + Number(chg).toFixed(2) + "% · " + days + "d");
+      const label = days === "max" ? "lifetime" : (days + "d");
+      $("chartChg").textContent = chg == null ? "—" : (fmtPct(chg) + " · " + label);
     }
     if(meta){
-      meta.textContent = `Howl Charts · ${j.count||chartState.points.length} pts · ${j.cached?"cached · ":""}${j.source||"live"}`
-        + (j.high != null ? ` · H ${Number(j.high).toLocaleString(undefined,{maximumFractionDigits:2})}` : "")
-        + (j.low != null ? ` · L ${Number(j.low).toLocaleString(undefined,{maximumFractionDigits:2})}` : "");
-    }
-    // update watchlist spot prices from marketPrices if present
-    const coins = $("chartCoins");
-    if(coins && marketPrices){
-      coins.querySelectorAll("button").forEach(btn=>{
-        const row = marketPrices[btn.dataset.id];
-        const sm = btn.querySelector("small");
-        if(sm && row?.usd != null) sm.textContent = "$" + Number(row.usd).toLocaleString(undefined,{maximumFractionDigits: row.usd < 1 ? 4 : 2});
-      });
+      const range = days === "max" ? "lifetime" : (days + " day");
+      meta.textContent = `External markets · ${range} · ${j.count||chartState.points.length} pts`
+        + (j.cached ? " · cached" : " · live series")
+        + (j.high != null ? ` · range H ${fmtUsdPx(j.high)}` : "")
+        + (j.low != null ? ` L ${fmtUsdPx(j.low)}` : "")
+        + " · not a Howlcoin product";
     }
     drawHowlChart(chartState.points);
   }catch(e){
@@ -9832,7 +9942,7 @@ function boot(skipInstallPrompt){
       }
     }
   }catch(_){}
-  if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=10").catch(()=>{});
+  if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=11").catch(()=>{});
   if(!skipInstallPrompt && !isStandalone() && !sessionStorage.getItem("howl_skip_install") && !sessionStorage.getItem("howl_saw_install")){
     sessionStorage.setItem("howl_saw_install","1");
     uiInstall();
@@ -9961,6 +10071,8 @@ window.renderMoreMenu = renderMoreMenu;
 window.postBarkBondHowl = postBarkBondHowl;
 window.initHowlCharts = initHowlCharts;
 window.refreshHowlChart = refreshHowlChart;
+window.refreshMarketsBoard = refreshMarketsBoard;
+window.refreshMarketsAll = refreshMarketsAll;
 window.paintIcons = paintIcons;
 
 boot();

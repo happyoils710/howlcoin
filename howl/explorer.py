@@ -94,43 +94,284 @@ _PRICE_COIN_IDS = (
 )
 _price_cache: Dict[str, Any] = {"ts": 0.0, "data": None}
 _chart_cache: Dict[str, Any] = {}  # key -> {ts, data}
+_markets_board_cache: Dict[str, Any] = {"ts": 0.0, "data": None}
+_coin_profile_cache: Dict[str, Any] = {}  # id -> {ts, data}
+
+# External majors only (not Howlcoin) for Markets board + lifetime charts
+_MARKETS_COIN_IDS = (
+    "bitcoin,ethereum,solana,binancecoin,ripple,cardano,dogecoin,tron,"
+    "avalanche-2,chainlink,polkadot,litecoin,bitcoin-cash,near,aptos,sui,"
+    "toncoin,stellar,cosmos,uniswap,aave,tezos,matic-network,shiba-inu,"
+    "wrapped-bitcoin,leo-token,hyperliquid"
+)
+
+_MARKETS_META = {
+    "bitcoin": ("BTC", "Bitcoin"),
+    "ethereum": ("ETH", "Ethereum"),
+    "solana": ("SOL", "Solana"),
+    "binancecoin": ("BNB", "BNB"),
+    "ripple": ("XRP", "XRP"),
+    "cardano": ("ADA", "Cardano"),
+    "dogecoin": ("DOGE", "Dogecoin"),
+    "tron": ("TRX", "TRON"),
+    "avalanche-2": ("AVAX", "Avalanche"),
+    "chainlink": ("LINK", "Chainlink"),
+    "polkadot": ("DOT", "Polkadot"),
+    "litecoin": ("LTC", "Litecoin"),
+    "bitcoin-cash": ("BCH", "Bitcoin Cash"),
+    "near": ("NEAR", "NEAR"),
+    "aptos": ("APT", "Aptos"),
+    "sui": ("SUI", "Sui"),
+    "toncoin": ("TON", "Toncoin"),
+    "stellar": ("XLM", "Stellar"),
+    "cosmos": ("ATOM", "Cosmos"),
+    "uniswap": ("UNI", "Uniswap"),
+    "aave": ("AAVE", "Aave"),
+    "tezos": ("XTZ", "Tezos"),
+    "matic-network": ("MATIC", "Polygon"),
+    "shiba-inu": ("SHIB", "Shiba Inu"),
+    "wrapped-bitcoin": ("WBTC", "Wrapped Bitcoin"),
+    "leo-token": ("LEO", "LEO"),
+    "hyperliquid": ("HYPE", "Hyperliquid"),
+}
+
+
+def _markets_allowed_ids() -> set:
+    allowed = {x.strip() for x in _PRICE_COIN_IDS.split(",") if x.strip()}
+    allowed |= {x.strip() for x in _MARKETS_COIN_IDS.split(",") if x.strip()}
+    allowed |= set(_MARKETS_META.keys())
+    return allowed
+
+
+def fetch_markets_board(force: bool = False) -> Dict[str, Any]:
+    """
+    Live spot board for external cryptos (not Howlcoin).
+    { coins: [{id, symbol, name, usd, change_24h, market_cap, vol_24h}], updated }
+    """
+    now = time.time()
+    if (
+        not force
+        and _markets_board_cache.get("data")
+        and (now - float(_markets_board_cache.get("ts") or 0)) < 45
+    ):
+        out = dict(_markets_board_cache["data"])  # type: ignore[arg-type]
+        out["cached"] = True
+        return out
+    url = (
+        "https://api.coingecko.com/api/v3/simple/price?"
+        + urllib.parse.urlencode(
+            {
+                "ids": _MARKETS_COIN_IDS,
+                "vs_currencies": "usd",
+                "include_24hr_change": "true",
+                "include_24hr_vol": "true",
+                "include_market_cap": "true",
+            }
+        )
+    )
+    try:
+        raw = json.loads(
+            _http_get(
+                url,
+                headers={
+                    "User-Agent": "Howlscan/0.6 (+https://howlscan.org)",
+                    "Accept": "application/json",
+                },
+                timeout=14,
+            ).decode("utf-8", errors="ignore")
+        )
+        if not isinstance(raw, dict):
+            raise RuntimeError("empty markets board")
+        coins = []
+        for cid, row in raw.items():
+            if not isinstance(row, dict):
+                continue
+            sym, name = _MARKETS_META.get(cid, (cid[:6].upper(), cid))
+            try:
+                usd = float(row["usd"]) if row.get("usd") is not None else None
+            except (TypeError, ValueError):
+                usd = None
+            try:
+                chg = (
+                    float(row["usd_24h_change"])
+                    if row.get("usd_24h_change") is not None
+                    else None
+                )
+            except (TypeError, ValueError):
+                chg = None
+            try:
+                mcap = (
+                    float(row["usd_market_cap"])
+                    if row.get("usd_market_cap") is not None
+                    else None
+                )
+            except (TypeError, ValueError):
+                mcap = None
+            try:
+                vol = (
+                    float(row["usd_24h_vol"])
+                    if row.get("usd_24h_vol") is not None
+                    else None
+                )
+            except (TypeError, ValueError):
+                vol = None
+            coins.append(
+                {
+                    "id": cid,
+                    "symbol": sym,
+                    "name": name,
+                    "usd": usd,
+                    "change_24h": round(chg, 3) if chg is not None else None,
+                    "market_cap": mcap,
+                    "vol_24h": vol,
+                }
+            )
+        # sort by market cap desc when available
+        coins.sort(
+            key=lambda c: (
+                -(c["market_cap"] or 0),
+                c.get("symbol") or "",
+            )
+        )
+        out = {
+            "coins": coins,
+            "count": len(coins),
+            "updated": int(now),
+            "source": "coingecko",
+            "note": "External market data — not a Howlcoin product",
+            "cached": False,
+        }
+        _markets_board_cache["ts"] = now
+        _markets_board_cache["data"] = {**out, "cached": True}
+        return out
+    except Exception as e:
+        if _markets_board_cache.get("data"):
+            stale = dict(_markets_board_cache["data"])  # type: ignore[arg-type]
+            stale["stale"] = True
+            stale["error"] = str(e)
+            return stale
+        return {
+            "coins": [],
+            "count": 0,
+            "updated": int(now),
+            "source": "none",
+            "error": str(e),
+            "note": "External market data — not a Howlcoin product",
+        }
+
+
+def fetch_coin_profile(coin_id: str = "bitcoin", force: bool = False) -> Dict[str, Any]:
+    """Live price + lifetime ATH/ATL for an external coin."""
+    cid = (coin_id or "bitcoin").strip().lower()[:64]
+    if cid not in _markets_allowed_ids():
+        cid = "bitcoin"
+    now = time.time()
+    hit = _coin_profile_cache.get(cid)
+    if (
+        not force
+        and hit
+        and (now - float(hit.get("ts") or 0)) < 120
+        and hit.get("data")
+    ):
+        out = dict(hit["data"])
+        out["cached"] = True
+        return out
+    url = (
+        f"https://api.coingecko.com/api/v3/coins/{urllib.parse.quote(cid)}?"
+        + urllib.parse.urlencode(
+            {
+                "localization": "false",
+                "tickers": "false",
+                "market_data": "true",
+                "community_data": "false",
+                "developer_data": "false",
+                "sparkline": "false",
+            }
+        )
+    )
+    try:
+        raw = json.loads(
+            _http_get(
+                url,
+                headers={
+                    "User-Agent": "Howlscan/0.6 (+https://howlscan.org)",
+                    "Accept": "application/json",
+                },
+                timeout=16,
+            ).decode("utf-8", errors="ignore")
+        )
+        md = (raw or {}).get("market_data") or {}
+        def _f(obj, *keys):
+            cur = obj
+            for k in keys:
+                if not isinstance(cur, dict):
+                    return None
+                cur = cur.get(k)
+            try:
+                return float(cur) if cur is not None else None
+            except (TypeError, ValueError):
+                return None
+
+        sym, name = _MARKETS_META.get(
+            cid,
+            (
+                str((raw or {}).get("symbol") or cid).upper(),
+                str((raw or {}).get("name") or cid),
+            ),
+        )
+        out = {
+            "id": cid,
+            "symbol": sym,
+            "name": name,
+            "usd": _f(md, "current_price", "usd"),
+            "change_24h": _f(md, "price_change_percentage_24h"),
+            "change_7d": _f(md, "price_change_percentage_7d"),
+            "change_30d": _f(md, "price_change_percentage_30d"),
+            "change_1y": _f(md, "price_change_percentage_1y"),
+            "ath": _f(md, "ath", "usd"),
+            "ath_date": (md.get("ath_date") or {}).get("usd"),
+            "ath_change_pct": _f(md, "ath_change_percentage", "usd"),
+            "atl": _f(md, "atl", "usd"),
+            "atl_date": (md.get("atl_date") or {}).get("usd"),
+            "atl_change_pct": _f(md, "atl_change_percentage", "usd"),
+            "market_cap": _f(md, "market_cap", "usd"),
+            "vol_24h": _f(md, "total_volume", "usd"),
+            "high_24h": _f(md, "high_24h", "usd"),
+            "low_24h": _f(md, "low_24h", "usd"),
+            "updated": int(now),
+            "source": "coingecko",
+            "note": "External market data — not a Howlcoin product",
+            "cached": False,
+        }
+        _coin_profile_cache[cid] = {"ts": now, "data": {**out, "cached": True}}
+        return out
+    except Exception as e:
+        if hit and hit.get("data"):
+            stale = dict(hit["data"])
+            stale["stale"] = True
+            stale["error"] = str(e)
+            return stale
+        return {
+            "id": cid,
+            "error": str(e),
+            "source": "none",
+            "updated": int(now),
+            "note": "External market data — not a Howlcoin product",
+        }
 
 
 def fetch_market_chart(
     coin_id: str = "bitcoin", days: str = "7", force: bool = False
 ) -> Dict[str, Any]:
     """
-    OHLC-ish series for Howl Charts (CoinGecko market_chart, cached ~5 min).
-    Returns { id, days, points: [{t, p}], source }.
+    Price series for custom canvas charts (CoinGecko market_chart).
+    days=max → lifetime history. External majors only — not Howlcoin.
     """
     cid = (coin_id or "bitcoin").strip().lower()[:64]
     d = (days or "7").strip()
     if d not in ("1", "7", "14", "30", "90", "180", "365", "max"):
         d = "7"
-    allowed = {x.strip() for x in _PRICE_COIN_IDS.split(",") if x.strip()}
-    allowed |= {
-        "bitcoin",
-        "ethereum",
-        "solana",
-        "tezos",
-        "dogecoin",
-        "litecoin",
-        "ripple",
-        "cardano",
-        "polkadot",
-        "chainlink",
-        "avalanche-2",
-        "binancecoin",
-        "matic-network",
-        "near",
-        "aptos",
-        "sui",
-        "toncoin",
-        "stellar",
-        "cosmos",
-        "uniswap",
-        "aave",
-    }
+    allowed = _markets_allowed_ids()
     if cid not in allowed:
         cid = "bitcoin"
     key = f"{cid}:{d}"
@@ -180,9 +421,13 @@ def fetch_market_chart(
         first = points[0]["p"] if points else 0.0
         last = points[-1]["p"] if points else 0.0
         chg = ((last - first) / first * 100.0) if first else 0.0
+        sym, name = _MARKETS_META.get(cid, (cid[:6].upper(), cid))
         out = {
             "id": cid,
+            "symbol": sym,
+            "name": name,
             "days": d,
+            "range": "lifetime" if d == "max" else f"{d}d",
             "points": points,
             "count": len(points),
             "open": first,
@@ -192,6 +437,7 @@ def fetch_market_chart(
             "low": min((x["p"] for x in points), default=0.0),
             "updated": int(now),
             "source": "coingecko",
+            "note": "External market data — not a Howlcoin product",
             "cached": False,
         }
         _chart_cache[key] = {"ts": now, "data": {**out, "cached": True}}
@@ -209,6 +455,7 @@ def fetch_market_chart(
             "error": str(e),
             "source": "none",
             "updated": int(now),
+            "note": "External market data — not a Howlcoin product",
         }
 
 
@@ -3207,13 +3454,30 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                     force = (qs.get("force") or ["0"])[0] in ("1", "true", "yes")
                     return self._json(200, fetch_market_prices(force=force))
 
-                # Howl Charts — custom live series (not a third-party embed)
+                # Custom market charts + live board (external coins, not Howlcoin)
                 if path in ("/api/public/chart", "/api/chart", "/api/public/charts"):
                     cid = (qs.get("id") or qs.get("coin") or ["bitcoin"])[0]
                     days = (qs.get("days") or ["7"])[0]
                     force = (qs.get("force") or ["0"])[0] in ("1", "true", "yes")
                     return self._json(
                         200, fetch_market_chart(coin_id=cid, days=str(days), force=force)
+                    )
+                if path in (
+                    "/api/public/markets",
+                    "/api/markets",
+                    "/api/public/markets/board",
+                ):
+                    force = (qs.get("force") or ["0"])[0] in ("1", "true", "yes")
+                    return self._json(200, fetch_markets_board(force=force))
+                if path in (
+                    "/api/public/markets/coin",
+                    "/api/public/coin",
+                    "/api/coin",
+                ):
+                    cid = (qs.get("id") or qs.get("coin") or ["bitcoin"])[0]
+                    force = (qs.get("force") or ["0"])[0] in ("1", "true", "yes")
+                    return self._json(
+                        200, fetch_coin_profile(coin_id=str(cid), force=force)
                     )
 
                 # WalletConnect config (projectId is a public client id)
