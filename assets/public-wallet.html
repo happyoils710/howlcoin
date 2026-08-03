@@ -1630,10 +1630,11 @@ import {
 } from "/assets/howl-crypto.mjs";
 import {
   SWAP_TOKENS, amountToRaw, rawToUi,
-  getJupiterQuote, buildJupiterSwap, signAndSendSolTx, SOL_RPC as JUP_SOL_RPC,
+  getJupiterQuote, buildJupiterSwap, signAndSendSolTx, pickSolRpc,
+  SOL_RPC as JUP_SOL_RPC,
 } from "/assets/wallet-swap.mjs";
 import {
-  listSolNfts, transferSolNft,
+  listSolNfts, transferSolNft, transferTezosFa2,
   erc721TokenURIData, erc721TransferFromData, sendErc721Transfer,
   ethCall, decodeAbiString,
 } from "/assets/wallet-nft.mjs";
@@ -4310,7 +4311,7 @@ function flipSwap(){
 async function getSwapQuote(){
   $("swapErr").textContent=""; $("swapTx").textContent="";
   try{
-    if(!solInfo) throw new Error("Solana wallet not ready");
+    if(!solInfo) throw new Error("Solana wallet not ready — unlock a seed wallet");
     const from = SWAP_TOKENS.find(t=>t.id===$("swapFrom").value);
     const to = SWAP_TOKENS.find(t=>t.id===$("swapTo").value);
     if(!from||!to) throw new Error("Pick tokens");
@@ -4319,20 +4320,34 @@ async function getSwapQuote(){
     const slip = parseInt($("swapSlip").value||"50",10) || 50;
     $("swapQuote").classList.remove("hidden");
     $("swapQuote").textContent = "Fetching Jupiter route…";
-    const quote = await getJupiterQuote({
-      inputMint: from.mint, outputMint: to.mint, amountRaw: raw, slippageBps: slip,
-    });
-    lastSwapQuote = { quote, from, to };
+    let quote;
+    let lastErr;
+    for(let attempt = 0; attempt < 2; attempt++){
+      try{
+        quote = await getJupiterQuote({
+          inputMint: from.mint, outputMint: to.mint, amountRaw: raw, slippageBps: slip,
+        });
+        lastErr = null;
+        break;
+      }catch(e){
+        lastErr = e;
+        $("swapQuote").textContent = attempt === 0 ? "Retrying Jupiter…" : "Fetching…";
+        await new Promise(r => setTimeout(r, 500));
+      }
+    }
+    if(!quote) throw lastErr || new Error("Quote failed");
+    lastSwapQuote = { quote, from, to, at: Date.now() };
     const outUi = rawToUi(quote.outAmount, to.decimals);
     $("swapOut").value = outUi;
     const impact = quote.priceImpactPct != null ? Number(quote.priceImpactPct).toFixed(4) : "—";
     $("swapQuote").innerHTML = `<b>Quote</b> · ${from.symbol} → ${to.symbol}<br>
       Out ≈ <b style="color:var(--green)">${outUi} ${to.symbol}</b><br>
-      Impact ${impact}% · slip ${slip} bps · Jupiter`;
+      Impact ${impact}% · slip ${slip} bps · Jupiter<br>
+      <span class="hint">Quotes expire — swap soon or re-quote</span>`;
     $("swapBtn").disabled = false;
   }catch(e){
     lastSwapQuote=null; $("swapBtn").disabled=true;
-    $("swapErr").textContent = e.message;
+    $("swapErr").textContent = (e.message || String(e)) + " · check SOL balance & network";
     $("swapQuote").classList.add("hidden");
   }
 }
@@ -4340,29 +4355,44 @@ async function doSwap(){
   $("swapErr").textContent=""; $("swapTx").textContent="";
   try{
     if(!lastSwapQuote) throw new Error("Get a quote first");
-    if(!solInfo?.privateKeyHex) throw new Error("Missing Solana key");
+    if(lastSwapQuote.at && Date.now() - lastSwapQuote.at > 90_000){
+      throw new Error("Quote expired (~90s) — tap Get quote again");
+    }
+    if(!solInfo?.privateKeyHex) throw new Error("Missing Solana key — seed wallet required");
     await requireTotpIfNeeded($("swapTotp"));
     const { quote, from, to } = lastSwapQuote;
-    if(!confirm(`Swap ${$("swapAmt").value} ${from.symbol} → ~${$("swapOut").value} ${to.symbol} on Solana?`)) return;
-    $("swapBtn").disabled = true;
-    $("swapTx").textContent = "Building transaction…";
-    const built = await buildJupiterSwap({
-      quoteResponse: quote,
-      userPublicKey: solInfo.address,
+    openSlideConfirm({
+      title: "Slide to swap on Solana",
+      rows: [
+        { k: "From", v: `${$("swapAmt").value} ${from.symbol}` },
+        { k: "To ≈", v: `${$("swapOut").value} ${to.symbol}` },
+        { k: "Venue", v: "Jupiter" },
+        { k: "Network", v: "Solana mainnet" },
+      ],
+      onConfirm: async () => {
+        $("swapBtn").disabled = true;
+        $("swapTx").textContent = "Building transaction…";
+        const built = await buildJupiterSwap({
+          quoteResponse: quote,
+          userPublicKey: solInfo.address,
+        });
+        $("swapTx").textContent = "Signing & sending (may retry RPC)…";
+        const rpc = await pickSolRpc(typeof SOL_RPC !== "undefined" ? SOL_RPC : JUP_SOL_RPC);
+        const sig = await signAndSendSolTx({
+          swapTransactionBase64: built.swapTransaction,
+          privateKeyHex: solInfo.privateKeyHex,
+          rpc,
+        });
+        $("swapTx").innerHTML = `Sent · <a href="https://solscan.io/tx/${sig}" target="_blank" rel="noopener">${sig.slice(0,12)}…</a>`;
+        toast("Swap submitted");
+        fireConfetti("send");
+        lastSwapQuote=null;
+        $("swapBtn").disabled = true;
+        setTimeout(()=>{ refreshEthBalances(); updateSwapBalances(); }, 2000);
+      },
     });
-    $("swapTx").textContent = "Signing & sending…";
-    const sig = await signAndSendSolTx({
-      swapTransactionBase64: built.swapTransaction,
-      privateKeyHex: solInfo.privateKeyHex,
-      rpc: SOL_RPC || JUP_SOL_RPC,
-    });
-    $("swapTx").innerHTML = `Sent · <a href="https://solscan.io/tx/${sig}" target="_blank" rel="noopener">${sig.slice(0,12)}…</a>`;
-    toast("Swap submitted");
-    lastSwapQuote=null;
-    setTimeout(()=>{ refreshEthBalances(); updateSwapBalances(); }, 2000);
   }catch(e){
     $("swapErr").textContent = e.message || String(e);
-  }finally{
     $("swapBtn").disabled = !lastSwapQuote;
   }
 }
@@ -4376,13 +4406,33 @@ async function initBridgeUI(){
   try{
     bridgeCfg = await api("/api/public/bridge");
     const off = $("bridgeOffline");
-    if(off) off.classList.toggle("hidden", !!bridgeCfg.enabled);
-    if(bridgeCfg.enabled && $("bridgeAsset")){
-      // keep options
+    const enabled = !!bridgeCfg.enabled;
+    if(off){
+      off.classList.toggle("hidden", enabled);
+      if(!enabled){
+        const assets = (bridgeCfg.assets || []).map(a =>
+          `${a.symbol}: ~${a.howl_per_unit} HOWL/${a.symbol} (min ${a.min})`
+        ).join(" · ");
+        off.innerHTML =
+          `<b>Howl Swap is offline</b> on this server (operator has not enabled the relayer yet).<br>` +
+          `Use <b>Jupiter</b> tab for SOL↔USDC, or mine HOWL / receive from a friend.<br>` +
+          (assets ? `<span class="hint">When live: ${escHtml(assets)}</span><br>` : "") +
+          `<button class="btn sec" type="button" style="margin-top:8px" onclick="initBridgeUI()">↻ Recheck bridge</button>`;
+      }
+    }
+    if($("bridgeOrderBtn")) $("bridgeOrderBtn").disabled = !enabled;
+    if($("bridgeAsset") && Array.isArray(bridgeCfg.assets) && bridgeCfg.assets.length){
+      // optional: leave static options; rates shown when online
     }
   }catch(e){
     bridgeCfg = { enabled: false };
-    if($("bridgeOffline")) $("bridgeOffline").classList.remove("hidden");
+    const off = $("bridgeOffline");
+    if(off){
+      off.classList.remove("hidden");
+      off.innerHTML =
+        `<b>Could not reach bridge API</b> · ${escHtml(e.message || "network error")}<br>` +
+        `<button class="btn sec" type="button" style="margin-top:8px" onclick="initBridgeUI()">↻ Retry</button>`;
+    }
   }
   loadBridgeOrders();
   if(activeBridgeOrder) renderBridgeOrder(activeBridgeOrder);
@@ -4391,7 +4441,11 @@ async function initBridgeUI(){
 async function getBridgeQuote(){
   $("bridgeErr").textContent = "";
   try{
-    if(!bridgeCfg?.enabled) throw new Error("Bridge offline on server");
+    // refresh config in case operator just enabled
+    try{ bridgeCfg = await api("/api/public/bridge"); }catch(_){}
+    if(!bridgeCfg?.enabled){
+      throw new Error("Bridge offline — operator must set HOWL_BRIDGE_ENABLED + treasury. Use Jupiter tab for SOL swaps.");
+    }
     const asset = $("bridgeAsset").value || "sol";
     const amount = $("bridgeAmt").value.trim();
     if(!amount || Number(amount) <= 0) throw new Error("Enter an amount");
@@ -5661,7 +5715,7 @@ const NFT_CHAINS = [
   { id: "avax", label: "Avalanche", mint: false, send: true, watch: true, evmId: "avax", chainId: 43114 },
   { id: "hype", label: "HyperEVM", mint: false, send: false, watch: true, evmId: "hype", chainId: 999 },
   { id: "tron", label: "TRON", mint: false, send: false, watch: true },
-  { id: "tezos", label: "Tezos", mint: false, send: false, watch: true },
+  { id: "tezos", label: "Tezos", mint: false, send: true, watch: true },
   { id: "bitcoin", label: "Bitcoin (Ordinals)", mint: false, send: false, watch: false },
   { id: "xrp", label: "XRP Ledger", mint: false, send: false, watch: false },
   { id: "stellar", label: "Stellar", mint: false, send: false, watch: false },
@@ -5846,12 +5900,19 @@ function renderNftChainUI(){
       : meta.id === "tezos" ? "tz1…"
       : "0x… / address";
   }
-  const needContract = !!(meta.evmId);
-  if($("nftXferExtraLab")) $("nftXferExtraLab").classList.toggle("hidden", !needContract);
-  if($("nftXferContract")) $("nftXferContract").classList.toggle("hidden", !needContract);
+  const needContract = !!(meta.evmId) || meta.id === "tezos";
+  if($("nftXferExtraLab")){
+    $("nftXferExtraLab").classList.toggle("hidden", !needContract);
+    $("nftXferExtraLab").textContent = meta.id === "tezos" ? "FA2 collection (KT1…)" : "Contract (EVM)";
+  }
+  if($("nftXferContract")){
+    $("nftXferContract").classList.toggle("hidden", !needContract);
+    $("nftXferContract").placeholder = meta.id === "tezos" ? "KT1… (collection contract)" : "0x… contract";
+  }
   if($("nftXferId")){
     $("nftXferId").placeholder = meta.id === "howl" ? "nft id"
       : meta.id === "solana" ? "mint address"
+      : meta.id === "tezos" ? "token id (or KT1…:id)"
       : "token id";
   }
 }
@@ -6173,6 +6234,7 @@ function renderNftCards(list, opts = {}){
         ${howl ? `<span class="chip" style="font-size:.65rem">timeline</span>` : ""}
         ${chain === "tezos" ? `<span class="chip" style="font-size:.65rem">TzKT</span>` : ""}
         ${opts.canSend !== false && howl && n.owner === (keypair && keypair.address) ? `<button class="btn sec" style="width:auto;margin:0;padding:6px 10px;min-height:0;font-size:.6rem" type="button" data-send="${i}">Send</button>` : ""}
+        ${opts.canSend !== false && chain === "tezos" && mnemonic ? `<button class="btn sec" style="width:auto;margin:0;padding:6px 10px;min-height:0;font-size:.6rem" type="button" data-send-xtz="${i}">Send</button>` : ""}
       </div>
     </button>`;
   }).join("");
@@ -6198,6 +6260,27 @@ function renderNftCards(list, opts = {}){
       prepareNftSend(n.nft_id || n.mint || n.tokenId || n.id || "");
     };
   });
+  el.querySelectorAll("button[data-send-xtz]").forEach(btn=>{
+    btn.onclick = (e)=>{
+      e.stopPropagation();
+      const n = list[Number(btn.getAttribute("data-send-xtz"))];
+      if(n) prepareTezosNftSend(n);
+    };
+  });
+}
+
+function prepareTezosNftSend(n){
+  if(!n) return;
+  if(!mnemonic){ toast("Seed wallet required for Tezos send"); return; }
+  setNftDashTab("tools");
+  nftChain = "tezos";
+  renderNftChainUI();
+  if($("nftChainSelect")) $("nftChainSelect").value = "tezos";
+  if($("nftXferId")) $("nftXferId").value = String(n.tokenId ?? n.nft_id ?? "");
+  if($("nftXferContract")) $("nftXferContract").value = n.contract || "";
+  $("nftXferTo")?.focus();
+  toast("Enter recipient tz1 and slide to send");
+  try{ $("nftTransferPanel")?.scrollIntoView({ behavior: "smooth", block: "center" }); }catch(_){}
 }
 
 function ipfsToHttp(uri){
@@ -6244,10 +6327,15 @@ function openTezosNftDetail(n){
       <p class="hint mono" style="word-break:break-all">Owner tz1: ${escHtml(n.owner || xtzInfo?.address || "—")}</p>
       <button class="btn" type="button" onclick="openExternalUrl(${JSON.stringify(tzktTok)})">Open on TzKT</button>
       <button class="btn sec" type="button" onclick="openExternalUrl(${JSON.stringify(objkt)})">Open on Objkt</button>
+      ${mnemonic ? `<button class="btn" type="button" id="xtzNftSendBtn">Send this NFT</button>` : `<p class="hint">Seed wallet required to send FA2 from Howl</p>`}
       <button class="btn sec" type="button" onclick="copyText(${JSON.stringify(contract)},'KT1 contract')">Copy contract</button>
       <button class="btn sec" type="button" onclick="copyText(${JSON.stringify((contract||'')+':'+tid)},'token id')">Copy contract:id</button>
-      <p class="hint" style="margin-top:12px">Receive more to your <b>tz1</b> (same as XTZ). Collection contract is KT1 — not your wallet.</p>
+      <p class="hint" style="margin-top:12px">Send needs a little <b>XTZ</b> for fees on your tz1. Recipient is always <b>tz1</b> (not KT1).</p>
     `;
+  }
+  const sendBtn = $("xtzNftSendBtn");
+  if(sendBtn){
+    sendBtn.onclick = ()=> prepareTezosNftSend(n);
   }
 }
 
@@ -7063,15 +7151,76 @@ async function transferNft(){
 
     if(meta.id === "solana"){
       if(!solInfo?.privateKeyHex) throw new Error("Solana key not ready");
-      toast("Sending Solana NFT…");
-      const sig = await transferSolNft({
-        privateKeyHex: solInfo.privateKeyHex,
-        mint: id,
-        toOwner: to,
-        rpc: SOL_RPC || JUP_SOL_RPC,
+      openSlideConfirm({
+        title: "Slide to send Solana NFT",
+        rows: [
+          { k: "Mint", v: id.slice(0, 16) + "…" },
+          { k: "To", v: to.slice(0, 12) + "…" },
+          { k: "Network", v: "Solana" },
+        ],
+        onConfirm: async () => {
+          toast("Sending Solana NFT…");
+          const rpc = await pickSolRpc(typeof SOL_RPC !== "undefined" ? SOL_RPC : JUP_SOL_RPC);
+          const sig = await transferSolNft({
+            privateKeyHex: solInfo.privateKeyHex,
+            mint: id,
+            toOwner: to,
+            rpc,
+          });
+          toast("Sent · " + String(sig).slice(0, 12) + "…");
+          fireConfetti("send");
+          setTimeout(refreshNfts, 2000);
+        },
       });
-      toast("Sent · " + String(sig).slice(0, 12) + "…");
-      setTimeout(refreshNfts, 2000);
+      return;
+    }
+
+    if(meta.id === "tezos"){
+      if(!mnemonic) throw new Error("Tezos send needs a seed wallet (not key-only)");
+      if(!/^tz[123]/.test(to)) throw new Error("Recipient must be tz1/tz2/tz3 — not KT1");
+      // id formats: KT1…:tokenId  OR tokenId with contract field
+      let contract = ($("nftXferContract")?.value || "").trim();
+      let tokenId = id;
+      if(id.includes(":")){
+        const parts = id.split(":");
+        contract = parts[0];
+        tokenId = parts.slice(1).join(":") || "0";
+      }
+      if(!contract && nftCacheList?.length){
+        const hit = nftCacheList.find(n =>
+          String(n.tokenId) === String(id) ||
+          String(n.nft_id) === String(id) ||
+          String(n.id) === String(id)
+        );
+        if(hit){ contract = hit.contract; tokenId = hit.tokenId ?? tokenId; }
+      }
+      if(!/^KT1/.test(contract)) throw new Error("FA2 contract (KT1…) required — open NFT and tap Send, or paste contract:tokenId");
+      openSlideConfirm({
+        title: "Slide to send Tezos NFT",
+        rows: [
+          { k: "Collection", v: contract.slice(0, 12) + "…" },
+          { k: "Token id", v: String(tokenId) },
+          { k: "To", v: to.slice(0, 12) + "…" },
+          { k: "Fee", v: "~0.01–0.05 XTZ (network)" },
+        ],
+        onConfirm: async () => {
+          toast("Sending FA2 on Tezos…");
+          const res = await transferTezosFa2({
+            mnemonic,
+            to,
+            contract,
+            tokenId,
+            amount: 1,
+          });
+          const h = res.hash || "";
+          toast("Sent · " + (h ? h.slice(0, 12) + "…" : "ok"));
+          fireConfetti("send");
+          if(h){
+            try{ openExternalUrl("https://tzkt.io/" + h); }catch(_){}
+          }
+          setTimeout(refreshNfts, 2500);
+        },
+      });
       return;
     }
 
@@ -8869,7 +9018,7 @@ function boot(skipInstallPrompt){
       }
     }
   }catch(_){}
-  if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=4").catch(()=>{});
+  if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=5").catch(()=>{});
   if(!skipInstallPrompt && !isStandalone() && !sessionStorage.getItem("howl_skip_install") && !sessionStorage.getItem("howl_saw_install")){
     sessionStorage.setItem("howl_saw_install","1");
     uiInstall();
@@ -8985,6 +9134,8 @@ window.openTezosNftDetail = openTezosNftDetail;
 window.ensureWalletConnect = ensureWalletConnect;
 window.renderHcDeployFields = renderHcDeployFields;
 window.finishAccountWizard = finishAccountWizard;
+window.prepareTezosNftSend = prepareTezosNftSend;
+window.initBridgeUI = initBridgeUI;
 
 boot();
 </script>

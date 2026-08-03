@@ -308,4 +308,125 @@ export function decodeAbiString(hex) {
   }
 }
 
+/**
+ * Transfer FA2 NFT on Tezos mainnet (needs small XTZ for fees).
+ * Uses BIP39 mnemonic path 44'/1729'/0'/0' (matches Howl wallet tz1).
+ */
+export async function transferTezosFa2({
+  mnemonic,
+  to,
+  contract,
+  tokenId,
+  amount = 1,
+  rpc = "https://rpc.tzkt.io/mainnet",
+}) {
+  const phrase = String(mnemonic || "")
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .join(" ");
+  if (!phrase) throw new Error("Recovery phrase required for Tezos send");
+  const dest = String(to || "").trim();
+  if (!/^tz[123][1-9A-HJ-NP-Za-km-z]{33}$/.test(dest)) {
+    throw new Error("Recipient must be tz1 / tz2 / tz3 (not KT1)");
+  }
+  const kt = String(contract || "").trim();
+  if (!/^KT1[1-9A-HJ-NP-Za-km-z]{33}$/.test(kt)) {
+    throw new Error("Invalid FA2 contract (KT1…)");
+  }
+  const tid = Number(tokenId);
+  if (!Number.isFinite(tid) || tid < 0) throw new Error("Invalid token id");
+  const amt = Number(amount);
+  if (!Number.isFinite(amt) || amt <= 0) throw new Error("Amount must be > 0");
+
+  const { TezosToolkit } = await import(
+    "https://esm.sh/@taquito/taquito@20.0.1?target=es2022&bundle"
+  );
+  const { InMemorySigner } = await import(
+    "https://esm.sh/@taquito/signer@20.0.1?target=es2022&bundle"
+  );
+
+  const Tezos = new TezosToolkit(rpc);
+  let signer;
+  try {
+    signer = await InMemorySigner.fromMnemonic({
+      mnemonic: phrase,
+      password: "",
+      derivationPath: "44'/1729'/0'/0'",
+    });
+  } catch (e) {
+    // older taquito path style
+    try {
+      signer = await InMemorySigner.fromMnemonic({
+        mnemonic: phrase,
+        password: "",
+        derivationPath: "m/44'/1729'/0'/0'",
+      });
+    } catch (e2) {
+      throw new Error(
+        "Could not derive Tezos key: " + (e2.message || e.message || e)
+      );
+    }
+  }
+  Tezos.setProvider({ signer });
+  const from = await signer.publicKeyHash();
+  if (!from || !from.startsWith("tz")) {
+    throw new Error("Bad Tezos address from seed");
+  }
+
+  // Ensure some XTZ for fees
+  try {
+    const bal = await Tezos.tz.getBalance(from);
+    if (bal.toNumber() < 50000) {
+      // ~0.05 XTZ mutez floor for safety
+      throw new Error(
+        "Need a little XTZ for fees on " +
+          from.slice(0, 8) +
+          "… (deposit ~0.1 XTZ, then retry)"
+      );
+    }
+  } catch (e) {
+    if (String(e.message || e).includes("XTZ for fees")) throw e;
+    // continue — node may still work
+  }
+
+  const c = await Tezos.contract.at(kt);
+  // Standard FA2 %transfer
+  let op;
+  try {
+    op = await c.methodsObject
+      .transfer([
+        {
+          from_: from,
+          txs: [{ to_: dest, token_id: tid, amount: amt }],
+        },
+      ])
+      .send();
+  } catch (e1) {
+    // Fallback classic methods.transfer
+    try {
+      op = await c.methods
+        .transfer([
+          {
+            from_: from,
+            txs: [{ to_: dest, token_id: tid, amount: amt }],
+          },
+        ])
+        .send();
+    } catch (e2) {
+      const msg = e2.message || e1.message || String(e2);
+      if (/balance|funds|mutez/i.test(msg)) {
+        throw new Error("Not enough XTZ for fees or FA2 transfer failed: " + msg);
+      }
+      throw new Error("FA2 transfer failed: " + msg);
+    }
+  }
+  try {
+    await op.confirmation(1);
+  } catch {
+    /* hash still useful */
+  }
+  return { hash: op.hash || op.opHash || "", from, to: dest, contract: kt, tokenId: tid };
+}
+
 export { TOKEN_PROG };
