@@ -3125,9 +3125,9 @@ async function showBlock(id){
   const g = groupBlockTxs(txs);
   const cultureN = g.culture.length + g.contracts.length;
   setPageMeta(
-    `Block #${h} · Howlscan`,
-    `Howlcoin block #${h} — ${txs.length} txs, ${cultureN} culture/contract events, reward ${cb&&cb.amount!=null?fmtAmt(cb.amount):'—'}.`,
-    `#/${net}/block/${h}`
+    'Block #'+h+' · Howlscan',
+    'Howlcoin block #'+h+' — '+txs.length+' txs, '+cultureN+' culture/contract events.',
+    '#/'+net+'/block/'+h
   );
   app().innerHTML=`<div class="main" style="padding-top:12px">
     ${crumbs([{label:'Home',href:'#/'+net},{label:'Block #'+h}])}
@@ -4373,7 +4373,20 @@ async function route(){
   try{ window.scrollTo({top:0, behavior:'instant' in window ? 'instant' : 'auto'}); }catch(e){ window.scrollTo(0,0); }
   try{
     // Global product routes (network-agnostic → public chain)
+async function route(){
+  toggleDrawer(false);
+  const h=(location.hash||'').replace(/^#\/?/,'');
+  const parts=h.split('/').filter(Boolean);
+  if(parts[0] && networks.length && networks.find(n=>n.id===parts[0])){
+    net=parts[0];
+  }
+  renderNav();
+  setBottomTab(activeTabFromRoute(parts));
+  __routeKey = parts.join('/') || 'home';
+  try{ window.scrollTo({top:0, behavior:'instant' in window ? 'instant' : 'auto'}); }catch(e){ window.scrollTo(0,0); }
+  try{
     if(parts[0]==='play') return await showPlayBoard();
+    if(parts[0]==='city') return await showPlayBoard(); // city → same live board
     if(parts[0]==='culture' || parts[0]==='nfts' || parts[0]==='gallery') return await showCultureGallery();
     if(parts[0]==='charts' || parts[0]==='markets') return await showChartsBoard();
     if(parts[0]==='api' || parts[0]==='docs') return await showApiDocs();
@@ -4407,7 +4420,7 @@ function isHomeHash(){
 function liveRouteKind(){
   const h=(location.hash||'').replace(/^#\/?/,'').split('/').filter(Boolean);
   if(!h.length || (h.length===1 && networks.find(n=>n.id===h[0]))) return 'home';
-  if(h[0]==='play') return 'play';
+  if(h[0]==='play' || h[0]==='city') return 'play';
   if(h[0]==='culture' || h[0]==='nfts' || h[0]==='gallery') return 'culture';
   if(h[0]==='charts' || h[0]==='markets') return 'charts';
   if(h[0]==='health' || h[0]==='status') return 'health';
@@ -4416,12 +4429,12 @@ function liveRouteKind(){
   return '';
 }
 function refreshData(){
-  // Manual refresh of numbers only — never remounts the banner animation
   softLiveRefresh(true);
 }
 function softLiveRefresh(force){
   if(!__liveRefreshOn && !force) return;
   const kind = liveRouteKind();
+  if(!kind && !force) return;
   const keyBefore = __routeKey;
   const run = async ()=>{
     if(kind==='home') await loadHome();
@@ -4431,20 +4444,19 @@ function softLiveRefresh(force){
     else if(kind==='health') await showHealth();
     else if(kind==='mempool') await showMempool();
     else if(kind==='contracts'){
-      const h=(location.hash||'').replace(/^#\/?/,'').split('/').filter(Boolean);
-      await showContractsBrowser(h[1]||'');
+      const hh=(location.hash||'').replace(/^#\/?/,'').split('/').filter(Boolean);
+      await showContractsBrowser(hh[1]||'');
     } else if(force) await route();
   };
-  run().catch(()=>{}).then(()=>{
-    // if user navigated away mid-refresh, don't fight them
-    if(__routeKey !== keyBefore && !force) return;
-  });
+  run().catch(()=>{});
+  // ignore if navigated away
+  void keyBefore;
 }
 window.addEventListener('hashchange', ()=>route());
 ensureBanner();
 loadNetworks().then(route);
-// Background live refresh by surface
-setInterval(()=>{ softLiveRefresh(false); }, 20000);
+// Live surfaces refresh every 15s
+setInterval(()=>{ softLiveRefresh(false); }, 15000);
 // Tip ticker: flash when height/tip changes (home only)
 let __lastTipKey = '';
 setInterval(async ()=>{
@@ -4463,10 +4475,6 @@ setInterval(async ()=>{
     __lastTipKey = key;
   }catch(e){}
 }, 8000);
-</script>
-</body>
-</html>
-"""
 
 
 
@@ -5254,6 +5262,28 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                                 "howls": rows,
                                 "count": len(rows),
                                 "note": "On-chain howls · Howlcoin Play",
+                            },
+                        )
+
+                    # Howl City live feed
+                    if rest[0] in ("city", "city-feed", "live"):
+                        limit = int(qs.get("limit", ["50"])[0])
+                        kinds_raw = (qs.get("kinds") or qs.get("kind") or [""])[0]
+                        kinds = (
+                            [k.strip() for k in kinds_raw.split(",") if k.strip()]
+                            if kinds_raw
+                            else None
+                        )
+                        rows = chain.list_city_events(limit=limit, kinds=kinds)
+                        return self._json(
+                            200,
+                            {
+                                "network": net,
+                                "events": rows,
+                                "count": len(rows),
+                                "height": chain.height(),
+                                "culture": chain.culture_stats(),
+                                "note": "Howl City · live L1 feed",
                             },
                         )
 
