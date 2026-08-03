@@ -2806,6 +2806,20 @@ class ExplorerServer:
                 path = parsed.path
                 qs = urllib.parse.parse_qs(parsed.query)
 
+                # RFC 9116 security.txt (Cloudflare / security researchers)
+                if path in (
+                    "/.well-known/security.txt",
+                    "/security.txt",
+                ):
+                    sec = ASSETS_DIR / "security.txt"
+                    if sec.is_file():
+                        return self._bytes(
+                            200,
+                            sec.read_bytes(),
+                            "text/plain; charset=utf-8",
+                        )
+                    return self._json(404, {"error": "security.txt not found"})
+
                 if path in ("/", "/index.html"):
                     return self._bytes(200, EXPLORER_HTML.encode(), "text/html; charset=utf-8")
 

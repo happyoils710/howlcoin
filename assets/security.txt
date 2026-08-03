@@ -1,0 +1,10 @@
+# Howlcoin / howlscan.org — vulnerability disclosure (RFC 9116)
+# https://www.rfc-editor.org/rfc/rfc9116
+
+Contact: https://github.com/happyoils710/howlcoin/security/advisories/new
+Contact: https://github.com/happyoils710/howlcoin/issues
+Expires: 2027-08-03T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://howlscan.org/.well-known/security.txt
+Policy: https://github.com/happyoils710/howlcoin/blob/main/SECURITY.md
+Acknowledgments: https://github.com/happyoils710/howlcoin/security/advisories
