@@ -2489,6 +2489,7 @@ tbody tr:hover{background:var(--rowh)}
     </select>
     <button class="chipbtn" onclick="location.hash='#/play'">Play</button>
     <button class="chipbtn" onclick="location.hash='#/culture'">Culture</button>
+    <button class="chipbtn" onclick="location.hash='#/contracts'">Contracts</button>
     <button class="chipbtn" onclick="location.hash='#/charts'">Charts</button>
     <button class="chipbtn" onclick="location.hash='#/health'">Network</button>
     <button class="chipbtn" onclick="location.hash='#/'+net+'/richlist'">Richlist</button>
@@ -2510,6 +2511,7 @@ tbody tr:hover{background:var(--rowh)}
   <button class="ditem" type="button" onclick="navTo('#/'+net)">🏠 Home</button>
   <button class="ditem primary" type="button" onclick="navTo('#/play')">🎮 Play</button>
   <button class="ditem" type="button" onclick="navTo('#/culture')">🖼 Culture</button>
+  <button class="ditem" type="button" onclick="navTo('#/contracts')">📜 Contracts</button>
   <button class="ditem" type="button" onclick="navTo('#/charts')">📈 Charts</button>
   <button class="ditem" type="button" onclick="navTo('#/health')">💓 Network</button>
   <button class="ditem" type="button" onclick="navTo('#/'+net+'/richlist')">🏆 Richlist</button>
@@ -2541,7 +2543,7 @@ tbody tr:hover{background:var(--rowh)}
 </div>
 <div class="searchwrap" id="searchwrap">
   <div class="searchbox">
-    <input id="q" placeholder="Height, hash, tx, H… address, or @name" enterkeyhint="search" autocomplete="off"
+    <input id="q" placeholder="Height, hash, tx, H…, @name, contract id" enterkeyhint="search" autocomplete="off"
       onkeydown="if(event.key==='Enter')doSearch()"/>
     <button type="button" onclick="doSearch()">Search</button>
   </div>
@@ -2552,6 +2554,7 @@ tbody tr:hover{background:var(--rowh)}
     <a href="#/public">Home</a> ·
     <a href="#/play">Play</a> ·
     <a href="#/culture">Culture</a> ·
+    <a href="#/contracts">Contracts</a> ·
     <a href="#/charts">Charts</a> ·
     <a href="#/health">Network</a> ·
     <a href="/app">Wallet</a> ·
@@ -2675,6 +2678,101 @@ function linkBlock(h){return `<a href="#/${net}/block/${encodeURIComponent(h)}">
 function linkTx(t){if(!t)return '—'; return `<a class="mono" href="#/${net}/tx/${encodeURIComponent(t)}">${esc(short(t,14))}</a>`}
 function linkAddr(a){if(!a||a==='HOWL_GENESIS_BURN') return `<span class="mono">${esc(a||'—')}</span>`;
   return `<a class="mono" href="#/${net}/address/${encodeURIComponent(a)}">${esc(short(a,12))}</a>`}
+function linkContract(id){
+  if(!id) return '—';
+  return `<a class="mono" href="#/contract/${encodeURIComponent(id)}">${esc(short(id,14))}</a>`;
+}
+/** Human labels for L1 tx types */
+function txTypeMeta(t){
+  const ty = (t && t.type) || 'transfer';
+  const key = String(t && (t.oracle_key || t.key) || '');
+  if(ty === 'coinbase') return { label: 'Mining reward', badge: 'ok', kind: 'mine' };
+  if(ty === 'nft_mint') return { label: 'NFT mint', badge: 'blue', kind: 'nft' };
+  if(ty === 'nft_transfer') return { label: 'NFT send', badge: 'blue', kind: 'nft' };
+  if(ty === 'contract_deploy'){
+    const k = (t.contract_kind || t.kind || 'contract');
+    return { label: 'Deploy · ' + k, badge: 'ok', kind: 'contract' };
+  }
+  if(ty === 'contract_call'){
+    const m = t.method || 'call';
+    return { label: 'Contract · ' + m, badge: 'blue', kind: 'contract' };
+  }
+  if(ty === 'oracle'){
+    if(key === 'howl.howl' || key.startsWith('howl.howl.')) return { label: 'Howl', badge: 'ok', kind: 'howl' };
+    if(key.startsWith('howl.name.')) return { label: 'Name claim', badge: 'ok', kind: 'name' };
+    if(key.startsWith('howl.bond.')) return { label: 'Bark bond howl', badge: 'blue', kind: 'bond' };
+    return { label: 'Oracle post', badge: 'blue', kind: 'oracle' };
+  }
+  if(ty === 'transfer') return { label: 'Transfer', badge: 'blue', kind: 'xfer' };
+  return { label: ty, badge: 'blue', kind: 'other' };
+}
+function txTypeBadge(t){
+  const m = txTypeMeta(t);
+  return `<span class="badge ${m.badge}">${esc(m.label)}</span>`;
+}
+function txFlowHtml(t){
+  const ty = (t && t.type) || 'transfer';
+  if(ty === 'coinbase') return `new coins → ${linkAddr(t.to)}`;
+  if(ty === 'nft_mint') return `mint ${esc(short(t.nft_id||t.name||'', 12))} → ${linkAddr(t.to||t.from)}`;
+  if(ty === 'nft_transfer') return `${linkAddr(t.from)} → ${linkAddr(t.to)} · ${esc(short(t.nft_id||'',10))}`;
+  if(ty === 'contract_deploy') return `${linkAddr(t.from)} deploys ${linkContract(t.contract_id)}`;
+  if(ty === 'contract_call') return `${linkAddr(t.from)} → ${linkContract(t.contract_id)} · ${esc(t.method||'call')}`;
+  if(ty === 'oracle'){
+    const key = String(t.oracle_key || '');
+    const val = String(t.oracle_value || t.value || '').slice(0, 40);
+    if(key.startsWith('howl.name.')) return `${linkAddr(t.from)} claims @${esc(key.slice(10))}`;
+    if(key === 'howl.howl' || key.startsWith('howl.howl.')) return `${linkAddr(t.from)} howls “${esc(val)}${val.length>=40?'…':''}”`;
+    return `${linkAddr(t.from)} · ${esc(short(key,16))}`;
+  }
+  return `${linkAddr(t.from)} → ${linkAddr(t.to)}`;
+}
+function txDetailRows(t, d){
+  const ty = (t && t.type) || 'transfer';
+  const meta = txTypeMeta(t);
+  let rows = `
+    <div class="k">Status</div><div>${d.confirmed?('Block '+linkBlock(d.block_height)):'Unconfirmed · waiting for miner'}</div>
+    <div class="k">Type</div><div>${txTypeBadge(t)} <span class="muted mono">${esc(ty)}</span></div>
+    <div class="k">Fee</div><div>${fmtAmt(t.fee||0)} <span class="muted">→ miner who includes this tx</span></div>
+    <div class="k">Nonce</div><div>${t.nonce??'—'}</div>`;
+  if(ty === 'coinbase'){
+    rows += `
+      <div class="k">Source</div><div>Mining reward (new HOWL created)</div>
+      <div class="k">Miner</div><div>${linkAddr(t.to)}</div>
+      <div class="k">Reward</div><div class="amount">${fmtAmt(t.amount)}</div>`;
+  } else if(ty === 'nft_mint' || ty === 'nft_transfer'){
+    rows += `
+      <div class="k">From</div><div>${linkAddr(t.from)}</div>
+      <div class="k">To</div><div>${linkAddr(t.to)}</div>
+      <div class="k">NFT</div><div class="mono">${esc(t.nft_id||'—')}${t.nft_id?copyBtn(t.nft_id):''}</div>
+      <div class="k">Name</div><div>${esc(t.name||'—')}</div>
+      ${t.uri?`<div class="k">URI</div><div class="mono" style="word-break:break-all">${esc(t.uri)}</div>`:''}
+      <div class="k">Amount</div><div class="amount">${fmtAmt(t.amount||0)}</div>
+      <div class="k">Memo</div><div>${esc(t.memo||'—')}</div>`;
+  } else if(ty === 'contract_deploy' || ty === 'contract_call'){
+    rows += `
+      <div class="k">From</div><div>${linkAddr(t.from)}</div>
+      <div class="k">Contract</div><div>${linkContract(t.contract_id)} ${t.contract_id?copyBtn(t.contract_id):''}</div>
+      <div class="k">Kind / method</div><div>${esc(t.contract_kind||t.kind||'—')} · ${esc(t.method||(ty==='contract_deploy'?'deploy':'call'))}</div>
+      <div class="k">Name</div><div>${esc(t.name||'—')}</div>
+      <div class="k">Fund / value</div><div class="amount">${fmtAmt(t.amount||0)}</div>
+      ${t.unlock_height!=null?`<div class="k">Unlock height</div><div>#${esc(String(t.unlock_height))}</div>`:''}
+      <div class="k">Memo</div><div>${esc(t.memo||'—')}</div>`;
+  } else if(ty === 'oracle'){
+    rows += `
+      <div class="k">Reporter</div><div>${linkAddr(t.from)}</div>
+      <div class="k">Oracle key</div><div class="mono">${esc(t.oracle_key||'—')}</div>
+      <div class="k">Value</div><div style="word-break:break-word">${esc(String(t.oracle_value||''))}</div>
+      <div class="k">Source chain</div><div>${esc(t.source_chain||'howlcoin')}</div>
+      <div class="k">Memo</div><div>${esc(t.memo||'—')}</div>`;
+  } else {
+    rows += `
+      <div class="k">From</div><div>${linkAddr(t.from)}</div>
+      <div class="k">To</div><div>${linkAddr(t.to)}</div>
+      <div class="k">Amount</div><div class="amount">${fmtAmt(t.amount)}</div>
+      <div class="k">Memo</div><div>${esc(t.memo||'—')}</div>`;
+  }
+  return rows;
+}
 
 function renderNav(){
   const html = networks.map(n=>`
@@ -2899,22 +2997,25 @@ async function loadHome(){
         <tbody>
           ${tl.map(t=>`<tr onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
             <td onclick="event.stopPropagation()">${linkTx(t.txid)}</td>
-            <td><span class="badge ${t.type==='coinbase'?'ok':'blue'}">${t.type==='coinbase'?'reward':'transfer'}</span></td>
-            <td class="mono" onclick="event.stopPropagation()">${t.type==='coinbase'?'new coins → '+linkAddr(t.to):linkAddr(t.from)+' → '+linkAddr(t.to)}</td>
+            <td>${txTypeBadge(t)}</td>
+            <td class="mono" onclick="event.stopPropagation()">${txFlowHtml(t)}</td>
             <td class="amount">${fmtAmt(t.amount)}</td>
-            <td>${t.confirmed?`<span class="badge ok" onclick="event.stopPropagation();location.hash='#/${net}/block/${t.block_height}'">#${t.block_height}</span>`:`<span class="badge warn">mempool</span>`}</td>
+            <td>${t.confirmed?`<span class="badge ok" onclick="event.stopPropagation();location.hash='#/${net}/block/${t.block_height}'">#${t.block_height}</span>`:`<span class="badge warn">waiting for miner</span>`}</td>
           </tr>`).join('') || '<tr><td colspan="5" class="muted" style="padding:16px">No transactions yet</td></tr>'}
         </tbody>
       </table>
       </div>
       <div class="mobile-only mlist">
-        ${tl.map(t=>`<div class="mrow" onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
+        ${tl.map(t=>{
+          const m = txTypeMeta(t);
+          return `<div class="mrow" onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
           <div class="ml">
-            <div class="mt">${t.type==='coinbase'?'Mining reward':'Transfer'} <span class="badge ${t.confirmed?'ok':'warn'}" style="margin-left:4px">${t.confirmed?'#'+t.block_height:'pool'}</span></div>
-            <div class="ms mono">${t.type==='coinbase'?'→ '+esc(short(t.to,10)):esc(short(t.from,8))+' → '+esc(short(t.to,8))}</div>
+            <div class="mt">${esc(m.label)} <span class="badge ${t.confirmed?'ok':'warn'}" style="margin-left:4px">${t.confirmed?'#'+t.block_height:'waiting'}</span></div>
+            <div class="ms mono">${txFlowHtml(t)}</div>
           </div>
           <div class="mr"><div class="ma">${fmtAmt(t.amount)}</div></div>
-        </div>`).join('')||'<div class="mrow"><div class="muted">No transactions yet</div></div>'}
+        </div>`;
+        }).join('')||'<div class="mrow"><div class="muted">No transactions yet</div></div>'}
       </div>
     </div>
   </div>`;
@@ -2971,21 +3072,24 @@ async function showBlock(id){
         <tbody>
           ${txs.map(t=>`<tr onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
             <td onclick="event.stopPropagation()">${t.txid?linkTx(t.txid):'—'}</td>
-            <td><span class="badge ${t.type==='coinbase'?'ok':'blue'}">${t.type==='coinbase'?'mining reward':'transfer'}</span></td>
-            <td class="mono" onclick="event.stopPropagation()">${t.type==='coinbase'?'new coins → '+linkAddr(t.to):linkAddr(t.from)+' → '+linkAddr(t.to)}</td>
+            <td>${txTypeBadge(t)}</td>
+            <td class="mono" onclick="event.stopPropagation()">${txFlowHtml(t)}</td>
             <td class="amount">${fmtAmt(t.amount)}</td>
           </tr>`).join('')}
         </tbody>
       </table>
       </div>
       <div class="mobile-only mlist">
-        ${txs.map(t=>`<div class="mrow" onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
+        ${txs.map(t=>{
+          const m = txTypeMeta(t);
+          return `<div class="mrow" onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
           <div class="ml">
-            <div class="mt">${t.type==='coinbase'?'Mining reward':'Transfer'}</div>
-            <div class="ms mono">${t.type==='coinbase'?'→ '+esc(short(t.to,12)):esc(short(t.from,8))+' → '+esc(short(t.to,8))}</div>
+            <div class="mt">${esc(m.label)}</div>
+            <div class="ms mono">${txFlowHtml(t)}</div>
           </div>
           <div class="mr"><div class="ma">${fmtAmt(t.amount)}</div></div>
-        </div>`).join('')||'<div class="mrow"><div class="muted">No txs</div></div>'}
+        </div>`;
+        }).join('')||'<div class="mrow"><div class="muted">No txs</div></div>'}
       </div>
     </div>
   </div>`;
@@ -2996,33 +3100,24 @@ async function showTx(id){
   setBottomTab('home');
   await loadNetworks();
   const d=await api(`/api/${net}/tx/${encodeURIComponent(id)}`);
-  const t=d.tx;
+  const t=d.tx || {};
+  const meta = txTypeMeta(t);
   app().innerHTML=`<div class="main" style="padding-top:12px">
-    ${crumbs([{label:'Home',href:'#/'+net},{label:'Transaction'}])}
+    ${crumbs([{label:'Home',href:'#/'+net},{label: meta.label || 'Transaction'}])}
     <div class="page-actions">
       <button class="back" onclick="location.hash='#/${net}'">← Home</button>
       ${d.confirmed?`<button class="chipbtn" onclick="location.hash='#/${net}/block/${d.block_height}'">Block #${d.block_height}</button>`:
         `<button class="chipbtn" onclick="location.hash='#/${net}/mempool'">Mempool</button>`}
+      ${t.contract_id?`<button class="chipbtn" onclick="location.hash='#/contract/${encodeURIComponent(t.contract_id)}'">Contract</button>`:''}
     </div>
     <div class="card detail" style="margin-top:4px">
-      <div class="badge ${d.confirmed?'ok':'warn'}">${d.confirmed?'Confirmed':'Mempool'}</div>
-      <h2 style="margin:8px 0 4px;font-size:1.25rem">Transaction</h2>
+      <div class="badge ${d.confirmed?'ok':'warn'}">${d.confirmed?'Confirmed':'Waiting for miner'}</div>
+      ${txTypeBadge(t)}
+      <h2 style="margin:8px 0 4px;font-size:1.25rem">${esc(meta.label)}</h2>
       <div class="mono">${esc(t.txid||id)}${copyBtn(t.txid||id)}</div>
+      ${!d.confirmed?`<p class="muted" style="margin:10px 0 0;font-size:.88rem">In mempool — a miner must include this tx in a block (~${60}s target).</p>`:''}
       <div class="kv" style="margin-top:12px">
-        <div class="k">Status</div><div>${d.confirmed?('Block '+linkBlock(d.block_height)):'Unconfirmed'}</div>
-        <div class="k">Type</div><div>${esc(t.type||'transfer')}</div>
-        ${t.type==='coinbase'?`
-          <div class="k">Source</div><div>Mining reward (no sender — new HOWL created)</div>
-          <div class="k">Miner (to)</div><div>${linkAddr(t.to)}</div>
-          <div class="k">Reward</div><div class="amount">${fmtAmt(t.amount)}</div>
-        `:`
-          <div class="k">From</div><div>${linkAddr(t.from)}</div>
-          <div class="k">To</div><div>${linkAddr(t.to)}</div>
-          <div class="k">Amount</div><div class="amount">${fmtAmt(t.amount)}</div>
-          <div class="k">Fee</div><div>${fmtAmt(t.fee||0)}</div>
-          <div class="k">Nonce</div><div>${t.nonce??'—'}</div>
-          <div class="k">Memo</div><div>${esc(t.memo||'—')}</div>
-        `}
+        ${txDetailRows(t, d)}
       </div>
     </div>
   </div>`;
@@ -3076,16 +3171,18 @@ async function showAddr(addr){
         <div class="k">Balance</div><div class="amount" style="font-size:1.25rem">${esc(d.balance_fmt)}</div>
         <div class="k">Nonce</div><div>${d.nonce}</div>
         <div class="k">Shown txs</div><div>${d.tx_count}</div>
+        ${onName?`<div class="k">Name</div><div>${linkName(onName)}</div>`:''}
       </div>
     </div>
+    <div id="addrCulture" class="main cols" style="padding:12px 0 0;margin:0"><div class="card"><p class="muted" style="padding:12px">Loading culture…</p></div></div>
     <div class="card" style="margin-top:12px">
       <h3>History</h3>
       <div class="desktop-only table-wrap">
       <table>
-        <thead><tr><th>Dir</th><th>Txid</th><th>Amount</th><th>Block</th></tr></thead>
+        <thead><tr><th>Type</th><th>Txid</th><th>Amount</th><th>Block</th></tr></thead>
         <tbody>
-          ${hist.map(t=>`<tr>
-            <td><span class="badge ${t.direction==='in'||t.type==='coinbase'?'ok':'warn'}">${esc(t.direction||t.type)}</span></td>
+          ${hist.map(t=>`<tr onclick="${t.txid?`location.hash='#/${net}/tx/${encodeURIComponent(t.txid)}'`:''}">
+            <td>${txTypeBadge(t)} ${t.direction?`<span class="muted">${esc(t.direction)}</span>`:''}</td>
             <td>${t.txid?linkTx(t.txid):'—'}</td>
             <td class="amount">${fmtAmt(t.amount)}</td>
             <td>${t.block_height!=null?linkBlock(t.block_height):'—'}</td>
@@ -3094,50 +3191,94 @@ async function showAddr(addr){
       </table>
       </div>
       <div class="mobile-only mlist">
-        ${hist.map(t=>`<div class="mrow" onclick="${t.txid?`location.hash='#/${net}/tx/${encodeURIComponent(t.txid)}'`:''}">
+        ${hist.map(t=>{
+          const m = txTypeMeta(t);
+          return `<div class="mrow" onclick="${t.txid?`location.hash='#/${net}/tx/${encodeURIComponent(t.txid)}'`:''}">
           <div class="ml">
-            <div class="mt"><span class="badge ${t.direction==='in'||t.type==='coinbase'?'ok':'warn'}">${esc(t.direction||t.type)}</span>
-              ${t.block_height!=null?' · #'+t.block_height:''}</div>
-            <div class="ms mono">${t.txid?esc(short(t.txid,14)):'—'}</div>
+            <div class="mt">${txTypeBadge(t)}${t.block_height!=null?' · #'+t.block_height:''}</div>
+            <div class="ms mono">${t.txid?esc(short(t.txid,14)):'—'} · ${esc(m.label)}</div>
           </div>
           <div class="mr"><div class="ma">${fmtAmt(t.amount)}</div></div>
-        </div>`).join('')||'<div class="mrow"><div class="muted">No transactions</div></div>'}
+        </div>`;
+        }).join('')||'<div class="mrow"><div class="muted">No transactions</div></div>'}
       </div>
     </div>
   </div>`;
+  // async culture enrichment
+  try{
+    const a = d.address || addr;
+    const [nfts, pots, tips, howls] = await Promise.all([
+      api(`/api/${net}/nfts?owner=${encodeURIComponent(a)}&limit=12`).then(j=>j.nfts||[]).catch(()=>[]),
+      api(`/api/${net}/contracts?kind=packpot&limit=40`).then(j=>(j.contracts||[]).filter(c=>c.owner===a||c.last_joiner===a)).catch(()=>[]),
+      api(`/api/${net}/contracts?kind=tipjar&limit=40`).then(j=>(j.contracts||[]).filter(c=>c.owner===a)).catch(()=>[]),
+      api(`/api/${net}/howls?limit=40`).then(j=>(j.howls||[]).filter(h=>(h.from||h.reporter)===a).slice(0,8)).catch(()=>[]),
+    ]);
+    const el = document.getElementById('addrCulture');
+    if(el){
+      el.innerHTML = `
+      <div class="card">
+        <h3>Culture · NFTs (${nfts.length})</h3>
+        <div class="mlist">${nfts.length?nfts.map(n=>`<div class="mrow"><div class="ml"><div class="mt">${esc(n.name||'NFT')}</div><div class="ms mono">#${esc(String(n.mint_height??'—'))}</div></div></div>`).join(''):'<div class="mrow"><div class="muted">No NFTs</div></div>'}</div>
+      </div>
+      <div class="card">
+        <h3>Contracts · pots/tips</h3>
+        <div class="mlist">${[...pots,...tips].length?[...pots,...tips].map(c=>`<div class="mrow" onclick="location.hash='#/contract/${encodeURIComponent(c.contract_id||'')}'" style="cursor:pointer">
+          <div class="ml"><div class="mt">${esc(c.name||c.kind)} <span class="badge blue">${esc(c.kind||'')}</span></div>
+          <div class="ms">${esc(c.balance_fmt||'')}</div></div>
+        </div>`).join(''):'<div class="mrow"><div class="muted">No contracts</div></div>'}</div>
+        <h3 style="margin-top:12px">Howls</h3>
+        <div class="mlist">${howls.length?howls.map(e=>`<div class="mrow"><div class="ml"><div class="mt">🐺 ${esc(String(e.message||e.value||''))}</div><div class="ms">#${esc(String(e.height??'—'))}</div></div></div>`).join(''):'<div class="mrow"><div class="muted">No howls</div></div>'}</div>
+      </div>`;
+    }
+  }catch(e){}
 }
 
 async function showRichlist(){
   setHeroVisible(false);
-  setBottomTab('richlist');
+  setBottomTab('more');
   await loadNetworks();
   const d=await api(`/api/${net}/richlist?limit=50`);
   const rows = d.richlist||[];
+  let nameMap = {};
+  try{
+    const nj = await api(`/api/${net}/names?limit=200`);
+    for(const r of (nj.names||[])){
+      if(r.address && r.name) nameMap[r.address] = r.name;
+    }
+  }catch(e){}
   app().innerHTML=`<div class="main" style="padding-top:12px">
     ${crumbs([{label:'Home',href:'#/'+net},{label:'Richlist'}])}
-    <div class="page-actions"><button class="back" onclick="location.hash='#/${net}'">← Home</button></div>
+    <div class="page-actions"><button class="back" onclick="location.hash='#/${net}'">← Home</button>
+      <button class="chipbtn" onclick="location.hash='#/play'">Play</button></div>
     <div class="card" style="margin-top:4px">
       <h3>Top addresses</h3>
       <div class="desktop-only table-wrap">
       <table>
-        <thead><tr><th>#</th><th>Address</th><th>Balance</th></tr></thead>
+        <thead><tr><th>#</th><th>Address</th><th>Name</th><th>Balance</th></tr></thead>
         <tbody>
-          ${rows.map(r=>`<tr onclick="location.hash='#/${net}/address/${encodeURIComponent(r.address)}'">
+          ${rows.map(r=>{
+            const nm = nameMap[r.address];
+            return `<tr onclick="location.hash='#/${net}/address/${encodeURIComponent(r.address)}'">
             <td>${r.rank}</td>
             <td onclick="event.stopPropagation()">${linkAddr(r.address)}</td>
+            <td onclick="event.stopPropagation()">${nm?linkName(nm):'<span class="muted">—</span>'}</td>
             <td class="amount">${esc(r.balance_fmt)}</td>
-          </tr>`).join('')||'<tr><td colspan="3" class="muted" style="padding:16px">No balances</td></tr>'}
+          </tr>`;
+          }).join('')||'<tr><td colspan="4" class="muted" style="padding:16px">No balances</td></tr>'}
         </tbody>
       </table>
       </div>
       <div class="mobile-only mlist">
-        ${rows.map(r=>`<div class="mrow" onclick="location.hash='#/${net}/address/${encodeURIComponent(r.address)}'">
+        ${rows.map(r=>{
+          const nm = nameMap[r.address];
+          return `<div class="mrow" onclick="location.hash='#/${net}/address/${encodeURIComponent(r.address)}'">
           <div class="ml">
-            <div class="mt">#${r.rank} <span class="mono" style="font-weight:500">${esc(short(r.address,12))}</span></div>
-            <div class="ms mono">${esc(short(r.address,20))}</div>
+            <div class="mt">#${r.rank} ${nm?'<span style="color:var(--green)">@'+esc(nm)+'</span>':'<span class="mono" style="font-weight:500">'+esc(short(r.address,12))+'</span>'}</div>
+            <div class="ms mono">${esc(short(r.address,18))}</div>
           </div>
           <div class="mr"><div class="ma">${esc(r.balance_fmt)}</div></div>
-        </div>`).join('')||'<div class="mrow"><div class="muted">No balances</div></div>'}
+        </div>`;
+        }).join('')||'<div class="mrow"><div class="muted">No balances</div></div>'}
       </div>
     </div>
   </div>`;
@@ -3145,36 +3286,42 @@ async function showRichlist(){
 
 async function showMempool(){
   setHeroVisible(false);
-  setBottomTab('mempool');
+  setBottomTab('more');
   await loadNetworks();
   const d=await api(`/api/${net}/mempool`);
   const rows = d.transactions||[];
   app().innerHTML=`<div class="main" style="padding-top:12px">
     ${crumbs([{label:'Home',href:'#/'+net},{label:'Mempool'}])}
-    <div class="page-actions"><button class="back" onclick="location.hash='#/${net}'">← Home</button></div>
+    <div class="page-actions"><button class="back" onclick="location.hash='#/${net}'">← Home</button>
+      <button class="chipbtn" onclick="showMempool()">↻ Refresh</button></div>
     <div class="card" style="margin-top:4px">
-      <h3>Mempool <span class="badge warn">${d.count||0} pending</span></h3>
+      <h3>Mempool <span class="badge warn">${d.count||0} waiting for miner</span></h3>
+      <p class="muted" style="padding:0 14px 8px;font-size:.85rem">Pending howls, joins, mints, and transfers — confirmed when a miner includes them.</p>
       <div class="desktop-only table-wrap">
       <table>
-        <thead><tr><th>Txid</th><th>From → To</th><th>Amount</th><th>Fee</th></tr></thead>
+        <thead><tr><th>Txid</th><th>Type</th><th>Flow</th><th>Amount</th><th>Fee</th></tr></thead>
         <tbody>
           ${rows.map(t=>`<tr onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
             <td onclick="event.stopPropagation()">${linkTx(t.txid)}</td>
-            <td class="mono" onclick="event.stopPropagation()">${linkAddr(t.from)} → ${linkAddr(t.to)}</td>
+            <td>${txTypeBadge(t)}</td>
+            <td class="mono" onclick="event.stopPropagation()">${txFlowHtml(t)}</td>
             <td class="amount">${fmtAmt(t.amount)}</td>
             <td>${fmtAmt(t.fee||0)}</td>
-          </tr>`).join('')||'<tr><td colspan="4" class="muted" style="padding:16px">Mempool empty</td></tr>'}
+          </tr>`).join('')||'<tr><td colspan="5" class="muted" style="padding:16px">Mempool empty — chain is quiet</td></tr>'}
         </tbody>
       </table>
       </div>
       <div class="mobile-only mlist">
-        ${rows.map(t=>`<div class="mrow" onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
+        ${rows.map(t=>{
+          const m = txTypeMeta(t);
+          return `<div class="mrow" onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
           <div class="ml">
-            <div class="mt mono">${esc(short(t.txid,12))}</div>
-            <div class="ms mono">${esc(short(t.from,8))} → ${esc(short(t.to,8))}</div>
+            <div class="mt">${esc(m.label)} <span class="badge warn">waiting</span></div>
+            <div class="ms mono">${txFlowHtml(t)}</div>
           </div>
           <div class="mr"><div class="ma">${fmtAmt(t.amount)}</div><div class="ms">fee ${fmtAmt(t.fee||0)}</div></div>
-        </div>`).join('')||'<div class="mrow"><div class="muted">Mempool empty</div></div>'}
+        </div>`;
+        }).join('')||'<div class="mrow"><div class="muted">Mempool empty</div></div>'}
       </div>
     </div>
   </div>`;
@@ -3874,6 +4021,118 @@ async function showChartsBoard(){
   </div>`;
 }
 
+async function showContractsBrowser(kindFilter){
+  setHeroVisible(false);
+  setBottomTab('play');
+  await loadNetworks();
+  const kind = (kindFilter || '').toLowerCase() || '';
+  const qs = kind ? `?kind=${encodeURIComponent(kind)}&limit=80` : '?limit=80';
+  let rows = [];
+  try{
+    const j = await api(`/api/${net}/contracts${qs}`);
+    rows = j.contracts || [];
+  }catch(e){}
+  const kinds = ['','packpot','tipjar','barkbond','timelock','escrow'];
+  app().innerHTML = `<div class="main" style="padding-top:12px">
+    ${crumbs([{label:'Home',href:'#/'+net},{label:'Contracts'}])}
+    <div class="page-actions">
+      <button class="back" onclick="location.hash='#/${net}'">← Home</button>
+      <button class="chipbtn" onclick="location.hash='#/play'">Play</button>
+      <a class="chipbtn" href="/app" style="text-decoration:none;color:var(--green)">Act in wallet</a>
+    </div>
+    <div class="card detail">
+      <div class="badge blue">CONTRACTS</div>
+      <h2 style="margin:8px 0 6px">Howl Script contracts</h2>
+      <p class="muted" style="margin:0 0 10px">On-chain pots, tip jars, bonds, locks, escrow. Filter and open details. Deploy/join in the wallet.</p>
+      <div class="quick-row" style="margin:0">
+        ${kinds.map(k=>`<button class="chipbtn ${k===kind?'active':''}" onclick="location.hash='#/contracts${k?'/'+k:''}'">${k||'all'}</button>`).join('')}
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <h3>${rows.length} contract${rows.length===1?'':'s'}</h3>
+      <div class="desktop-only table-wrap">
+        <table>
+          <thead><tr><th>Name</th><th>Kind</th><th>Status</th><th>Balance</th><th>Owner</th><th>Id</th></tr></thead>
+          <tbody>
+            ${rows.map(c=>`<tr onclick="location.hash='#/contract/${encodeURIComponent(c.contract_id||'')}'" style="cursor:pointer">
+              <td><b>${esc(c.name||'—')}</b></td>
+              <td><span class="badge blue">${esc(c.kind||'')}</span></td>
+              <td>${esc(c.status||'—')}</td>
+              <td class="amount">${esc(c.balance_fmt||'0')}</td>
+              <td onclick="event.stopPropagation()">${linkAddr(c.owner)}</td>
+              <td class="mono" onclick="event.stopPropagation()">${linkContract(c.contract_id)}</td>
+            </tr>`).join('')||'<tr><td colspan="6" class="muted" style="padding:16px">No contracts yet</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+      <div class="mobile-only mlist">
+        ${rows.map(c=>`<div class="mrow" onclick="location.hash='#/contract/${encodeURIComponent(c.contract_id||'')}'">
+          <div class="ml">
+            <div class="mt">${esc(c.name||'Contract')} <span class="badge blue">${esc(c.kind||'')}</span></div>
+            <div class="ms">${esc(c.status||'')} · owner ${esc(short(c.owner,10))}</div>
+          </div>
+          <div class="mr"><div class="ma">${esc(c.balance_fmt||'0')}</div></div>
+        </div>`).join('')||'<div class="mrow"><div class="muted">No contracts</div></div>'}
+      </div>
+    </div>
+  </div>`;
+}
+
+async function showContractDetail(cid){
+  setHeroVisible(false);
+  setBottomTab('play');
+  await loadNetworks();
+  let c = null;
+  try{
+    const j = await api(`/api/${net}/contract/${encodeURIComponent(cid)}`);
+    c = j.contract || j;
+  }catch(e){
+    app().innerHTML=`<div class="main" style="padding-top:12px"><div class="card detail err">Contract not found. <a href="#/contracts">Browser</a></div></div>`;
+    return;
+  }
+  const hist = (c.history || []).slice().reverse().slice(0, 20);
+  const hNow = null; // optional
+  app().innerHTML = `<div class="main" style="padding-top:12px">
+    ${crumbs([{label:'Home',href:'#/'+net},{label:'Contracts',href:'#/contracts'},{label:c.name||'Contract'}])}
+    <div class="page-actions">
+      <button class="back" onclick="location.hash='#/contracts'">← Contracts</button>
+      <button class="chipbtn" onclick="copyText(${JSON.stringify(String(c.contract_id||''))}, this)">Copy id</button>
+      <a class="chipbtn" href="/app" style="text-decoration:none;color:var(--green)">Join / act in wallet</a>
+    </div>
+    <div class="card detail">
+      <span class="badge blue">${esc(c.kind||'contract')}</span>
+      <span class="badge ${(c.status||'')==='active'?'ok':'warn'}" style="margin-left:6px">${esc(c.status||'—')}</span>
+      <h2 style="margin:8px 0 6px">${esc(c.name||'Contract')}</h2>
+      <div class="mono">${esc(c.contract_id||'')}${copyBtn(c.contract_id||'')}</div>
+      <div class="stats" style="margin-top:12px">
+        <div class="stat"><div class="k">Balance</div><div class="v" style="font-size:1rem">${esc(c.balance_fmt||'0')}</div><div class="s">locked</div></div>
+        <div class="stat"><div class="k">Unlock</div><div class="v" style="font-size:1rem">#${esc(String(c.unlock_height??'—'))}</div><div class="s">height</div></div>
+        <div class="stat"><div class="k">Joins</div><div class="v">${esc(String(c.join_count??'—'))}</div><div class="s">pack pot</div></div>
+      </div>
+      <div class="kv" style="margin-top:12px">
+        <div class="k">Owner</div><div>${linkAddr(c.owner)}</div>
+        <div class="k">Last joiner</div><div>${c.last_joiner?linkAddr(c.last_joiner):'—'}</div>
+        <div class="k">Counterparty</div><div>${c.counterparty?linkAddr(c.counterparty):'—'}</div>
+        <div class="k">Arbiter</div><div>${c.arbiter?linkAddr(c.arbiter):'—'}</div>
+        <div class="k">Bond phrase</div><div>${esc(c.bond_phrase||'—')}</div>
+        <div class="k">Min join</div><div>${c.min_join!=null?fmtAmt(c.min_join):'—'}</div>
+        <div class="k">Deploy height</div><div>#${esc(String(c.deploy_height??'—'))}</div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <h3>History</h3>
+      <div class="mlist">
+        ${hist.length?hist.map(ev=>`<div class="mrow">
+          <div class="ml">
+            <div class="mt">${esc(ev.method||ev.action||'event')}</div>
+            <div class="ms">#${esc(String(ev.height??'—'))} · ${ev.from?linkAddr(ev.from):'—'} · ${ev.amount!=null?fmtAmt(ev.amount):''}</div>
+          </div>
+        </div>`).join(''):'<div class="mrow"><div class="muted">No history entries</div></div>'}
+      </div>
+    </div>
+  </div>`;
+}
+
 function doSearch(){
   const q=($('#q')&&$('#q').value||'').trim();
   if(!q) return loadHome();
@@ -3886,10 +4145,25 @@ function doSearch(){
     return route();
   }
   if(q.startsWith('H') && q.length>20){ location.hash=`#/${net}/address/${encodeURIComponent(q)}`; return route(); }
-  // try as block hash then tx
+  // contract id patterns
+  if(/^(packpot|tipjar|barkbond|timelock|escrow|hc|contract)/i.test(q) || q.includes(':') && q.length > 12){
+    location.hash = `#/contract/${encodeURIComponent(q)}`;
+    return route();
+  }
+  // try block → tx → contract → nft
   location.hash=`#/${net}/block/${encodeURIComponent(q)}`;
   route().catch(()=>{ location.hash=`#/${net}/tx/${encodeURIComponent(q)}`; return route(); })
-    .catch(()=>{ app().innerHTML=`<div class="main"><div class="card detail err">Not found: <span class="mono">${esc(q)}</span></div></div>`; });
+    .catch(async ()=>{
+      try{
+        const j = await api(`/api/${net}/contract/${encodeURIComponent(q)}`);
+        if(j.contract || j.contract_id){ location.hash=`#/contract/${encodeURIComponent(q)}`; return route(); }
+      }catch(e){}
+      try{
+        const j = await api(`/api/${net}/nft/${encodeURIComponent(q)}`);
+        if(j.nft){ location.hash=`#/${net}/address/${encodeURIComponent(j.nft.owner||'')}`; return route(); }
+      }catch(e){}
+      app().innerHTML=`<div class="main"><div class="card detail err">Not found: <span class="mono">${esc(q)}</span><br><span class="muted">Try height, hash, tx, H… address, @name, or contract id</span></div></div>`;
+    });
 }
 
 async function route(){
@@ -3908,8 +4182,11 @@ async function route(){
     if(parts[0]==='play') return await showPlayBoard();
     if(parts[0]==='culture' || parts[0]==='nfts' || parts[0]==='gallery') return await showCultureGallery();
     if(parts[0]==='charts' || parts[0]==='markets') return await showChartsBoard();
+    if(parts[0]==='contracts') return await showContractsBrowser(parts[1] || '');
+    if(parts[0]==='contract' && parts[1]) return await showContractDetail(decodeURIComponent(parts.slice(1).join('/')));
     if(parts[0]==='name' && parts[1]) return await showNameProfile(decodeURIComponent(parts[1]));
     if(parts.length>=3 && parts[1]==='name') return await showNameProfile(decodeURIComponent(parts[2]));
+    if(parts.length>=3 && parts[1]==='contract') return await showContractDetail(decodeURIComponent(parts.slice(2).join('/')));
     if(parts.length>=3 && parts[1]==='block') return await showBlock(decodeURIComponent(parts[2]));
     if(parts.length>=3 && parts[1]==='tx') return await showTx(decodeURIComponent(parts[2]));
     if(parts.length>=3 && parts[1]==='address') return await showAddr(decodeURIComponent(parts[2]));
