@@ -1447,6 +1447,13 @@ class Blockchain:
             status = "stalled"
         elif tip_age is not None and tip_age > BLOCK_TIME_SECONDS * 10:
             status = "slow"
+        exp_next = expected_hashes(self.next_difficulty())
+        # Implied network hashrate: work per block / observed (or target) block time
+        bt_for_rate = avg_bt if avg_bt and avg_bt > 0 else float(BLOCK_TIME_SECONDS)
+        est_hps = (float(exp_next) / bt_for_rate) if bt_for_rate else None
+        culture = self.culture_stats()
+        mine = getattr(self, "mine_progress", None) or {}
+        seed_hps = mine.get("hps") if isinstance(mine, dict) else None
         return {
             "height": self.height(),
             "tip_age_seconds": tip_age,
@@ -1461,8 +1468,54 @@ class Blockchain:
             "series": series,
             "difficulty_label": format_difficulty(self.current_difficulty()),
             "next_difficulty_label": format_difficulty(self.next_difficulty()),
-            "expected_hashes_next": expected_hashes(self.next_difficulty()),
+            "expected_hashes_next": exp_next,
+            "est_network_hashrate": est_hps,
+            "est_network_hashrate_label": (
+                f"{est_hps:,.0f} H/s" if est_hps is not None else None
+            ),
+            "seed_hashrate": seed_hps,
+            "seed_mining": bool(mine.get("active")) if isinstance(mine, dict) else None,
             "mempool": len(self.mempool),
+            "addresses": len(self.balances),
+            "circulating": format_howl(sum(self.balances.values())),
+            "culture": culture,
+        }
+
+    def culture_stats(self) -> Dict[str, Any]:
+        """On-chain culture counters for ops theater + gallery."""
+        howls = 0
+        for b in self.blocks:
+            for tx in b.get("transactions") or []:
+                if (tx.get("type") or "") != "oracle":
+                    continue
+                key = str(tx.get("oracle_key") or "")
+                if key == "howl.howl" or key.startswith("howl.howl."):
+                    howls += 1
+        pots_open = 0
+        pots_all = 0
+        tips = 0
+        bonds = 0
+        for c in self.contracts.values():
+            k = (c.get("kind") or "").lower()
+            st = (c.get("status") or "").lower()
+            if k == "packpot":
+                pots_all += 1
+                if st == "active":
+                    pots_open += 1
+            elif k == "tipjar" and st == "active":
+                tips += 1
+            elif k == "barkbond" and st == "active":
+                bonds += 1
+        return {
+            "nfts": len(self.nfts),
+            "howls": howls,
+            "names": len(self.name_registry()),
+            "packpots_open": pots_open,
+            "packpots": pots_all,
+            "tipjars": tips,
+            "barkbonds": bonds,
+            "contracts": len(self.contracts),
+            "oracle_keys": len(self.oracle),
         }
 
     # ---------- explorer queries ----------

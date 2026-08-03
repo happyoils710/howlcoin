@@ -3163,7 +3163,9 @@ async function showHealth(){
   setBottomTab('more');
   await loadNetworks();
   let h={};
-  try{ h = await api('/api/public/health?window=48'); }catch(e){ h={error:e.message}; }
+  try{ h = await api('/api/public/status?window=48'); }catch(e){
+    try{ h = await api('/api/public/health?window=48'); }catch(e2){ h={error:e2.message}; }
+  }
   const series = h.series || [];
   const blockTimes = series.map(x=>x.block_time).filter(v=>v!=null);
   const diffs = series.map(x=>x.difficulty_float || 0);
@@ -3171,28 +3173,50 @@ async function showHealth(){
   const ageTxt = age==null ? '—' : (age>=3600 ? (age/3600).toFixed(1)+'h' : age>=60 ? Math.round(age/60)+'m' : age+'s');
   const statusBadge = h.status==='ok' ? 'ok' : (h.status==='slow' ? 'warn' : 'warn');
   const statusLabel = h.status==='ok' ? 'HEALTHY' : (h.status==='slow' ? 'SLOW' : (h.status==='stalled' ? 'STALLED' : 'UNKNOWN'));
+  const cul = h.culture || {};
+  const samp = h.charts_sampler || {};
+  const hps = h.est_network_hashrate;
+  const hpsTxt = hps!=null ? (hps>=1e6 ? (hps/1e6).toFixed(2)+' MH/s' : hps>=1e3 ? (hps/1e3).toFixed(1)+' kH/s' : Math.round(hps)+' H/s') : '—';
+  const seedHps = h.seed_hashrate;
+  const seedTxt = seedHps!=null ? Math.round(seedHps)+' H/s' : '—';
+  const sampAge = samp.sample_age_seconds;
+  const sampAgeTxt = sampAge==null ? (samp.exists ? '—' : 'not installed') :
+    (sampAge<120 ? sampAge+'s' : sampAge<3600 ? Math.round(sampAge/60)+'m' : (sampAge/3600).toFixed(1)+'h');
   app().innerHTML=`<div class="main" style="padding-top:12px">
-    ${crumbs([{label:'Home',href:'#/public'},{label:'Network health'}])}
+    ${crumbs([{label:'Home',href:'#/public'},{label:'Network status'}])}
     <div class="page-actions"><button class="back" onclick="location.hash='#/public'">← Home</button>
       <button class="chipbtn" onclick="showHealth()">Refresh</button>
       <button class="chipbtn" onclick="location.hash='#/run'">Run a node</button>
+      <button class="chipbtn" onclick="location.hash='#/app'">Open wallet</button>
     </div>
     <div class="card detail">
       <div class="badge ${statusBadge}">${statusLabel}</div>
       <span class="badge blue" style="margin-left:6px">v${esc(String(h.version||'—'))}</span>
-      <h2 style="margin:8px 0 6px">Network health</h2>
-      <p class="muted" style="margin:0 0 12px">Live seed / public chain. Tip age and rolling charts — no ads, no trackers.</p>
+      <h2 style="margin:8px 0 6px">Network status</h2>
+      <p class="muted" style="margin:0 0 12px">Ops theater — live L1 metrics for Howlcoin. No ads, no trackers.</p>
       <div class="stats">
         <div class="stat"><div class="k">Height</div><div class="v">${h.height??'—'}</div><div class="s">tip</div></div>
         <div class="stat"><div class="k">Tip age</div><div class="v" style="font-size:1rem">${esc(ageTxt)}</div><div class="s">target ${h.target_block_time||60}s</div></div>
-        <div class="stat"><div class="k">Avg block</div><div class="v" style="font-size:1rem">${h.avg_block_time!=null?(h.avg_block_time/60).toFixed(1)+'m': '—'}</div><div class="s">last ${h.window||'—'} blocks</div></div>
+        <div class="stat"><div class="k">Est. hashrate</div><div class="v" style="font-size:.95rem">${esc(hpsTxt)}</div><div class="s">from work / block time</div></div>
         <div class="stat"><div class="k">Mempool</div><div class="v">${h.mempool??'—'}</div><div class="s">pending</div></div>
       </div>
       <div class="kv" style="margin-top:12px">
         <div class="k">Difficulty</div><div>${esc(String(h.difficulty_label||'—'))}</div>
         <div class="k">Next work</div><div>${esc(String(h.next_difficulty_label||'—'))} · ~${esc(String(h.expected_hashes_next!=null?Math.round(h.expected_hashes_next):'—'))} hashes</div>
-        <div class="k">Stall relief</div><div>after ${esc(String(h.stall_seconds||7200))}s tip age</div>
-        <div class="k">Retarget safety</div><div>from height ${esc(String(h.retarget_safety_height||300))} (max 2× up)</div>
+        <div class="k">Avg block</div><div>${h.avg_block_time!=null?(h.avg_block_time).toFixed(0)+'s':'—'} · window ${h.window||'—'}</div>
+        <div class="k">Seed mine</div><div>${esc(seedTxt)}${h.seed_mining?' · active':''}</div>
+        <div class="k">Addresses</div><div>${esc(String(h.addresses??'—'))} · circ ${esc(String(h.circulating||'—'))}</div>
+        <div class="k">Charts sampler</div><div>${samp.exists===false?'offline':(esc(String(samp.assets??'—'))+' assets · '+esc(String(samp.points??'—'))+' pts · age '+esc(sampAgeTxt))}</div>
+      </div>
+    </div>
+    <div class="card detail" style="margin-top:12px">
+      <h3 style="margin-top:0">Culture on-chain</h3>
+      <p class="muted" style="margin:0 0 10px">Live counts from the public ledger — pots, howls, names, NFTs.</p>
+      <div class="stats">
+        <div class="stat"><div class="k">Open pots</div><div class="v">${cul.packpots_open??0}</div><div class="s">${cul.packpots??0} total</div></div>
+        <div class="stat"><div class="k">Howls</div><div class="v">${cul.howls??0}</div><div class="s">posts</div></div>
+        <div class="stat"><div class="k">Names</div><div class="v">${cul.names??0}</div><div class="s">@handles</div></div>
+        <div class="stat"><div class="k">NFTs</div><div class="v">${cul.nfts??0}</div><div class="s">${cul.tipjars??0} tip jars</div></div>
       </div>
     </div>
     <div class="card detail" style="margin-top:12px">
@@ -3209,8 +3233,10 @@ async function showHealth(){
     </div>
     <div class="card detail" style="margin-top:12px">
       <h3 style="margin-top:0">Ops note</h3>
-      <p class="muted" style="margin:0">Seed self-heals: auto-mine, 90s template refresh, 2h stall relief. Optional monitor:
-      <span class="mono">scripts/howl-health-check.sh</span> (exit 1 if tip age &gt; 2h).</p>
+      <p class="muted" style="margin:0">Seed self-heals: auto-mine, 90s template refresh, 2h stall relief. Monitors:
+      <span class="mono">scripts/howl-health-check.sh</span> ·
+      <span class="mono">scripts/howl-ops-bootstrap.sh</span> · API
+      <span class="mono">/api/public/status</span></p>
     </div>
   </div>`;
 }
@@ -3836,7 +3862,12 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                 if path == "/api/networks":
                     return self._json(200, {"networks": hub.list_networks()})
 
-                if path in ("/api/public/health", "/api/health"):
+                if path in (
+                    "/api/public/health",
+                    "/api/health",
+                    "/api/public/status",
+                    "/api/status",
+                ):
                     try:
                         limit = int((qs.get("window") or qs.get("limit") or ["40"])[0])
                     except (TypeError, ValueError):
@@ -3849,7 +3880,44 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                     except Exception:
                         pass
                     try:
-                        return self._json(200, chain.network_health(window=limit))
+                        out = chain.network_health(window=limit)
+                        # Charts sampler health (same data dir as explorer)
+                        try:
+                            samples_path = _howl_charts_samples_path()
+                            samp = {"path": str(samples_path), "exists": samples_path.exists()}
+                            if samples_path.exists():
+                                raw = json.loads(
+                                    samples_path.read_text(encoding="utf-8")
+                                )
+                                if isinstance(raw, dict):
+                                    counts = {
+                                        k: len(v)
+                                        for k, v in raw.items()
+                                        if isinstance(v, list)
+                                    }
+                                    samp["assets"] = len(counts)
+                                    samp["points"] = sum(counts.values())
+                                    # freshest sample timestamp
+                                    latest = 0
+                                    for pts in raw.values():
+                                        if isinstance(pts, list) and pts:
+                                            try:
+                                                latest = max(
+                                                    latest, int(pts[-1].get("t") or 0)
+                                                )
+                                            except (TypeError, ValueError, AttributeError):
+                                                pass
+                                    samp["latest_sample_ts"] = latest or None
+                                    if latest:
+                                        samp["sample_age_seconds"] = max(
+                                            0, int(time.time()) - latest
+                                        )
+                            out["charts_sampler"] = samp
+                        except Exception as se:
+                            out["charts_sampler"] = {"error": str(se)}
+                        out["product"] = "Howlcoin network status"
+                        out["note"] = "Ops theater · live L1 metrics"
+                        return self._json(200, out)
                     except Exception as e:
                         return self._json(500, {"error": str(e)})
 

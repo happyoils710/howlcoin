@@ -922,10 +922,10 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <summary>Network · wallets · tools</summary>
         <div class="panel" style="margin-top:8px">
           <div class="net-pulse" id="netPulse" title="Network status">
-            <span class="np live" id="npLive" onclick="showPage('activity')"><b>● …</b></span>
-            <span class="np" id="npH" onclick="openExternalUrl('https://howlscan.org/')">H <b id="height">—</b></span>
-            <span class="np" id="npD" onclick="openExternalUrl('https://howlscan.org/')">Diff <b id="homeDiff">—</b></span>
-            <span class="np" id="npM" onclick="showPage('activity')">Mem <b>—</b></span>
+            <span class="np live" id="npLive" onclick="showPage('status')"><b>● …</b></span>
+            <span class="np" id="npH" onclick="showPage('status')">H <b id="height">—</b></span>
+            <span class="np" id="npD" onclick="showPage('status')">Diff <b id="homeDiff">—</b></span>
+            <span class="np" id="npM" onclick="showPage('status')">Mem <b>—</b></span>
             <span class="np" id="npShare" onclick="openShareCard('address')">Share</span>
           </div>
           <div class="item"><div>Min fee</div><div class="r" id="minFee" style="color:var(--amber)">1 HOWL</div></div>
@@ -994,6 +994,46 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       </div>
       <div id="marketsBoard"><p class="hint">Loading Howl Charts…</p></div>
       <p class="hint" id="marketsBoardMeta" style="margin:8px 0 16px"></p>
+    </div>
+
+    <!-- NETWORK STATUS (ops theater) -->
+    <div class="page" id="p-status">
+      <div class="page-head"><button type="button" class="back" onclick="showPage('home')">‹ Home</button><h1>Network</h1></div>
+      <p class="hint" style="margin:0 0 10px"><b>Ops theater</b> — live Howlcoin L1. Height, tip age, estimated hashrate, culture counts, charts sampler.</p>
+      <div class="panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+          <div id="statusBadge" class="badge on">…</div>
+          <button type="button" class="chip" style="cursor:pointer" onclick="refreshNetworkStatus(true)">↻ Refresh</button>
+        </div>
+        <div class="chart-stats" id="statusStats" style="margin-top:12px">
+          <div class="cs"><span>Height</span><b id="stHeight">—</b></div>
+          <div class="cs"><span>Tip age</span><b id="stAge">—</b></div>
+          <div class="cs"><span>Est. hashrate</span><b id="stHps">—</b></div>
+          <div class="cs"><span>Mempool</span><b id="stMem">—</b></div>
+        </div>
+        <p class="hint" id="statusMeta" style="margin:10px 0 0">Loading…</p>
+      </div>
+      <div class="panel">
+        <h2>Culture on-chain</h2>
+        <div class="chart-stats" id="statusCulture">
+          <div class="cs"><span>Open pots</span><b id="stPots">—</b></div>
+          <div class="cs"><span>Howls</span><b id="stHowls">—</b></div>
+          <div class="cs"><span>Names</span><b id="stNames">—</b></div>
+          <div class="cs"><span>NFTs</span><b id="stNfts">—</b></div>
+        </div>
+        <div class="pc-actions" style="margin-top:12px">
+          <button type="button" class="btn sec" onclick="showPage('play')">Open Play</button>
+          <button type="button" class="btn sec" onclick="showPage('nft');setNftDashTab('all')">NFT culture</button>
+          <button type="button" class="btn sec" onclick="openExternalUrl('https://howlscan.org/#/health')">Howlscan status ↗</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Charts sampler</h2>
+        <p class="hint" id="statusSampler">—</p>
+        <h2 style="margin-top:14px">Mining</h2>
+        <p class="hint" id="statusMine">—</p>
+        <button type="button" class="btn sec" onclick="openExternalUrl('https://howlscan.org/#/run')">Run a node ↗</button>
+      </div>
     </div>
 
     <!-- ACTIVITY FEED -->
@@ -1398,11 +1438,11 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
     <div class="page" id="p-nft">
       <div class="page-head"><button type="button" class="back" onclick="showPage('home')">‹ Home</button><h1>NFTs</h1></div>
       <div class="panel">
-        <h2>Howlcoin NFT dashboard</h2>
-        <p class="hint" style="margin:0">View mints, transfers, and <b>every on-chain timestamp</b> (block time). Photo mint is free-form on HOWL; other chains use receive / watch tools.</p>
+        <h2>Howlcoin culture</h2>
+        <p class="hint" style="margin:0">Chain-wide gallery, activity, and mint. <b>Mint from howl</b> turns a short post into an on-chain NFT. Photo mint also available under tools.</p>
         <div class="unit-toggle" id="nftDashTabs" role="tablist" style="margin-top:12px;width:100%">
           <button type="button" class="on" data-nft-tab="mine" onclick="setNftDashTab('mine')">Mine</button>
-          <button type="button" data-nft-tab="all" onclick="setNftDashTab('all')">All on chain</button>
+          <button type="button" data-nft-tab="all" onclick="setNftDashTab('all')">Culture</button>
           <button type="button" data-nft-tab="activity" onclick="setNftDashTab('activity')">Activity</button>
           <button type="button" data-nft-tab="tools" onclick="setNftDashTab('tools')">Mint / tools</button>
         </div>
@@ -1931,6 +1971,7 @@ const TOOLBAR_CATALOG = [
   { id: "activity", label: "History", icon: "list", page: "activity" },
   { id: "play", label: "Play", icon: "spark", page: "play" },
   { id: "nft", label: "NFTs", icon: "nft", page: "nft" },
+  { id: "status", label: "Network", icon: "pulse", page: "status" },
   { id: "oracle", label: "Oracle", icon: "oracle", page: "oracle" },
   { id: "contracts", label: "Contracts", icon: "contract", page: "contracts" },
   { id: "names", label: "Names", icon: "at", page: "names" },
@@ -1950,12 +1991,14 @@ const MORE_MENU = [
     { id: "activity", icon: "list", title: "History", sub: "Txs · pending", page: "activity" },
   ]},
   { section: "Collectibles", items: [
-    { id: "nft", icon: "nft", title: "NFTs", sub: "Howl · Tezos · mint", page: "nft" },
+    { id: "nft", icon: "nft", title: "Culture / NFTs", sub: "Gallery · mint from howl", page: "nft" },
     { id: "names", icon: "at", title: "Names", sub: "Claim @name", page: "names" },
     { id: "contracts", icon: "contract", title: "Contracts", sub: "Advanced Howl Script", page: "contracts" },
   ]},
   { section: "Apps", items: [
     { id: "play", icon: "spark", title: "Play", sub: "Pots · howls · names · tips", page: "play" },
+    { id: "nft", icon: "nft", title: "Culture / NFTs", sub: "Gallery · mint from howl", page: "nft" },
+    { id: "status", icon: "pulse", title: "Network", sub: "Hashrate · tip age · culture", page: "status" },
     { id: "browser", icon: "globe", title: "Browser", sub: "Search · dApps", page: "browser" },
     { id: "discover", icon: "spark", title: "Discover", sub: "Crypto radar", page: "discover" },
     { id: "wc", icon: "link", title: "Connect", sub: "WalletConnect", page: "wc", hintId: "moreWcHint" },
@@ -1997,6 +2040,7 @@ const ICON_PATHS = {
   external: "M14 4h6v6M10 14 20 4M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5",
   lock: "M8 10V7a4 4 0 0 1 8 0v3M6 10h12v10H6V10z",
   more: "M6 12h.01M12 12h.01M18 12h.01",
+  pulse: "M3 12h4l2-6 4 12 2-6h6",
 };
 
 function iconSvg(name, size = 22){
@@ -3301,11 +3345,16 @@ async function refreshPlayHowls(){
       const msg = String(e.message || e.value || e.oracle_value || "");
       const who = e.reporter || e.from || "";
       const h = e.pending ? "pending" : ("#" + (e.height ?? "—"));
+      const canMint = !e.pending && msg;
       return `<div class="item">
         <div><b>🐺 ${escHtml(msg)}</b></div>
         <div class="m">${escHtml(displayName(who))} · ${escHtml(h)}${e.pending?" · mempool":""}</div>
+        ${canMint?`<div style="margin-top:6px"><button type="button" class="chip" style="cursor:pointer" data-mint-howl="${escAttr(msg)}">Mint as NFT</button></div>`:""}
       </div>`;
     }).join("");
+    el.querySelectorAll("[data-mint-howl]").forEach(btn=>{
+      btn.onclick = ()=> mintNftFromHowl(btn.getAttribute("data-mint-howl") || "");
+    });
   }catch(e){
     // fallback to legacy personal feed
     try{ await refreshHowlFeed(); }catch(_){
@@ -4876,6 +4925,14 @@ function showPage(name){
   }
   if(name==="swap"){ initSwapUI(); if(swapMode==="howl") initBridgeUI(); }
   if(name==="markets"){ initHowlCharts(); }
+  if(name==="status"){
+    refreshNetworkStatus(true);
+    if(statusTimer) clearInterval(statusTimer);
+    statusTimer = setInterval(()=>{ if(currentPage==="status") refreshNetworkStatus(false); }, 30000);
+  } else if(statusTimer){
+    clearInterval(statusTimer);
+    statusTimer = null;
+  }
   if(name==="browser") initBrowserUI();
   if(name==="discover") loadDiscover(false);
   if(name==="nft"){ wireNftPage(); setNftDashTab(nftDashTab || "mine"); }
@@ -6969,8 +7026,8 @@ function setNftDashTab(tab){
     if($("nftGalleryTitle")) $("nftGalleryTitle").textContent = "Your collection";
     if($("nftGalleryHint")) $("nftGalleryHint").textContent = "Howlcoin + Tezos (FA2) + Solana NFTs held by this wallet.";
   } else if(nftDashTab === "all"){
-    if($("nftGalleryTitle")) $("nftGalleryTitle").textContent = "All Howlcoin NFTs";
-    if($("nftGalleryHint")) $("nftGalleryHint").textContent = "Every NFT on the public chain with mint / last activity timestamps.";
+    if($("nftGalleryTitle")) $("nftGalleryTitle").textContent = "Culture gallery";
+    if($("nftGalleryHint")) $("nftGalleryHint").textContent = "Every Howlcoin NFT on the public chain — including mint-from-howl collectibles.";
   } else if(nftDashTab === "tools"){
     if($("nftGalleryTitle")) $("nftGalleryTitle").textContent = "Collection (selected chain)";
     if($("nftGalleryHint")) $("nftGalleryHint").textContent = "Pick Tezos to list FA2 NFTs on your tz1.";
@@ -7677,47 +7734,134 @@ async function mintNft(){
       uri = await uploadNftMedia(nftImageDataUrl);
       $("nftUri").value = uri;
     }
-    if(!uri) throw new Error("Add a photo or media URI");
-    const fee = Number(COIN); // 1 HOWL
-    const addr = await api("/api/public/address/" + encodeURIComponent(keypair.address));
-    const nonce = addr.nonce||0;
-    const nft_id = makeNftId(keypair.address, name, uri, nonce);
+    // allow text-only culture mints (howl://…) without photo
+    if(!uri) throw new Error("Add a photo, media URI, or use Mint from howl");
     const memo = $("nftMemo").value||"";
-    openSlideConfirm({
-      title: "Slide to mint NFT",
-      rows: [
-        { k: "Name", v: name },
-        { k: "Fee", v: "1 HOWL" },
-        { k: "Nonce", v: String(nonce) },
-        { k: "NFT id", v: nft_id.slice(0, 16) + "…" },
-      ],
-      onConfirm: async () => {
-        const tx = await buildSignedTx({
-          keypair,
-          to: keypair.address,
-          amountHowlies: 0,
-          feeHowlies: fee,
-          nonce,
-          memo,
-          type: "nft_mint",
-          extra: { nft_id, name, uri },
-        });
-        const res = await api("/api/public/broadcast", {
-          method:"POST", headers:{ "Content-Type":"application/json" },
-          body: JSON.stringify({ tx }),
-        });
-        $("nftTx").textContent = "Mint queued " + (res.txid||"").slice(0,16) + "… — needs a mined block (~60s target)";
-        toast("NFT mint queued · open Activity or Howlscan for status");
-        fireConfetti("nft");
-        $("nftName").value=""; $("nftUri").value="";
-        nftImageDataUrl = "";
-        if($("nftPreview")) $("nftPreview").innerHTML = "";
-        if($("nftFile")) $("nftFile").value = "";
-        if($("nftFileCamera")) $("nftFileCamera").value = "";
-        setTimeout(refreshNfts, 1500);
-      },
-    });
+    await mintHowlNft({ name, uri, memo });
+    $("nftName").value=""; $("nftUri").value="";
+    nftImageDataUrl = "";
+    if($("nftPreview")) $("nftPreview").innerHTML = "";
+    if($("nftFile")) $("nftFile").value = "";
+    if($("nftFileCamera")) $("nftFileCamera").value = "";
   }catch(e){ $("nftErr").textContent = e.message; }
+}
+
+/** Mint a Howlcoin NFT from a howl text (culture collectible). */
+async function mintNftFromHowl(message){
+  try{
+    if(!keypair) throw new Error("Unlock first");
+    const msg = String(message || "").trim().slice(0, 80);
+    if(!msg) throw new Error("Empty howl");
+    const name = ("Howl · " + msg).slice(0, 80);
+    // On-chain text URI — no image host required
+    const uri = "howl://howl/" + encodeURIComponent(msg);
+    await mintHowlNft({ name, uri, memo: "mint-from-howl" });
+    toast("Culture NFT queued from howl");
+    setTimeout(()=>{ showPage("nft"); setNftDashTab("all"); }, 800);
+  }catch(e){
+    toast(e.message || String(e));
+  }
+}
+
+async function mintHowlNft({ name, uri, memo }){
+  if(!keypair) throw new Error("Unlock wallet");
+  const fee = Number(COIN);
+  const nonce = await nextLocalNonce();
+  const nft_id = makeNftId(keypair.address, name, uri || "", nonce);
+  openSlideConfirm({
+    title: "Slide to mint NFT",
+    rows: [
+      { k: "Name", v: name },
+      { k: "Fee", v: "1 HOWL" },
+      { k: "Media", v: (uri || "").slice(0, 40) + ((uri||"").length > 40 ? "…" : "") },
+      { k: "NFT id", v: nft_id.slice(0, 16) + "…" },
+    ],
+    onConfirm: async () => {
+      const tx = await buildSignedTx({
+        keypair,
+        to: keypair.address,
+        amountHowlies: 0,
+        feeHowlies: fee,
+        nonce,
+        memo: memo || "",
+        type: "nft_mint",
+        extra: { nft_id, name, uri: uri || "" },
+      });
+      const res = await api("/api/public/broadcast", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ tx }),
+      });
+      reserveLocalNonce(keypair.address, nonce);
+      if($("nftTx")) $("nftTx").textContent = "Mint queued " + (res.txid||"").slice(0,16) + "… — needs a mined block";
+      toast("NFT mint queued");
+      fireConfetti("nft");
+      setTimeout(refreshNfts, 1500);
+      return res;
+    },
+  });
+}
+
+let statusTimer = null;
+function fmtHps(n){
+  if(n == null || !Number.isFinite(Number(n))) return "—";
+  const x = Number(n);
+  if(x >= 1e6) return (x/1e6).toFixed(2) + " MH/s";
+  if(x >= 1e3) return (x/1e3).toFixed(1) + " kH/s";
+  return Math.round(x) + " H/s";
+}
+function fmtAgeSec(age){
+  if(age == null || !Number.isFinite(Number(age))) return "—";
+  const a = Number(age);
+  if(a >= 3600) return (a/3600).toFixed(1) + "h";
+  if(a >= 60) return Math.round(a/60) + "m";
+  return a + "s";
+}
+async function refreshNetworkStatus(force){
+  const badge = $("statusBadge");
+  try{
+    const h = await api("/api/public/status?window=40" + (force ? "&_="+Date.now() : ""));
+    const cul = h.culture || {};
+    const samp = h.charts_sampler || {};
+    const st = h.status || "unknown";
+    if(badge){
+      badge.textContent = st === "ok" ? "HEALTHY" : st.toUpperCase();
+      badge.className = "badge " + (st === "ok" ? "on" : "");
+      badge.style.color = st === "ok" ? "var(--green)" : "var(--danger)";
+    }
+    if($("stHeight")) $("stHeight").textContent = h.height != null ? String(h.height) : "—";
+    if($("stAge")) $("stAge").textContent = fmtAgeSec(h.tip_age_seconds);
+    if($("stHps")) $("stHps").textContent = fmtHps(h.est_network_hashrate);
+    if($("stMem")) $("stMem").textContent = h.mempool != null ? String(h.mempool) : "—";
+    if($("stPots")) $("stPots").textContent = String(cul.packpots_open ?? "—") + (cul.packpots != null ? " / " + cul.packpots : "");
+    if($("stHowls")) $("stHowls").textContent = String(cul.howls ?? "—");
+    if($("stNames")) $("stNames").textContent = String(cul.names ?? "—");
+    if($("stNfts")) $("stNfts").textContent = String(cul.nfts ?? "—");
+    if($("statusMeta")){
+      $("statusMeta").textContent =
+        `v${h.version || "—"} · diff ${h.difficulty_label || "—"} · avg block ${h.avg_block_time != null ? Math.round(h.avg_block_time) + "s" : "—"} · addr ${h.addresses ?? "—"} · ${h.circulating || "—"} circ`;
+    }
+    if($("statusSampler")){
+      if(samp.exists === false){
+        $("statusSampler").textContent = "Sampler offline — run install-howl-charts-sampler.sh on the VPS.";
+      } else if(samp.error){
+        $("statusSampler").textContent = "Sampler: " + samp.error;
+      } else {
+        $("statusSampler").textContent =
+          `${samp.assets ?? "—"} assets · ${samp.points ?? "—"} samples · age ${fmtAgeSec(samp.sample_age_seconds)} · Howl Charts history store`;
+      }
+    }
+    if($("statusMine")){
+      const sh = h.seed_hashrate != null ? fmtHps(h.seed_hashrate) : "—";
+      $("statusMine").textContent =
+        `Seed report ${sh}${h.seed_mining ? " · mining" : ""} · est. network ${fmtHps(h.est_network_hashrate)} (from difficulty work / block time)`;
+    }
+    // keep home pulse in sync
+    if($("height") && h.height != null) $("height").textContent = String(h.height);
+    if($("homeDiff") && h.difficulty_label) $("homeDiff").textContent = String(h.difficulty_label);
+  }catch(e){
+    if(badge) badge.textContent = "OFFLINE";
+    if($("statusMeta")) $("statusMeta").textContent = e.message || String(e);
+  }
 }
 
 /* —— WalletConnect + EIP-1193 —— */
@@ -10432,6 +10576,9 @@ window.playDeployPot = playDeployPot;
 window.playDeployTipjar = playDeployTipjar;
 window.playCallContract = playCallContract;
 window.openPlayNameProfile = openPlayNameProfile;
+window.refreshNetworkStatus = refreshNetworkStatus;
+window.mintNftFromHowl = mintNftFromHowl;
+window.mintHowlNft = mintHowlNft;
 window.buildPayRequest = buildPayRequest;
 window.sharePayRequest = sharePayRequest;
 window.postHowlMemo = postHowlMemo;
