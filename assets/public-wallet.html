@@ -7196,7 +7196,7 @@ async function deployHowlContract(){
         const tx = await buildSignedTx({
           keypair,
           to: keypair.address,
-          amountHowlies: Number(fundHowl),
+          amountHowlies: howliesJsonSafe(fundHowl),
           feeHowlies: fee,
           nonce,
           memo: "contract_deploy",
@@ -7340,14 +7340,14 @@ async function callHowlContract(method, usePartial){
     if(method === "donate" || method === "fund"){
       const t = ($("hcCallAmt")?.value || "").trim();
       if(!t) throw new Error("Amount required");
-      amountHowlies = Number(parseHowl(t));
+      amountHowlies = howliesJsonSafe(parseHowl(t));
       if(amountHowlies <= 0) throw new Error("Amount must be > 0");
       to = keypair.address;
     } else if(method === "withdraw"){
       to = keypair.address;
       if(usePartial){
         const t = ($("hcCallVal")?.value || "").trim();
-        if(t) call_value = Number(parseHowl(t));
+        if(t) call_value = howliesJsonSafe(parseHowl(t));
       }
       if(call_value != null) extra.call_value = call_value;
     } else if(method === "claim"){
@@ -7516,8 +7516,20 @@ async function refresh(){
     $("addr").textContent = keypair.address;
     $("height").textContent = sum.height;
     $("minFee").textContent = fees.min_fee || "1 HOWL";
+    // HOWL count now; Tezos/Solana filled async so More hub stays useful
     if($("nftCount")) $("nftCount").textContent = String((nfts.nfts||[]).length);
     if($("oracleCount")) $("oracleCount").textContent = String(oracle.count ?? (oracle.feed||[]).length);
+    // Background: refresh multi-chain NFT badge (seed wallets only)
+    try{
+      ensureTezosDerived();
+      if(xtzInfo?.address){
+        listTezosNfts(xtzInfo.address).then(list=>{
+          const h = (nfts.nfts||[]).length;
+          const t = (list||[]).length;
+          if($("nftCount")) $("nftCount").textContent = String(h + t) + (t ? ` (${t} XTZ)` : "");
+        }).catch(()=>{});
+      }
+    }catch(_){}
     $("syncSub").textContent = "Public · height " + sum.height;
     if($("sendFee") && !$("sendFee").dataset.init){ $("sendFee").value = String(minFeeHowl); $("sendFee").dataset.init="1"; }
     wireUnitToggle();
@@ -7732,31 +7744,51 @@ async function prepareSendConfirm(){
   }
 }
 
-async function executeSend({ to, amount, fee, nonce, memo }){
-  reserveLocalNonce(keypair.address, nonce);
-  const tx = await buildSignedTx({
-    keypair, to,
-    amountHowlies: Number(amount),
-    feeHowlies: Number(fee),
-    nonce,
-    memo: memo || "",
-  });
-  const res = await api("/api/public/broadcast", {
-    method:"POST", headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify({ tx }),
-  });
-  if($("sendSaveAddr")?.checked){
-    try{
-      const nick = (loadNicks()[to]) || (to.slice(0, 8) + "…");
-      addAddressBookEntry(nick, to);
-    }catch(_){}
+/** JSON-safe integer howlies (protocol uses JSON numbers; warn above 2^53). */
+function howliesJsonSafe(h){
+  const n = typeof h === "bigint" ? h : BigInt(h);
+  if(n < 0n) throw new Error("Amount cannot be negative");
+  if(n > BigInt(Number.MAX_SAFE_INTEGER)){
+    throw new Error(
+      "Amount too large for wallet JSON (max ~90M HOWL per field). Split the send."
+    );
   }
-  toast("Queued " + (res.txid||"").slice(0,14) + "… needs ~1 confirmation. Watch Activity.");
-  try{ fireConfetti("send"); }catch(_){}
-  $("sendAmt").value = "";
-  if($("sendTotp")) $("sendTotp").value = "";
-  showPage("activity");
-  setTimeout(refresh, 1500);
+  return Number(n);
+}
+
+async function executeSend({ to, amount, fee, nonce, memo }){
+  try{
+    reserveLocalNonce(keypair.address, nonce);
+    const tx = await buildSignedTx({
+      keypair, to,
+      amountHowlies: howliesJsonSafe(amount),
+      feeHowlies: howliesJsonSafe(fee),
+      nonce,
+      memo: memo || "",
+    });
+    const res = await api("/api/public/broadcast", {
+      method:"POST", headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ tx }),
+    });
+    if($("sendSaveAddr")?.checked){
+      try{
+        const nick = (loadNicks()[to]) || (to.slice(0, 8) + "…");
+        addAddressBookEntry(nick, to);
+      }catch(_){}
+    }
+    toast("Queued " + (res.txid||"").slice(0,14) + "… needs ~1 confirmation. Watch Activity.");
+    try{ fireConfetti("send"); }catch(_){}
+    $("sendAmt").value = "";
+    if($("sendTotp")) $("sendTotp").value = "";
+    if($("sendBtn")) $("sendBtn").disabled = false;
+    showPage("activity");
+    setTimeout(refresh, 1500);
+  }catch(e){
+    if($("sendBtn")) $("sendBtn").disabled = false;
+    if($("sendErr")) $("sendErr").textContent = e.message || String(e);
+    toast(e.message || "Send failed");
+    throw e;
+  }
 }
 
 /** @deprecated use prepareSendConfirm + slide */
@@ -8837,7 +8869,7 @@ function boot(skipInstallPrompt){
       }
     }
   }catch(_){}
-  if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=3").catch(()=>{});
+  if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=4").catch(()=>{});
   if(!skipInstallPrompt && !isStandalone() && !sessionStorage.getItem("howl_skip_install") && !sessionStorage.getItem("howl_saw_install")){
     sessionStorage.setItem("howl_saw_install","1");
     uiInstall();
@@ -8946,6 +8978,13 @@ Object.defineProperty(window, "xtzInfo", { get: () => xtzInfo });
 Object.defineProperty(window, "multiChainNote", { get: () => multiChainNote });
 window.ensureTezosDerived = ensureTezosDerived;
 window.refreshHowlContracts = refreshHowlContracts;
+window.deployHowlContract = deployHowlContract;
+window.callHowlContract = callHowlContract;
+window.closeHcDetail = closeHcDetail;
+window.openTezosNftDetail = openTezosNftDetail;
+window.ensureWalletConnect = ensureWalletConnect;
+window.renderHcDeployFields = renderHcDeployFields;
+window.finishAccountWizard = finishAccountWizard;
 
 boot();
 </script>
