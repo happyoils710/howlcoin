@@ -402,6 +402,10 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .mkt-row .mkt-chg{display:block;font-size:.72rem;font-weight:700;margin-top:2px}
 .mkt-row .mkt-chg.up{color:var(--green)}
 .mkt-row .mkt-chg.dn{color:var(--danger)}
+.mkt-row.mkt-howl{background:color-mix(in srgb,var(--green) 8%,transparent);border-bottom-color:color-mix(in srgb,var(--green) 25%,var(--border))}
+.mkt-row .mkt-badge{display:inline-block;font-size:.58rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--green);border:1px solid color-mix(in srgb,var(--green) 40%,var(--border));padding:1px 6px;border-radius:999px;
+  vertical-align:middle;margin-left:4px}
 #marketsBoard{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:4px 8px}
 .wa-section{display:flex;align-items:center;justify-content:space-between;margin:4px 0 10px}
 .wa-section h2{margin:0;font-family:var(--font-ui);font-size:.95rem;font-weight:800;color:var(--text);text-transform:none;letter-spacing:0}
@@ -940,19 +944,19 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       </details>
     </div>
 
-    <!-- MARKETS — external coins (live + lifetime), not Howlcoin -->
+    <!-- HOWL CHARTS — first-party Howlcoin product -->
     <div class="page" id="p-markets">
-      <div class="page-head"><button type="button" class="back" onclick="showPage('home')">‹ Home</button><h1>Markets</h1></div>
-      <p class="hint" style="margin:0 0 12px">Live spot prices &amp; lifetime charts for major cryptos. <b>Not Howlcoin products</b> — independent market data on our canvas.</p>
+      <div class="page-head"><button type="button" class="back" onclick="showPage('home')">‹ Home</button><h1>Howl Charts</h1></div>
+      <p class="hint" style="margin:0 0 12px"><b>Howl Charts</b> is a Howlcoin product — our canvas, our APIs. HOWL uses the Howl Swap index; majors are market coverage for context.</p>
 
       <div class="chart-card">
         <div class="chart-head">
           <div>
-            <div class="ch-title" id="chartCoinName">Bitcoin</div>
+            <div class="ch-title" id="chartCoinName">Howlcoin · HOWL</div>
             <div class="ch-price" id="chartPrice">—</div>
             <div class="ch-chg" id="chartChg">—</div>
           </div>
-          <button type="button" class="chip" style="cursor:pointer" onclick="refreshMarketsAll(true)" title="Refresh live + chart">↻ Live</button>
+          <button type="button" class="chip" style="cursor:pointer" onclick="refreshMarketsAll(true)" title="Refresh Howl Charts">↻ Live</button>
         </div>
         <div class="chart-stats" id="chartStats">
           <div class="cs"><span>24h high</span><b id="csHigh24">—</b></div>
@@ -972,14 +976,14 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
           <canvas id="howlChart" width="400" height="240" aria-label="Price chart"></canvas>
           <div class="chart-cross" id="chartCross"></div>
         </div>
-        <p class="chart-meta" id="chartMeta">Loading markets…</p>
+        <p class="chart-meta" id="chartMeta">Loading Howl Charts…</p>
       </div>
 
       <div class="wa-section">
         <h2>Live board</h2>
         <button type="button" class="wa-link" onclick="refreshMarketsBoard(true)">Refresh ›</button>
       </div>
-      <div id="marketsBoard"><p class="hint">Loading live prices…</p></div>
+      <div id="marketsBoard"><p class="hint">Loading Howl Charts…</p></div>
       <p class="hint" id="marketsBoardMeta" style="margin:8px 0 16px"></p>
     </div>
 
@@ -1850,7 +1854,7 @@ const LS_CELEB = "howl_celeb_seen_v1";
 /** Unified stroke-icon ids (see iconSvg) */
 const TOOLBAR_CATALOG = [
   { id: "home", label: "Wallet", icon: "home", page: "home", fixed: true },
-  { id: "markets", label: "Markets", icon: "chart", page: "markets" },
+  { id: "markets", label: "Howl Charts", icon: "chart", page: "markets" },
   { id: "send", label: "Send", icon: "send", page: "send" },
   { id: "recv", label: "Receive", icon: "recv", page: "recv" },
   { id: "assets", label: "Assets", icon: "assets", page: "assets" },
@@ -1875,7 +1879,7 @@ const MORE_MENU = [
     { id: "recv", icon: "recv", title: "Receive", sub: "HOWL · SOL · XTZ · ETH", page: "recv" },
     { id: "assets", icon: "assets", title: "Assets", sub: "Balances by chain", page: "assets" },
     { id: "swap", icon: "swap", title: "Swap", sub: "Jupiter · Howl Swap", page: "swap" },
-    { id: "markets", icon: "chart", title: "Markets", sub: "Live charts", page: "markets" },
+    { id: "markets", icon: "chart", title: "Howl Charts", sub: "Howlcoin product", page: "markets" },
     { id: "activity", icon: "list", title: "History", sub: "Txs · pending", page: "activity" },
   ]},
   { section: "Collectibles", items: [
@@ -9608,8 +9612,8 @@ function uiUnlock(){
   $("btnRest2").onclick = uiCreate;
 }
 
-/* —— Markets: live board + lifetime charts for external cryptos (not Howlcoin) —— */
-let chartState = { id: "bitcoin", days: "7", points: [], profile: null, wired: false };
+/* —— Howl Charts: first-party Howlcoin product (HOWL index + market coverage) —— */
+let chartState = { id: "howlcoin", days: "7", points: [], profile: null, wired: false };
 let marketsBoardTimer = null;
 let marketsLive = [];
 
@@ -9697,15 +9701,18 @@ async function refreshMarketsBoard(force){
     }
     board.innerHTML = marketsLive.map(c=>{
       const up = (c.change_24h == null) ? true : Number(c.change_24h) >= 0;
-      const chg = c.change_24h == null ? "—" : fmtPct(c.change_24h);
-      return `<button type="button" class="mkt-row" data-id="${escAttr(c.id)}">
+      const isHowl = c.id === "howlcoin" || c.product;
+      const chg = isHowl
+        ? "Howl Swap"
+        : (c.change_24h == null ? "—" : fmtPct(c.change_24h) + " 24h");
+      return `<button type="button" class="mkt-row${isHowl?" mkt-howl":""}" data-id="${escAttr(c.id)}">
         <span class="mkt-ico">${escHtml((c.symbol||"?").slice(0,4))}</span>
         <div class="mkt-meta">
-          <div class="mkt-sym">${escHtml(c.symbol||"")}</div>
-          <div class="mkt-nm">${escHtml(c.name||"")}${c.market_cap!=null?` · ${escHtml(fmtUsdCompact(c.market_cap))}`:""}</div>
+          <div class="mkt-sym">${escHtml(c.symbol||"")}${isHowl?` <span class="mkt-badge">Howlcoin</span>`:""}</div>
+          <div class="mkt-nm">${escHtml(c.name||"")}${c.market_cap!=null?` · ${escHtml(fmtUsdCompact(c.market_cap))}`:""}${isHowl?" · index":""}</div>
         </div>
         <div class="mkt-px">${escHtml(fmtUsdPx(c.usd))}
-          <span class="mkt-chg ${up?"up":"dn"}">${escHtml(chg)} 24h</span>
+          <span class="mkt-chg ${isHowl?"up":(up?"up":"dn")}">${escHtml(chg)}</span>
         </div>
       </button>`;
     }).join("");
@@ -9719,9 +9726,9 @@ async function refreshMarketsBoard(force){
     });
     if(meta){
       const t = j.updated ? new Date(j.updated * 1000).toLocaleTimeString() : "—";
-      meta.textContent = `${marketsLive.length} assets · live board · updated ${t}`
+      meta.textContent = `Howl Charts · ${marketsLive.length} assets · updated ${t}`
         + (j.cached ? " · cached" : "")
-        + " · not Howlcoin products";
+        + " · Howlcoin product";
     }
   }catch(e){
     if(board) board.innerHTML = `<p class="err" style="padding:12px">${escHtml(e.message||e)}</p>`;
@@ -9730,12 +9737,13 @@ async function refreshMarketsBoard(force){
 
 async function refreshCoinProfile(force){
   try{
-    const id = chartState.id || "bitcoin";
+    const id = chartState.id || "howlcoin";
     const j = await api(`/api/public/coin?id=${encodeURIComponent(id)}${force?"&force=1":""}`);
     chartState.profile = j;
     if(j.usd != null && $("chartPrice")) $("chartPrice").textContent = fmtUsdPx(j.usd);
     if(j.name && $("chartCoinName")){
-      $("chartCoinName").textContent = (j.name || "") + (j.symbol ? " · " + j.symbol : "");
+      const badge = (j.id === "howlcoin" || j.index === "howl-swap") ? " · Howlcoin" : "";
+      $("chartCoinName").textContent = (j.name || "") + (j.symbol ? " · " + j.symbol : "") + badge;
     }
     if($("csHigh24")) $("csHigh24").textContent = fmtUsdPx(j.high_24h);
     if($("csLow24")) $("csLow24").textContent = fmtUsdPx(j.low_24h);
@@ -9752,15 +9760,18 @@ async function refreshCoinProfile(force){
       const up = Number(j.change_24h) >= 0;
       $("chartChg").className = "ch-chg " + (up ? "up" : "dn");
       $("chartChg").textContent = fmtPct(j.change_24h) + " · 24h live";
+    } else if((j.id === "howlcoin" || j.index === "howl-swap") && $("chartChg") && j.howl_per_usdc != null){
+      $("chartChg").className = "ch-chg up";
+      $("chartChg").textContent = `${Number(j.howl_per_usdc)} HOWL / USDC · Howl Swap index`;
     }
   }catch(_){}
 }
 
 async function refreshHowlChart(force){
   const meta = $("chartMeta");
-  if(meta) meta.textContent = "Loading chart…";
+  if(meta) meta.textContent = "Loading Howl Charts…";
   try{
-    const id = chartState.id || "bitcoin";
+    const id = chartState.id || "howlcoin";
     const days = chartState.days || "7";
     const j = await api(`/api/public/chart?id=${encodeURIComponent(id)}&days=${encodeURIComponent(days)}${force?"&force=1":""}`);
     if(j.error && !(j.points||[]).length) throw new Error(j.error);
@@ -9768,7 +9779,8 @@ async function refreshHowlChart(force){
     const live = marketsLive.find(c => c.id === id);
     const name = j.name || live?.name || id;
     const sym = j.symbol || live?.symbol || "";
-    if($("chartCoinName")) $("chartCoinName").textContent = name + (sym ? " · " + sym : "");
+    const isHowl = id === "howlcoin" || j.index === "howl-swap";
+    if($("chartCoinName")) $("chartCoinName").textContent = name + (sym ? " · " + sym : "") + (isHowl ? " · Howlcoin" : "");
     const close = j.close != null ? j.close : (live?.usd != null ? live.usd : chartState.points.slice(-1)[0]?.p);
     const chg = j.change_pct;
     if($("chartPrice")){
@@ -9776,24 +9788,29 @@ async function refreshHowlChart(force){
       $("chartPrice").textContent = fmtUsdPx(livePx);
     }
     if($("chartChg") && !(chartState.days === "1" && chartState.profile?.change_24h != null)){
-      const up = Number(chg) >= 0;
-      $("chartChg").className = "ch-chg " + (up ? "up" : "dn");
-      const label = days === "max" ? "lifetime" : (days + "d");
-      $("chartChg").textContent = chg == null ? "—" : (fmtPct(chg) + " · " + label);
+      if(isHowl && j.howl_per_usdc != null){
+        $("chartChg").className = "ch-chg up";
+        $("chartChg").textContent = `${Number(j.howl_per_usdc)} HOWL / USDC · Howl Swap index`;
+      } else {
+        const up = Number(chg) >= 0;
+        $("chartChg").className = "ch-chg " + (up ? "up" : "dn");
+        const label = days === "max" ? "lifetime" : (days + "d");
+        $("chartChg").textContent = chg == null ? "—" : (fmtPct(chg) + " · " + label);
+      }
     }
     if(meta){
       const range = days === "max" ? (j.range || "lifetime") : (days + " day");
       const src = j.source && j.source !== "none" ? ` · ${j.source}` : "";
-      meta.textContent = `Our chart · ${range} · ${j.count||chartState.points.length} pts`
+      meta.textContent = `Howl Charts · ${range} · ${j.count||chartState.points.length} pts`
         + (j.cached ? " · cached" : " · live series")
         + src
         + (j.high != null ? ` · H ${fmtUsdPx(j.high)}` : "")
         + (j.low != null ? ` L ${fmtUsdPx(j.low)}` : "")
-        + " · not a Howlcoin product";
+        + " · Howlcoin product";
     }
     drawHowlChart(chartState.points);
   }catch(e){
-    if(meta) meta.textContent = "Chart unavailable · " + (e.message || e);
+    if(meta) meta.textContent = "Howl Charts unavailable · " + (e.message || e);
     drawHowlChart([]);
   }
 }

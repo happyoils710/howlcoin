@@ -97,7 +97,11 @@ _chart_cache: Dict[str, Any] = {}  # key -> {ts, data}
 _markets_board_cache: Dict[str, Any] = {"ts": 0.0, "data": None}
 _coin_profile_cache: Dict[str, Any] = {}  # id -> {ts, data}
 
-# External majors only (not Howlcoin) for Markets board + lifetime charts
+# Howl Charts product note (first-party Howlcoin surface; feeds power coverage)
+_HOWL_CHARTS_NOTE = "Howl Charts · Howlcoin product"
+_HOWL_CHART_ID = "howlcoin"
+
+# External majors for Howl Charts market coverage (+ HOWL index is injected)
 _MARKETS_COIN_IDS = (
     "bitcoin,ethereum,solana,binancecoin,ripple,cardano,dogecoin,tron,"
     "avalanche-2,chainlink,polkadot,litecoin,bitcoin-cash,near,aptos,sui,"
@@ -172,13 +176,138 @@ def _markets_allowed_ids() -> set:
     allowed = {x.strip() for x in _PRICE_COIN_IDS.split(",") if x.strip()}
     allowed |= {x.strip() for x in _MARKETS_COIN_IDS.split(",") if x.strip()}
     allowed |= set(_MARKETS_META.keys())
+    allowed |= {_HOWL_CHART_ID, "howl"}
     return allowed
+
+
+def _howl_charts_data_path() -> Path:
+    root = Path(
+        os.environ.get("HOWL_PUBLIC_DATA")
+        or os.environ.get("HOWL_DATA_DIR")
+        or str(DEFAULT_DATA_DIR)
+    ).expanduser()
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+    return root / "howl_charts_howl_index.json"
+
+
+def howl_swap_index(record: bool = True) -> Dict[str, Any]:
+    """
+    First-party HOWL USD index from Howl Swap (bridge) rates.
+    1 USDC → howl_per_usdc HOWL  ⇒  usd_per_howl = 1 / howl_per_usdc.
+    """
+    now = time.time()
+    try:
+        from .bridge import bridge_config
+
+        cfg = bridge_config()
+        usdc = next((a for a in (cfg.get("assets") or []) if a.get("id") == "usdc"), None)
+        sol = next((a for a in (cfg.get("assets") or []) if a.get("id") == "sol"), None)
+        howl_per_usdc = float((usdc or {}).get("howl_per_unit") or 10.0)
+        howl_per_sol = float((sol or {}).get("howl_per_unit") or 100_000.0)
+        enabled = bool(cfg.get("enabled"))
+    except Exception:
+        howl_per_usdc, howl_per_sol, enabled = 10.0, 100_000.0, False
+    usd = (1.0 / howl_per_usdc) if howl_per_usdc > 0 else None
+    out = {
+        "id": _HOWL_CHART_ID,
+        "symbol": "HOWL",
+        "name": "Howlcoin",
+        "usd": usd,
+        "howl_per_usdc": howl_per_usdc,
+        "howl_per_sol": howl_per_sol,
+        "bridge_enabled": enabled,
+        "index": "howl-swap",
+        "product": "Howl Charts",
+        "updated": int(now),
+        "note": _HOWL_CHARTS_NOTE,
+    }
+    if record and usd is not None:
+        try:
+            _record_howl_index_sample(usd, now)
+        except Exception:
+            pass
+    return out
+
+
+def _record_howl_index_sample(usd: float, now: float) -> None:
+    """Append sparse samples so Howl Charts can grow a real HOWL history."""
+    path = _howl_charts_data_path()
+    samples: List[Dict[str, Any]] = []
+    if path.exists():
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(raw, list):
+                samples = [x for x in raw if isinstance(x, dict)]
+        except Exception:
+            samples = []
+    # keep at most ~1 sample / 15 min
+    if samples:
+        last_t = float(samples[-1].get("t") or 0)
+        if now - last_t < 900:
+            return
+    samples.append({"t": int(now), "p": float(usd)})
+    # retain ~2 years of 15-min samples max (~70k) — prune to 20k
+    if len(samples) > 20000:
+        samples = samples[-20000:]
+    try:
+        path.write_text(json.dumps(samples), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _load_howl_index_samples() -> List[Dict[str, Any]]:
+    path = _howl_charts_data_path()
+    if not path.exists():
+        return []
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(raw, list):
+            return []
+        out: List[Dict[str, Any]] = []
+        for row in raw:
+            if not isinstance(row, dict):
+                continue
+            try:
+                out.append({"t": int(row["t"]), "p": float(row["p"])})
+            except (KeyError, TypeError, ValueError):
+                continue
+        return out
+    except Exception:
+        return []
+
+
+def _howl_index_points(days: str, usd: float, now: float) -> List[Dict[str, Any]]:
+    """HOWL series from recorded Howl Swap index samples (+ current tick)."""
+    samples = _load_howl_index_samples()
+    if days == "max":
+        cutoff = 0
+    else:
+        try:
+            n = int(days)
+        except ValueError:
+            n = 7
+        cutoff = int(now) - n * 86400
+    pts = [p for p in samples if p["t"] >= cutoff]
+    # always include current index
+    if not pts or pts[-1]["t"] < int(now) - 30:
+        pts.append({"t": int(now), "p": float(usd)})
+    # seed a minimal 2-point series so the canvas renders for new installs
+    if len(pts) < 2:
+        span = 86400 if days == "1" else (7 * 86400 if days != "max" else 30 * 86400)
+        pts = [
+            {"t": int(now) - span, "p": float(usd)},
+            {"t": int(now), "p": float(usd)},
+        ]
+    return pts
 
 
 def fetch_markets_board(force: bool = False) -> Dict[str, Any]:
     """
-    Live spot board for external cryptos (not Howlcoin).
-    { coins: [{id, symbol, name, usd, change_24h, market_cap, vol_24h}], updated }
+    Howl Charts live board: HOWL (Howl Swap index) + major market coverage.
+    First-party Howlcoin product.
     """
     now = time.time()
     if (
@@ -201,6 +330,19 @@ def fetch_markets_board(force: bool = False) -> Dict[str, Any]:
             }
         )
     )
+    howl = howl_swap_index(record=True)
+    howl_row = {
+        "id": _HOWL_CHART_ID,
+        "symbol": "HOWL",
+        "name": "Howlcoin",
+        "usd": howl.get("usd"),
+        "change_24h": None,
+        "market_cap": None,
+        "vol_24h": None,
+        "product": True,
+        "index": "howl-swap",
+        "badge": "Howlcoin",
+    }
     try:
         raw = json.loads(
             _http_get(
@@ -214,7 +356,7 @@ def fetch_markets_board(force: bool = False) -> Dict[str, Any]:
         )
         if not isinstance(raw, dict):
             raise RuntimeError("empty markets board")
-        coins = []
+        coins = [howl_row]
         for cid, row in raw.items():
             if not isinstance(row, dict):
                 continue
@@ -258,19 +400,23 @@ def fetch_markets_board(force: bool = False) -> Dict[str, Any]:
                     "vol_24h": vol,
                 }
             )
-        # sort by market cap desc when available
-        coins.sort(
+        # keep HOWL first; rest by market cap
+        rest = coins[1:]
+        rest.sort(
             key=lambda c: (
                 -(c["market_cap"] or 0),
                 c.get("symbol") or "",
             )
         )
+        coins = [coins[0]] + rest
         out = {
             "coins": coins,
             "count": len(coins),
             "updated": int(now),
-            "source": "coingecko",
-            "note": "External market data — not a Howlcoin product",
+            "source": "howl-charts",
+            "feeds": ["howl-swap", "coingecko"],
+            "product": "Howl Charts",
+            "note": _HOWL_CHARTS_NOTE,
             "cached": False,
         }
         _markets_board_cache["ts"] = now
@@ -282,21 +428,26 @@ def fetch_markets_board(force: bool = False) -> Dict[str, Any]:
             stale["stale"] = True
             stale["error"] = str(e)
             return stale
+        # still return HOWL so the product surface works offline from feeds
         return {
-            "coins": [],
-            "count": 0,
+            "coins": [howl_row],
+            "count": 1,
             "updated": int(now),
-            "source": "none",
+            "source": "howl-charts",
+            "feeds": ["howl-swap"],
+            "product": "Howl Charts",
             "error": str(e),
-            "note": "External market data — not a Howlcoin product",
+            "note": _HOWL_CHARTS_NOTE,
         }
 
 
 def fetch_coin_profile(coin_id: str = "bitcoin", force: bool = False) -> Dict[str, Any]:
-    """Live price + lifetime ATH/ATL for an external coin."""
+    """Live price + ATH/ATL for Howl Charts (HOWL index or market coverage)."""
     cid = (coin_id or "bitcoin").strip().lower()[:64]
+    if cid in ("howl", _HOWL_CHART_ID):
+        cid = _HOWL_CHART_ID
     if cid not in _markets_allowed_ids():
-        cid = "bitcoin"
+        cid = _HOWL_CHART_ID
     now = time.time()
     hit = _coin_profile_cache.get(cid)
     if (
@@ -308,6 +459,60 @@ def fetch_coin_profile(coin_id: str = "bitcoin", force: bool = False) -> Dict[st
         out = dict(hit["data"])
         out["cached"] = True
         return out
+
+    # First-party HOWL profile from Howl Swap index + recorded samples
+    if cid == _HOWL_CHART_ID:
+        idx = howl_swap_index(record=True)
+        usd = idx.get("usd")
+        samples = _load_howl_index_samples()
+        prices = [float(s["p"]) for s in samples if s.get("p") is not None]
+        if usd is not None:
+            prices.append(float(usd))
+        ath = max(prices) if prices else usd
+        atl = min(prices) if prices else usd
+        day_ago = int(now) - 86400
+        day_prices = [float(s["p"]) for s in samples if int(s.get("t") or 0) >= day_ago]
+        if usd is not None:
+            day_prices.append(float(usd))
+        out = {
+            "id": _HOWL_CHART_ID,
+            "symbol": "HOWL",
+            "name": "Howlcoin",
+            "usd": usd,
+            "change_24h": None,
+            "change_7d": None,
+            "change_30d": None,
+            "change_1y": None,
+            "ath": ath,
+            "ath_date": None,
+            "ath_change_pct": (
+                round((float(usd) - float(ath)) / float(ath) * 100.0, 3)
+                if usd is not None and ath
+                else None
+            ),
+            "atl": atl,
+            "atl_date": None,
+            "atl_change_pct": (
+                round((float(usd) - float(atl)) / float(atl) * 100.0, 3)
+                if usd is not None and atl
+                else None
+            ),
+            "market_cap": None,
+            "vol_24h": None,
+            "high_24h": max(day_prices) if day_prices else usd,
+            "low_24h": min(day_prices) if day_prices else usd,
+            "index": "howl-swap",
+            "howl_per_usdc": idx.get("howl_per_usdc"),
+            "bridge_enabled": idx.get("bridge_enabled"),
+            "product": "Howl Charts",
+            "updated": int(now),
+            "source": "howl-swap",
+            "note": _HOWL_CHARTS_NOTE,
+            "cached": False,
+        }
+        _coin_profile_cache[cid] = {"ts": now, "data": {**out, "cached": True}}
+        return out
+
     url = (
         f"https://api.coingecko.com/api/v3/coins/{urllib.parse.quote(cid)}?"
         + urllib.parse.urlencode(
@@ -370,9 +575,10 @@ def fetch_coin_profile(coin_id: str = "bitcoin", force: bool = False) -> Dict[st
             "vol_24h": _f(md, "total_volume", "usd"),
             "high_24h": _f(md, "high_24h", "usd"),
             "low_24h": _f(md, "low_24h", "usd"),
+            "product": "Howl Charts",
             "updated": int(now),
             "source": "coingecko",
-            "note": "External market data — not a Howlcoin product",
+            "note": _HOWL_CHARTS_NOTE,
             "cached": False,
         }
         _coin_profile_cache[cid] = {"ts": now, "data": {**out, "cached": True}}
@@ -387,8 +593,9 @@ def fetch_coin_profile(coin_id: str = "bitcoin", force: bool = False) -> Dict[st
             "id": cid,
             "error": str(e),
             "source": "none",
+            "product": "Howl Charts",
             "updated": int(now),
-            "note": "External market data — not a Howlcoin product",
+            "note": _HOWL_CHARTS_NOTE,
         }
 
 
@@ -414,7 +621,10 @@ def _chart_payload(
     first = points[0]["p"] if points else 0.0
     last = points[-1]["p"] if points else 0.0
     chg = ((last - first) / first * 100.0) if first else 0.0
-    sym, name = _MARKETS_META.get(cid, (cid[:6].upper(), cid))
+    if cid == _HOWL_CHART_ID:
+        sym, name = "HOWL", "Howlcoin"
+    else:
+        sym, name = _MARKETS_META.get(cid, (cid[:6].upper(), cid))
     return {
         "id": cid,
         "symbol": sym,
@@ -430,7 +640,8 @@ def _chart_payload(
         "low": min((x["p"] for x in points), default=0.0),
         "updated": int(now),
         "source": source,
-        "note": "External market data — not a Howlcoin product",
+        "product": "Howl Charts",
+        "note": _HOWL_CHARTS_NOTE,
         "cached": False,
     }
 
@@ -546,17 +757,18 @@ def fetch_market_chart(
     coin_id: str = "bitcoin", days: str = "7", force: bool = False
 ) -> Dict[str, Any]:
     """
-    Price series for our own canvas charts (not third-party embeds).
-    Live short ranges: CoinGecko. Lifetime: Yahoo multi-year (CG free API
-    blocks days=max). External majors only — not Howlcoin products.
+    Howl Charts series for our own canvas (first-party Howlcoin product).
+    HOWL: Howl Swap index history. Majors: CoinGecko / Yahoo feeds.
     """
     cid = (coin_id or "bitcoin").strip().lower()[:64]
+    if cid in ("howl", _HOWL_CHART_ID):
+        cid = _HOWL_CHART_ID
     d = (days or "7").strip()
     if d not in ("1", "7", "14", "30", "90", "180", "365", "max"):
         d = "7"
     allowed = _markets_allowed_ids()
     if cid not in allowed:
-        cid = "bitcoin"
+        cid = _HOWL_CHART_ID
     key = f"{cid}:{d}"
     now = time.time()
     # Lifetime history changes slowly; cache longer to avoid upstream rate limits
@@ -571,6 +783,17 @@ def fetch_market_chart(
     ):
         out = dict(hit["data"])
         out["cached"] = True
+        return out
+
+    # First-party HOWL index chart
+    if cid == _HOWL_CHART_ID:
+        idx = howl_swap_index(record=True)
+        usd = float(idx["usd"]) if idx.get("usd") is not None else 0.1
+        points = _howl_index_points(d, usd, now)
+        out = _chart_payload(cid, d, points, "howl-swap", now)
+        out["index"] = "howl-swap"
+        out["howl_per_usdc"] = idx.get("howl_per_usdc")
+        _chart_cache[key] = {"ts": now, "data": {**out, "cached": True}}
         return out
 
     errors: List[str] = []
@@ -625,8 +848,9 @@ def fetch_market_chart(
         "points": [],
         "error": err,
         "source": "none",
+        "product": "Howl Charts",
         "updated": int(now),
-        "note": "External market data — not a Howlcoin product",
+        "note": _HOWL_CHARTS_NOTE,
     }
 
 
