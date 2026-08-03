@@ -9782,10 +9782,12 @@ async function refreshHowlChart(force){
       $("chartChg").textContent = chg == null ? "—" : (fmtPct(chg) + " · " + label);
     }
     if(meta){
-      const range = days === "max" ? "lifetime" : (days + " day");
-      meta.textContent = `External markets · ${range} · ${j.count||chartState.points.length} pts`
+      const range = days === "max" ? (j.range || "lifetime") : (days + " day");
+      const src = j.source && j.source !== "none" ? ` · ${j.source}` : "";
+      meta.textContent = `Our chart · ${range} · ${j.count||chartState.points.length} pts`
         + (j.cached ? " · cached" : " · live series")
-        + (j.high != null ? ` · range H ${fmtUsdPx(j.high)}` : "")
+        + src
+        + (j.high != null ? ` · H ${fmtUsdPx(j.high)}` : "")
         + (j.low != null ? ` L ${fmtUsdPx(j.low)}` : "")
         + " · not a Howlcoin product";
     }

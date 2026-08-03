@@ -135,6 +135,38 @@ _MARKETS_META = {
     "hyperliquid": ("HYPE", "Hyperliquid"),
 }
 
+# Yahoo Finance symbols for multi-year / lifetime series (CoinGecko free API
+# no longer allows days=max — error 10012 time-range limit).
+_YAHOO_SYMBOLS = {
+    "bitcoin": "BTC-USD",
+    "ethereum": "ETH-USD",
+    "solana": "SOL-USD",
+    "binancecoin": "BNB-USD",
+    "ripple": "XRP-USD",
+    "cardano": "ADA-USD",
+    "dogecoin": "DOGE-USD",
+    "tron": "TRX-USD",
+    "avalanche-2": "AVAX-USD",
+    "chainlink": "LINK-USD",
+    "polkadot": "DOT-USD",
+    "litecoin": "LTC-USD",
+    "bitcoin-cash": "BCH-USD",
+    "near": "NEAR-USD",
+    "aptos": "APT-USD",
+    "sui": "SUI-USD",
+    "toncoin": "TON-USD",
+    "stellar": "XLM-USD",
+    "cosmos": "ATOM-USD",
+    "uniswap": "UNI-USD",
+    "aave": "AAVE-USD",
+    "tezos": "XTZ-USD",
+    "matic-network": "MATIC-USD",
+    "shiba-inu": "SHIB-USD",
+    "wrapped-bitcoin": "WBTC-USD",
+    "leo-token": "LEO-USD",
+    "hyperliquid": "HYPE-USD",
+}
+
 
 def _markets_allowed_ids() -> set:
     allowed = {x.strip() for x in _PRICE_COIN_IDS.split(",") if x.strip()}
@@ -360,12 +392,163 @@ def fetch_coin_profile(coin_id: str = "bitcoin", force: bool = False) -> Dict[st
         }
 
 
+def _downsample_points(points: List[Dict[str, Any]], target: int = 180) -> List[Dict[str, Any]]:
+    if len(points) <= target + 20:
+        return points
+    step = max(1, len(points) // target)
+    out = points[::step]
+    # always keep the last point for "live" close
+    if out and points and out[-1]["t"] != points[-1]["t"]:
+        out.append(points[-1])
+    return out
+
+
+def _chart_payload(
+    cid: str,
+    d: str,
+    points: List[Dict[str, Any]],
+    source: str,
+    now: float,
+) -> Dict[str, Any]:
+    points = _downsample_points(points)
+    first = points[0]["p"] if points else 0.0
+    last = points[-1]["p"] if points else 0.0
+    chg = ((last - first) / first * 100.0) if first else 0.0
+    sym, name = _MARKETS_META.get(cid, (cid[:6].upper(), cid))
+    return {
+        "id": cid,
+        "symbol": sym,
+        "name": name,
+        "days": d,
+        "range": "lifetime" if d == "max" else f"{d}d",
+        "points": points,
+        "count": len(points),
+        "open": first,
+        "close": last,
+        "change_pct": round(chg, 3),
+        "high": max((x["p"] for x in points), default=0.0),
+        "low": min((x["p"] for x in points), default=0.0),
+        "updated": int(now),
+        "source": source,
+        "note": "External market data — not a Howlcoin product",
+        "cached": False,
+    }
+
+
+def _fetch_chart_coingecko(cid: str, d: str) -> List[Dict[str, Any]]:
+    """
+    CoinGecko market_chart. Public free API no longer allows days=max
+    (HTTP 401 / error 10012 time-range limit); use ≤365 only.
+    """
+    cg_days = "365" if d == "max" else d
+    url = (
+        f"https://api.coingecko.com/api/v3/coins/{urllib.parse.quote(cid)}/market_chart?"
+        + urllib.parse.urlencode({"vs_currency": "usd", "days": cg_days})
+    )
+    raw = json.loads(
+        _http_get(
+            url,
+            headers={
+                "User-Agent": "Howlscan/0.6 (+https://howlscan.org)",
+                "Accept": "application/json",
+            },
+            timeout=18,
+        ).decode("utf-8", errors="ignore")
+    )
+    series = raw.get("prices") if isinstance(raw, dict) else None
+    if not isinstance(series, list) or not series:
+        raise RuntimeError("empty coingecko series")
+    points: List[Dict[str, Any]] = []
+    for row in series:
+        if not isinstance(row, (list, tuple)) or len(row) < 2:
+            continue
+        try:
+            t_ms = float(row[0])
+            p = float(row[1])
+        except (TypeError, ValueError):
+            continue
+        points.append({"t": int(t_ms / 1000), "p": p})
+    if len(points) < 2:
+        raise RuntimeError("empty coingecko series")
+    return points
+
+
+def _fetch_chart_yahoo(cid: str, d: str) -> List[Dict[str, Any]]:
+    """
+    Yahoo Finance chart API — multi-year / true lifetime for majors.
+    Used for Lifetime button and as fallback when CoinGecko rate-limits.
+    """
+    ysym = _YAHOO_SYMBOLS.get(cid)
+    if not ysym:
+        raise RuntimeError(f"no yahoo symbol for {cid}")
+    now = int(time.time())
+    # interval + lookback
+    if d == "1":
+        interval, period1 = "15m", now - 2 * 86400
+    elif d == "7":
+        interval, period1 = "1h", now - 8 * 86400
+    elif d in ("14", "30"):
+        interval, period1 = "1h", now - 35 * 86400
+    elif d in ("90", "180"):
+        interval, period1 = "1d", now - int(d) * 86400 - 86400
+    elif d == "365":
+        interval, period1 = "1d", now - 370 * 86400
+    else:  # max / lifetime — full available history
+        interval, period1 = "1d", 1262304000  # 2010-01-01 UTC
+    url = (
+        "https://query1.finance.yahoo.com/v8/finance/chart/"
+        + urllib.parse.quote(ysym)
+        + "?"
+        + urllib.parse.urlencode(
+            {
+                "period1": str(period1),
+                "period2": str(now),
+                "interval": interval,
+                "events": "div,splits",
+            }
+        )
+    )
+    raw = json.loads(
+        _http_get(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (compatible; Howlscan/0.6; +https://howlscan.org)",
+                "Accept": "application/json",
+            },
+            timeout=20,
+        ).decode("utf-8", errors="ignore")
+    )
+    results = ((raw or {}).get("chart") or {}).get("result") or []
+    if not results:
+        err = ((raw or {}).get("chart") or {}).get("error")
+        raise RuntimeError(str(err or "empty yahoo chart"))
+    res = results[0] or {}
+    ts = res.get("timestamp") or []
+    quote = ((res.get("indicators") or {}).get("quote") or [{}])[0] or {}
+    closes = quote.get("close") or []
+    points: List[Dict[str, Any]] = []
+    for i, t in enumerate(ts):
+        if i >= len(closes):
+            break
+        c = closes[i]
+        if c is None:
+            continue
+        try:
+            points.append({"t": int(t), "p": float(c)})
+        except (TypeError, ValueError):
+            continue
+    if len(points) < 2:
+        raise RuntimeError("empty yahoo series")
+    return points
+
+
 def fetch_market_chart(
     coin_id: str = "bitcoin", days: str = "7", force: bool = False
 ) -> Dict[str, Any]:
     """
-    Price series for custom canvas charts (CoinGecko market_chart).
-    days=max → lifetime history. External majors only — not Howlcoin.
+    Price series for our own canvas charts (not third-party embeds).
+    Live short ranges: CoinGecko. Lifetime: Yahoo multi-year (CG free API
+    blocks days=max). External majors only — not Howlcoin products.
     """
     cid = (coin_id or "bitcoin").strip().lower()[:64]
     d = (days or "7").strip()
@@ -376,87 +559,75 @@ def fetch_market_chart(
         cid = "bitcoin"
     key = f"{cid}:{d}"
     now = time.time()
+    # Lifetime history changes slowly; cache longer to avoid upstream rate limits
+    ttl = 1800 if d == "max" else (600 if d in ("90", "180", "365") else 300)
     hit = _chart_cache.get(key)
     if (
         not force
         and hit
-        and (now - float(hit.get("ts") or 0)) < 300
+        and (now - float(hit.get("ts") or 0)) < ttl
         and hit.get("data")
+        and (hit["data"].get("points") or [])
     ):
         out = dict(hit["data"])
         out["cached"] = True
         return out
-    url = (
-        f"https://api.coingecko.com/api/v3/coins/{urllib.parse.quote(cid)}/market_chart?"
-        + urllib.parse.urlencode({"vs_currency": "usd", "days": d})
+
+    errors: List[str] = []
+    points: Optional[List[Dict[str, Any]]] = None
+    source = "none"
+
+    # Lifetime → Yahoo first (true multi-year). Short ranges → CoinGecko first.
+    order = (
+        ("yahoo", "coingecko") if d == "max" else ("coingecko", "yahoo")
     )
-    try:
-        raw = json.loads(
-            _http_get(
-                url,
-                headers={
-                    "User-Agent": "Howlscan/0.6 (+https://howlscan.org)",
-                    "Accept": "application/json",
-                },
-                timeout=18,
-            ).decode("utf-8", errors="ignore")
-        )
-        series = raw.get("prices") if isinstance(raw, dict) else None
-        if not isinstance(series, list) or not series:
-            raise RuntimeError("empty chart series")
-        points = []
-        for row in series:
-            if not isinstance(row, (list, tuple)) or len(row) < 2:
-                continue
-            try:
-                t_ms = float(row[0])
-                p = float(row[1])
-            except (TypeError, ValueError):
-                continue
-            points.append({"t": int(t_ms / 1000), "p": p})
-        # downsample to ~180 pts for mobile canvas
-        if len(points) > 200:
-            step = max(1, len(points) // 180)
-            points = points[::step]
-        first = points[0]["p"] if points else 0.0
-        last = points[-1]["p"] if points else 0.0
-        chg = ((last - first) / first * 100.0) if first else 0.0
-        sym, name = _MARKETS_META.get(cid, (cid[:6].upper(), cid))
-        out = {
-            "id": cid,
-            "symbol": sym,
-            "name": name,
-            "days": d,
-            "range": "lifetime" if d == "max" else f"{d}d",
-            "points": points,
-            "count": len(points),
-            "open": first,
-            "close": last,
-            "change_pct": round(chg, 3),
-            "high": max((x["p"] for x in points), default=0.0),
-            "low": min((x["p"] for x in points), default=0.0),
-            "updated": int(now),
-            "source": "coingecko",
-            "note": "External market data — not a Howlcoin product",
-            "cached": False,
-        }
+    for src in order:
+        try:
+            if src == "yahoo":
+                points = _fetch_chart_yahoo(cid, d)
+            else:
+                # CG free API rejects true max; skip that call
+                if d == "max":
+                    points = _fetch_chart_coingecko(cid, "365")
+                else:
+                    points = _fetch_chart_coingecko(cid, d)
+            source = src if d != "max" or src != "coingecko" else "coingecko-1y"
+            break
+        except Exception as e:
+            errors.append(f"{src}: {e}")
+            points = None
+
+    # Last resort for lifetime: CG 365 if Yahoo failed
+    if points is None and d == "max":
+        try:
+            points = _fetch_chart_coingecko(cid, "365")
+            source = "coingecko-1y"
+        except Exception as e:
+            errors.append(f"coingecko-1y: {e}")
+
+    if points and len(points) >= 2:
+        out = _chart_payload(cid, d, points, source, now)
+        if d == "max" and source == "coingecko-1y":
+            out["range"] = "lifetime (~1y free feed)"
+            out["partial"] = True
         _chart_cache[key] = {"ts": now, "data": {**out, "cached": True}}
         return out
-    except Exception as e:
-        if hit and hit.get("data"):
-            stale = dict(hit["data"])
-            stale["stale"] = True
-            stale["error"] = str(e)
-            return stale
-        return {
-            "id": cid,
-            "days": d,
-            "points": [],
-            "error": str(e),
-            "source": "none",
-            "updated": int(now),
-            "note": "External market data — not a Howlcoin product",
-        }
+
+    err = "; ".join(errors) if errors else "no chart data"
+    if hit and hit.get("data") and (hit["data"].get("points") or []):
+        stale = dict(hit["data"])
+        stale["stale"] = True
+        stale["error"] = err
+        return stale
+    return {
+        "id": cid,
+        "days": d,
+        "points": [],
+        "error": err,
+        "source": "none",
+        "updated": int(now),
+        "note": "External market data — not a Howlcoin product",
+    }
 
 
 def fetch_market_prices(force: bool = False) -> Dict[str, Any]:
