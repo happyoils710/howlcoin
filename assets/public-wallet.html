@@ -506,11 +506,12 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .toolbar-edit .ord{display:flex;flex-direction:column;gap:2px;margin-left:4px}
 .toolbar-edit .ord button{border:1px solid rgba(0,255,200,.2);background:rgba(0,0,0,.4);color:var(--cyan);
   border-radius:6px;width:28px;height:22px;padding:0;font-size:.7rem;cursor:pointer;line-height:1}
-.toast{position:fixed;left:50%;bottom:calc(var(--nav-h) + 20px);transform:translateX(-50%);
-  background:rgba(12,8,32,.95);border:1px solid rgba(0,255,198,.35);padding:10px 16px;border-radius:14px;
-  font-size:.9rem;font-weight:700;opacity:0;transition:opacity .2s;z-index:50;max-width:90%;pointer-events:none;
-  box-shadow:0 0 24px rgba(0,255,198,.2);letter-spacing:.03em}
-.toast.on{opacity:1}
+.toast{position:fixed;left:50%;bottom:calc(var(--nav-h) + 20px);transform:translateX(-50%) translateY(8px);
+  background:rgba(12,8,32,.98);border:1px solid rgba(0,255,198,.45);padding:12px 18px;border-radius:14px;
+  font-size:.9rem;font-weight:700;opacity:0;transition:opacity .2s,transform .2s;z-index:200;max-width:92%;pointer-events:none;
+  box-shadow:0 0 28px rgba(0,255,198,.28);letter-spacing:.03em;text-align:center;color:var(--text)}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.copy-ok{border-color:rgba(0,255,198,.65);color:var(--green)}
 .qr{background:linear-gradient(145deg,#fff,#e8fff9);border-radius:16px;padding:12px;display:inline-block;margin:10px 0;
   box-shadow:0 0 30px rgba(0,255,198,.25)}
 .qr img{width:180px;height:180px;display:block}
@@ -782,7 +783,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         </div>
         <div class="price-hint" id="portfolioHint">All assets · tap USD / BTC</div>
         <div class="sub-bal" id="howlSubBal">HOWL: —</div>
-        <div class="addr" id="addr" onclick="copyText(keypair&&keypair.address)" style="cursor:pointer" title="Copy HOWL address">—</div>
+        <div class="addr" id="addr" onclick="copyText(keypair&&keypair.address,'HOWL address')" style="cursor:pointer" title="Copy HOWL address">—</div>
         <div class="net-pulse" id="netPulse" title="Network status">
           <span class="np live" id="npLive" onclick="showPage('activity')"><b>● …</b></span>
           <span class="np" id="npH" onclick="openExternalUrl('https://howlscan.org/')">H <b>—</b></span>
@@ -1116,9 +1117,9 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
           <div class="bookmarks" id="bookmarks"></div>
           <p class="browser-hint" id="browserHint">Type a search or site (e.g. <b>jup.ag</b>). Results open here; if a site blocks the frame, use <b>Open outside</b> or <b>Read in Howl</b>.</p>
           <div class="addr-chips">
-            <button type="button" onclick="copyText(keypair&&keypair.address)">Copy HOWL</button>
-            <button type="button" onclick="copyText(solInfo&&solInfo.address)">Copy SOL</button>
-            <button type="button" onclick="copyText(ethInfo&&ethInfo.address)">Copy ETH</button>
+            <button type="button" onclick="copyText(keypair&&keypair.address,'HOWL address')">Copy HOWL</button>
+            <button type="button" onclick="copyText(solInfo&&solInfo.address,'SOL address')">Copy SOL</button>
+            <button type="button" onclick="copyText(ethInfo&&ethInfo.address,'ETH address')">Copy ETH</button>
           </div>
         </div>
 
@@ -1820,7 +1821,20 @@ const ASSET_PRICE_ID = {
 };
 
 function $(id){ return document.getElementById(id); }
-function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("on"); setTimeout(()=>t.classList.remove("on"),2200); }
+let toastTimer = null;
+function toast(m, opts){
+  const t = $("toast");
+  if(!t){ try{ console.log("[toast]", m); }catch(_){} return; }
+  const ms = (opts && opts.ms) || 2600;
+  t.textContent = m;
+  t.classList.toggle("copy-ok", !!(opts && opts.copyOk));
+  t.classList.add("on");
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{
+    t.classList.remove("on");
+    t.classList.remove("copy-ok");
+  }, ms);
+}
 function isStandalone(){
   return matchMedia("(display-mode: standalone)").matches
     || matchMedia("(display-mode: fullscreen)").matches
@@ -3577,7 +3591,8 @@ function openAssetDetail(id){
 }
 function copyAssetAddress(){
   const a = allAssets().find(x=>x.id===detailAssetId);
-  copyText(assetAddress(a));
+  const addr = assetAddress(a);
+  copyText(addr, a ? (assetDisplaySymbol(a) + " address") : "address");
 }
 function assetActions(a){
   const acts = [];
@@ -3585,7 +3600,7 @@ function assetActions(a){
   const addr = assetAddress(a);
   if(a.kind !== "external"){
     acts.push({ label: "Deposit / receive", fn: ()=>{ selectedAsset=a.id; showPage("recv"); selectAsset(a.id); } });
-    if(addr) acts.push({ label: "Copy address", fn: ()=> copyText(addr) });
+    if(addr) acts.push({ label: "Copy address", fn: ()=> copyText(addr, assetDisplaySymbol(a) + " address") });
   }
   if(a.kind === "howl"){
     acts.push({ label: "Send HOWL", fn: ()=> showPage("send") });
@@ -5446,7 +5461,7 @@ function selectAsset(id){
       <p class="hint">${escHtml(a.name||"")}</p>
       ${hasAddr?`<div class="qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(addr)}" alt="QR"/></div>
       <div class="mono">${escHtml(addr)}</div>
-      <button class="btn" type="button" onclick="copyText(${JSON.stringify(addr)})">Copy ${escHtml(sym)} address</button>`
+      <button class="btn" type="button" onclick="copyText(${JSON.stringify(addr)}, ${JSON.stringify(sym + " address")})">Copy ${escHtml(sym)} address</button>`
       :`<div class="warnbox" style="text-align:left;margin:12px 0">${escHtml(miss || "Address not available for this wallet type.")}</div>`}
       ${hasAddr && (a.kind==="xtz"||a.kind==="fa")?`<p class="hint">Tezos <b>tz1</b> · XTZ + FA2 NFTs · never use KT1 as your receive address</p>`:""}
       <p class="hint">Balance: <b style="color:var(--green)">${escHtml(bal)}</b> ${escHtml(sym)}</p>
@@ -5878,8 +5893,8 @@ function renderNftWatchFields(meta){
 
 function copyNftRecvAddr(){
   const a = nftReceiveAddress(nftChain);
-  if(a) copyText(a);
-  else toast("No address");
+  if(a) copyText(a, "receive address");
+  else toast("No address to copy");
 }
 
 /** Compress image for upload (JPEG, max edge 1280, ~350KB). Supports HEIC via decode fallback. */
@@ -7537,11 +7552,54 @@ async function executeSend({ to, amount, fee, nonce, memo }){
 /** @deprecated use prepareSendConfirm + slide */
 async function doSend(){ return prepareSendConfirm(); }
 
-function copyText(t){
-  navigator.clipboard.writeText(t).then(()=>{
-    toast("Copied");
-    try{ if(navigator.vibrate) navigator.vibrate(12); }catch(_){}
-  });
+/** Copy text to clipboard with visible confirmation (toast). Fallback for iOS / non-secure. */
+async function copyText(t, label){
+  const text = t == null ? "" : String(t).trim();
+  if(!text){
+    toast("Nothing to copy");
+    return false;
+  }
+  const short = text.length > 22 ? (text.slice(0, 10) + "…" + text.slice(-8)) : text;
+  const what = (label && String(label).trim()) || "address";
+  try{
+    let ok = false;
+    if(navigator.clipboard && typeof navigator.clipboard.writeText === "function" && window.isSecureContext){
+      await navigator.clipboard.writeText(text);
+      ok = true;
+    } else {
+      ok = copyTextFallback(text);
+    }
+    if(!ok) throw new Error("Clipboard blocked");
+    toast("✓ Copied " + what + " · " + short, { copyOk: true, ms: 3200 });
+    try{ if(navigator.vibrate) navigator.vibrate(14); }catch(_){}
+    return true;
+  }catch(e){
+    // Second try: legacy execCommand (iOS PWA often needs this)
+    try{
+      if(copyTextFallback(text)){
+        toast("✓ Copied " + what + " · " + short, { copyOk: true, ms: 3200 });
+        try{ if(navigator.vibrate) navigator.vibrate(14); }catch(_){}
+        return true;
+      }
+    }catch(_){}
+    toast("Copy failed — long-press the address to copy", { ms: 4000 });
+    return false;
+  }
+}
+function copyTextFallback(text){
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.setAttribute("readonly", "");
+  ta.setAttribute("aria-hidden", "true");
+  ta.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0;width:1px;height:1px";
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  ta.setSelectionRange(0, text.length);
+  let ok = false;
+  try{ ok = document.execCommand("copy"); }catch(_){ ok = false; }
+  document.body.removeChild(ta);
+  return ok;
 }
 function revealSeed(){
   if(mnemonic){
