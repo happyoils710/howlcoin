@@ -17,8 +17,8 @@
     var t=localStorage.getItem('howl_theme_v1')||localStorage.getItem('howlscan_theme_v1')||'neo';
     if(['light','dark','neo','bones'].indexOf(t)<0) t='neo';
     document.documentElement.setAttribute('data-theme', t);
-    var c=localStorage.getItem('howl_corners_v1')||'sharp';
-    document.documentElement.setAttribute('data-corners', c==='soft'?'soft':'sharp');
+    var c=localStorage.getItem('howl_corners_v1')||'soft';
+    document.documentElement.setAttribute('data-corners', c==='sharp'?'sharp':'soft');
   }catch(e){}
 })();
 </script>
@@ -76,24 +76,29 @@ html[data-theme="bones"]{
   --grid-opacity:0; --fx:0;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-/* Sharp edges by default; soft corners optional (Appearance) */
-html:not([data-corners="soft"]) *,
-html:not([data-corners="soft"]) *::before,
-html:not([data-corners="soft"]) *::after{border-radius:0!important}
-html[data-corners="soft"] .panel,
-html[data-corners="soft"] .btn,
-html[data-corners="soft"] .field,
-html[data-corners="soft"] .chip,
-html[data-corners="soft"] .action,
-html[data-corners="soft"] .bal,
-html[data-corners="soft"] .bottom,
-html[data-corners="soft"] .menu-row .mi,
-html[data-corners="soft"] .theme-pill,
-html[data-corners="soft"] .chain-select,
-html[data-corners="soft"] .toast{border-radius:14px!important}
-html[data-corners="soft"] .btn,
-html[data-corners="soft"] .chip,
-html[data-corners="soft"] .action{border-radius:12px!important}
+/* Soft corners default (mobile wallet chrome); sharp optional (Appearance) */
+html[data-corners="sharp"] *,
+html[data-corners="sharp"] *::before,
+html[data-corners="sharp"] *::after{border-radius:0!important}
+html:not([data-corners="sharp"]) .panel,
+html:not([data-corners="sharp"]) .btn,
+html:not([data-corners="sharp"]) .field,
+html:not([data-corners="sharp"]) .chip,
+html:not([data-corners="sharp"]) .action,
+html:not([data-corners="sharp"]) .bal,
+html:not([data-corners="sharp"]) .bottom,
+html:not([data-corners="sharp"]) .menu-row .mi,
+html:not([data-corners="sharp"]) .theme-pill,
+html:not([data-corners="sharp"]) .chain-select,
+html:not([data-corners="sharp"]) .toast,
+html:not([data-corners="sharp"]) .wa-act,
+html:not([data-corners="sharp"]) .asset-row,
+html:not([data-corners="sharp"]) .wa-pill{border-radius:14px!important}
+html:not([data-corners="sharp"]) .btn,
+html:not([data-corners="sharp"]) .chip,
+html:not([data-corners="sharp"]) .action,
+html:not([data-corners="sharp"]) .wa-act .wa-ico{border-radius:12px!important}
+html:not([data-corners="sharp"]) .wa-act .wa-ico{border-radius:50%!important}
 html,body{margin:0;min-height:100%;font-family:var(--font-ui);
   background:var(--bg);color:var(--text);line-height:1.45;
   overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch}
@@ -312,29 +317,52 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 #app{min-height:100vh;padding-bottom:calc(var(--nav-h) + var(--safe-b))}
 #app.browser-focus .top{display:none}
 #app.browser-focus .content{max-width:none;padding:0;padding-bottom:calc(var(--nav-h) + var(--safe-b))}
-.top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;padding:12px 14px;
-  padding-top:calc(12px + var(--safe-t));
-  background:var(--top-bg);backdrop-filter:blur(16px);
-  border-bottom:1px solid var(--border)}
-.top img{width:38px;height:38px;border-radius:50%;object-fit:cover;
-  border:2px solid color-mix(in srgb,var(--green) 55%,transparent);box-shadow:var(--glow)}
-.top .t{font-family:var(--font-display);font-weight:700;font-size:.95rem;letter-spacing:.06em}
+.top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;padding:10px 16px;
+  padding-top:calc(10px + var(--safe-t));
+  background:var(--top-bg);backdrop-filter:blur(20px);
+  border-bottom:1px solid transparent}
+.top img{width:34px;height:34px;border-radius:50%;object-fit:cover;
+  border:1.5px solid color-mix(in srgb,var(--green) 40%,transparent)}
+.top .t{font-family:var(--font-display);font-weight:700;font-size:.88rem;letter-spacing:.04em}
 .top .t span{color:var(--green)}
-.top .s{font-size:.72rem;color:var(--muted);letter-spacing:.04em}
+.top .s{font-size:.68rem;color:var(--muted);letter-spacing:.02em;max-width:42vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .grow{flex:1}
 .chip{border:1px solid var(--border);background:var(--card2);color:var(--muted);
   border-radius:999px;padding:6px 10px;font-size:.72rem;font-weight:700;letter-spacing:.04em}
 .chip.ok{color:var(--green);border-color:var(--green)}
-.content{max-width:520px;margin:0 auto;padding:16px;width:100%}
-.bal{text-align:center;padding:22px 12px 10px;position:relative;border-radius:24px;margin-bottom:4px;
-  background:var(--card);border:1px solid var(--border);box-shadow:var(--glow);overflow:hidden}
-.bal .lbl{color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.14em;font-weight:700;
-  font-family:var(--font-display)}
-.bal .amt{font-family:var(--font-display);font-size:clamp(1.6rem,6vw,2.2rem);font-weight:800;
-  margin:10px 0 6px;word-break:break-all;color:var(--green)}
-.bal .addr{font-family:ui-monospace,Menlo,monospace;font-size:.76rem;color:var(--muted);word-break:break-all;opacity:.9}
-.bal .sub-bal{font-size:.82rem;color:var(--muted);margin:2px 0 6px}
+.content{max-width:480px;margin:0 auto;padding:8px 16px 20px;width:100%}
+/* Portfolio hero — clean mobile wallet home */
+.bal{text-align:center;padding:8px 8px 4px;position:relative;border-radius:0;margin-bottom:0;
+  background:transparent;border:0;box-shadow:none;overflow:visible}
+.bal .lbl{color:var(--muted);font-size:.75rem;text-transform:none;letter-spacing:.02em;font-weight:600;
+  font-family:var(--font-ui)}
+.bal .amt{font-family:var(--font-ui);font-size:clamp(2rem,8vw,2.65rem);font-weight:800;
+  margin:6px 0 4px;word-break:break-all;color:var(--text);letter-spacing:-.02em;line-height:1.15}
+.bal .addr{font-family:ui-monospace,Menlo,monospace;font-size:.72rem;color:var(--muted);word-break:break-all;opacity:.85;
+  display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:var(--card2);border:1px solid var(--border);margin-top:4px}
+.bal .sub-bal{font-size:.8rem;color:var(--muted);margin:2px 0 4px}
 .bal .sub-bal b{color:var(--text);font-weight:700}
+/* Circular action strip */
+.wa-actions{display:flex;justify-content:space-around;align-items:flex-start;gap:4px;margin:18px 0 20px;padding:0 4px}
+.wa-act{flex:1;border:0;background:transparent;color:var(--text);font:inherit;cursor:pointer;padding:0;
+  display:flex;flex-direction:column;align-items:center;gap:8px;max-width:88px}
+.wa-act .wa-ico{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:1.25rem;font-weight:700;background:linear-gradient(145deg,color-mix(in srgb,var(--green) 28%,var(--card2)),color-mix(in srgb,var(--cyan) 18%,var(--card)));
+  color:var(--text);border:1px solid color-mix(in srgb,var(--green) 25%,var(--border));box-shadow:0 4px 16px rgba(0,0,0,.18)}
+.wa-act:active .wa-ico{transform:scale(.94);opacity:.9}
+.wa-act .wa-lab{font-size:.7rem;font-weight:700;color:var(--muted);letter-spacing:.02em}
+.wa-section{display:flex;align-items:center;justify-content:space-between;margin:4px 0 10px}
+.wa-section h2{margin:0;font-family:var(--font-ui);font-size:.95rem;font-weight:800;color:var(--text);text-transform:none;letter-spacing:0}
+.wa-section .wa-link{border:0;background:0;color:var(--cyan);font:inherit;font-size:.8rem;font-weight:700;cursor:pointer;padding:4px 0}
+.wa-pills{display:flex;gap:8px;overflow-x:auto;padding:0 0 10px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.wa-pills::-webkit-scrollbar{display:none}
+.wa-pill{flex:0 0 auto;border:1px solid var(--border);background:var(--card2);color:var(--muted);font:inherit;font-size:.78rem;font-weight:700;
+  padding:8px 14px;cursor:pointer;white-space:nowrap}
+.wa-pill.on{background:color-mix(in srgb,var(--green) 16%,var(--card));color:var(--green);border-color:color-mix(in srgb,var(--green) 45%,var(--border))}
+.home-extra{margin-top:8px}
+.home-extra summary{cursor:pointer;color:var(--muted);font-size:.78rem;font-weight:700;padding:10px 0;list-style:none}
+.home-extra summary::-webkit-details-marker{display:none}
+.home-extra[open] summary{color:var(--cyan)}
 .wc-modal{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.72);
   display:none;align-items:flex-end;justify-content:center;padding:16px;padding-bottom:calc(16px + var(--safe-b))}
 .wc-modal:not(.hidden){display:flex}
@@ -342,24 +370,23 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .wc-modal-detail{font-size:.7rem;white-space:pre-wrap;word-break:break-all;max-height:160px;overflow:auto;
   background:var(--field-bg);padding:10px;border:1px solid var(--border)}
 .unit-toggle{display:inline-flex;gap:0;border:1px solid var(--border);border-radius:999px;
-  overflow:hidden;margin:4px auto 8px;background:var(--card2)}.unit-toggle button{border:0;background:transparent;color:var(--muted);font:inherit;font-weight:800;
-  font-size:.72rem;letter-spacing:.08em;padding:8px 16px;cursor:pointer;min-width:64px}
-.unit-toggle button.on{background:color-mix(in srgb,var(--green) 22%,transparent);color:var(--green)}
-.bal .price-hint{font-size:.68rem;color:var(--muted);opacity:.85;margin-bottom:4px}
-.bal-head{display:flex;align-items:center;justify-content:center;position:relative;min-height:28px}
+  overflow:hidden;margin:2px auto 6px;background:var(--card2)}.unit-toggle button{border:0;background:transparent;color:var(--muted);font:inherit;font-weight:700;
+  font-size:.7rem;letter-spacing:.04em;padding:6px 14px;cursor:pointer;min-width:56px}
+.unit-toggle button.on{background:color-mix(in srgb,var(--green) 18%,transparent);color:var(--green)}
+.bal .price-hint{font-size:.72rem;color:var(--muted);opacity:.9;margin-bottom:2px}
+.bal-head{display:flex;align-items:center;justify-content:center;position:relative;min-height:24px}
 .bal-head .lbl{flex:1;text-align:center}
-.hide-bal-btn{position:absolute;right:4px;top:50%;transform:translateY(-50%);
-  width:36px;height:36px;padding:0;border:1px solid var(--border);border-radius:12px;
-  background:var(--card2);cursor:pointer;display:flex;align-items:center;justify-content:center;
-  color:var(--muted);line-height:0;transition:border-color .15s, box-shadow .15s, transform .15s}
+.hide-bal-btn{position:absolute;right:0;top:50%;transform:translateY(-50%);
+  width:34px;height:34px;padding:0;border:0;border-radius:50%;
+  background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  color:var(--muted);line-height:0}
 .hide-bal-btn:active{transform:translateY(-50%) scale(.94)}
-.hide-bal-btn.on{border-color:var(--green);color:var(--green);
-  box-shadow:0 0 0 2px color-mix(in srgb,var(--green) 20%,transparent)}
-.hide-bal-btn svg{width:26px;height:26px;display:block}
+.hide-bal-btn.on{color:var(--green)}
+.hide-bal-btn svg{width:24px;height:24px;display:block}
 .bal.hidden-bals .amt,
 .bal.hidden-bals .sub-bal b,
 .bal.hidden-bals .price-hint{filter:blur(0);letter-spacing:.12em}
-.actions{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin:16px 0}
+.actions{display:none} /* legacy grid hidden; use .wa-actions */
 .action{border:1px solid var(--border);background:var(--card);border-radius:16px;padding:14px 4px;
   color:var(--text);font:inherit;cursor:pointer}
 .action:active{border-color:var(--green)}
@@ -367,8 +394,8 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .action .n{font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--cyan)}
 .panel{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:14px 16px;margin-bottom:12px;
   backdrop-filter:blur(14px);position:relative;overflow:hidden}
-.panel h2{margin:0 0 12px;font-family:var(--font-display);font-size:.68rem;text-transform:uppercase;
-  letter-spacing:.12em;color:var(--cyan);font-weight:700}
+.panel h2{margin:0 0 12px;font-family:var(--font-ui);font-size:.85rem;text-transform:none;
+  letter-spacing:0;color:var(--text);font-weight:800}
 .theme-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 .theme-pill{border:1px solid var(--border);background:var(--card2);color:var(--text);border-radius:14px;
   padding:12px 8px;font:inherit;font-weight:700;cursor:pointer;text-align:center}
@@ -379,15 +406,20 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 /* Assets hub */
 .chain-select{width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--border);
   background:var(--field-bg);color:var(--text);font:inherit;font-weight:700;margin:0 0 12px}
-.asset-row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:1px solid var(--border);
-  background:var(--card2);border-radius:16px;padding:12px 14px;margin:0 0 10px;cursor:pointer;color:var(--text);font:inherit}
-.asset-row:active{border-color:var(--green)}
-.asset-row .ico{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;
-  font-weight:800;font-size:.85rem;background:color-mix(in srgb,var(--green) 12%,transparent);color:var(--green);flex-shrink:0}
+.asset-row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:0;
+  background:transparent;border-radius:0;padding:14px 4px;margin:0;cursor:pointer;color:var(--text);font:inherit;
+  border-bottom:1px solid color-mix(in srgb,var(--border) 70%,transparent)}
+.asset-row:last-child{border-bottom:0}
+.asset-row:active{background:color-mix(in srgb,var(--green) 6%,transparent)}
+.asset-row .ico{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:.72rem;background:color-mix(in srgb,var(--green) 14%,var(--card2));color:var(--green);flex-shrink:0;
+  border:1px solid color-mix(in srgb,var(--green) 20%,var(--border))}
 .asset-row .meta{flex:1;min-width:0}
-.asset-row .sym{font-weight:800;font-size:1.02rem}
-.asset-row .nm{font-size:.78rem;color:var(--muted)}
-.asset-row .bal{font-weight:700;color:var(--cyan);font-size:.95rem;text-align:right}
+.asset-row .sym{font-weight:700;font-size:.98rem}
+.asset-row .nm{font-size:.75rem;color:var(--muted);margin-top:2px}
+.asset-row .bal{font-weight:700;color:var(--text);font-size:.95rem;text-align:right;line-height:1.25}
+.asset-row .bal small{display:block;font-weight:600;font-size:.72rem;color:var(--muted);margin-top:2px}
+#homeAssetList{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:4px 10px;margin-bottom:8px}
 .asset-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
 .asset-actions .btn{margin:0;min-height:48px;font-size:.78rem}
 .tx-row{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:.88rem}
@@ -491,22 +523,17 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .mono{font-family:ui-monospace,Menlo,monospace;font-size:.82rem;word-break:break-all}
 .bottom{position:fixed;left:0;right:0;bottom:0;width:100%;box-sizing:border-box;
   display:flex;flex-direction:row;align-items:stretch;justify-content:space-evenly;
-  background:var(--bottom-bg);backdrop-filter:blur(18px);
-  border-top:1px solid var(--border);
-  padding:4px env(safe-area-inset-right,0px) calc(6px + var(--safe-b)) env(safe-area-inset-left,0px);
-  z-index:30}
-.tab{border:0;background:0;color:var(--muted);font:inherit;font-size:.62rem;font-weight:700;
-  flex:1 1 0;min-width:0;max-width:100%;min-height:56px;cursor:pointer;
+  background:var(--bottom-bg);backdrop-filter:blur(22px);
+  border-top:1px solid color-mix(in srgb,var(--border) 80%,transparent);
+  padding:6px env(safe-area-inset-right,0px) calc(8px + var(--safe-b)) env(safe-area-inset-left,0px);
+  z-index:30;box-shadow:0 -8px 28px rgba(0,0,0,.12)}
+.tab{border:0;background:0;color:var(--muted);font:inherit;font-size:.62rem;font-weight:650;
+  flex:1 1 0;min-width:0;max-width:100%;min-height:52px;cursor:pointer;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:3px;letter-spacing:.03em;text-transform:uppercase;padding:6px 2px;margin:0}
-.tab span.ico{font-size:1.2rem;line-height:1;display:block}
-.tab.on{color:var(--green);text-shadow:0 0 12px rgba(0,255,198,.5)}
-.tab.on span.ico{transform:scale(1.06)}
-/* Home quick actions — 2×3 grid, easier than 4 tiny buttons */
-.actions.quick-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:4px 0 14px}
-.actions.quick-grid .action{min-height:68px;padding:10px 6px}
-.actions.quick-grid .action .ico{font-size:1.25rem}
-.actions.quick-grid .action .n{font-size:.72rem}
+  gap:3px;letter-spacing:.02em;text-transform:none;padding:4px 2px;margin:0}
+.tab span.ico{font-size:1.28rem;line-height:1;display:block;opacity:.85}
+.tab.on{color:var(--green)}
+.tab.on span.ico{opacity:1;transform:translateY(-1px)}
 .top-brand{display:flex;align-items:center;gap:10px;min-width:0;cursor:pointer;border:0;background:0;padding:0;color:inherit;font:inherit;text-align:left}
 .top-brand:active{opacity:.85}
 .top-jump{border:1px solid var(--border);background:var(--card2);color:var(--text);width:36px;height:36px;border-radius:10px;font-size:1rem;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center}
@@ -764,39 +791,32 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
   <div class="top">
     <button type="button" class="top-brand" onclick="showPage('home')" title="Home" aria-label="Go home">
       <img src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt=""/>
-      <div><div class="t">Howl<span>coin</span></div><div class="s" id="syncSub">Public chain</div></div>
+      <div><div class="t">Howl<span>coin</span></div><div class="s" id="syncSub">Wallet</div></div>
     </button>
     <div class="grow"></div>
-    <button type="button" class="top-jump" onclick="openJumpSheet()" title="Jump to…" aria-label="Open navigation">▦</button>
-    <span class="chip" id="liveChip" onclick="showPage('activity')" title="Activity" style="cursor:pointer">● …</span>
+    <button type="button" class="top-jump" onclick="showPage('activity')" title="History" aria-label="Activity">☰</button>
+    <button type="button" class="top-jump" onclick="openJumpSheet()" title="Apps" aria-label="All apps">▦</button>
+    <span class="chip" id="liveChip" onclick="showPage('activity')" title="Network" style="cursor:pointer">●</span>
   </div>
   <div class="content">
-    <!-- HOME -->
+    <!-- HOME — portfolio-first mobile wallet layout -->
     <div class="page on" id="p-home">
       <div class="bal" id="balCard">
         <div class="bal-head">
-          <div class="lbl">Total balance</div>
+          <div class="lbl">Total assets</div>
           <button type="button" class="hide-bal-btn" id="hideBalBtn" title="Hide balances" aria-label="Hide balances" aria-pressed="false">
-            <!-- Dog covering eyes with paws (Howl hide) -->
             <svg viewBox="0 0 64 64" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
               <ellipse cx="32" cy="36" rx="18" ry="16" fill="currentColor" opacity=".14"/>
               <path d="M18 28c-4-8-10-10-12-6 2 6 6 10 12 12" fill="currentColor" opacity=".9"/>
               <path d="M46 28c4-8 10-10 12-6-2 6-6 10-12 12" fill="currentColor" opacity=".9"/>
               <ellipse cx="32" cy="34" rx="15" ry="14" fill="currentColor"/>
               <ellipse cx="32" cy="40" rx="7" ry="5.5" fill="var(--card2, #1a1024)" opacity=".35"/>
-              <!-- snout -->
               <ellipse cx="32" cy="40" rx="5" ry="3.5" fill="var(--card2, #1a1024)" opacity=".25"/>
               <ellipse cx="32" cy="38.5" rx="2.2" ry="1.6" fill="var(--card2, #1a1024)"/>
-              <!-- paws covering eyes -->
               <g class="hide-paws">
                 <ellipse cx="22" cy="30" rx="7.5" ry="5.5" fill="currentColor" transform="rotate(-18 22 30)"/>
                 <ellipse cx="42" cy="30" rx="7.5" ry="5.5" fill="currentColor" transform="rotate(18 42 30)"/>
-                <circle cx="18.5" cy="28" r="1.6" fill="var(--card2, #1a1024)" opacity=".35"/>
-                <circle cx="20.5" cy="26.5" r="1.4" fill="var(--card2, #1a1024)" opacity=".35"/>
-                <circle cx="45.5" cy="28" r="1.6" fill="var(--card2, #1a1024)" opacity=".35"/>
-                <circle cx="43.5" cy="26.5" r="1.4" fill="var(--card2, #1a1024)" opacity=".35"/>
               </g>
-              <!-- peek eyes when balances visible (paws slightly lower opacity still cover) -->
               <g class="hide-eyes" opacity=".0">
                 <circle cx="25" cy="31" r="2.2" fill="var(--card2, #1a1024)"/>
                 <circle cx="39" cy="31" r="2.2" fill="var(--card2, #1a1024)"/>
@@ -809,65 +829,64 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
           <button type="button" data-u="usd" class="on" id="unitUsdBtn">USD</button>
           <button type="button" data-u="btc" id="unitBtcBtn">BTC</button>
         </div>
-        <div class="price-hint" id="portfolioHint">All assets · tap USD / BTC</div>
+        <div class="price-hint" id="portfolioHint">Portfolio value</div>
         <div class="sub-bal" id="howlSubBal">HOWL: —</div>
         <div class="addr" id="addr" onclick="copyText(keypair&&keypair.address,'HOWL address')" style="cursor:pointer" title="Copy HOWL address">—</div>
-        <div class="net-pulse" id="netPulse" title="Network status">
-          <span class="np live" id="npLive" onclick="showPage('activity')"><b>● …</b></span>
-          <span class="np" id="npH" onclick="openExternalUrl('https://howlscan.org/')">H <b>—</b></span>
-          <span class="np" id="npD" onclick="openExternalUrl('https://howlscan.org/')">Diff <b>—</b></span>
-          <span class="np" id="npM" onclick="showPage('activity')">Mempool <b>—</b></span>
-          <span class="np" id="npShare" onclick="openShareCard('address')">Share</span>
-        </div>
         <div class="empty-cta hidden" id="homeEmptyCta">
-          <button type="button" class="cta" onclick="openExternalUrl('https://howlscan.org/#/run')"><span class="ico">⛏</span><div><div class="t">Mine HOWL</div><div class="s">Run a node · connect public seed</div></div></button>
-          <button type="button" class="cta" onclick="showPage('swap')"><span class="ico">⇄</span><div><div class="t">Get HOWL</div><div class="s">Howl Swap or Jupiter</div></div></button>
-          <button type="button" class="cta" onclick="showPage('recv')"><span class="ico">↓</span><div><div class="t">Deposit</div><div class="s">Receive on HOWL or multi-chain</div></div></button>
+          <button type="button" class="cta" onclick="openExternalUrl('https://howlscan.org/#/run')"><span class="ico">⛏</span><div><div class="t">Mine HOWL</div><div class="s">Run a node · public seed</div></div></button>
+          <button type="button" class="cta" onclick="showPage('swap')"><span class="ico">⇄</span><div><div class="t">Get HOWL</div><div class="s">Swap into the ecosystem</div></div></button>
+          <button type="button" class="cta" onclick="showPage('recv')"><span class="ico">↓</span><div><div class="t">Receive</div><div class="s">Deposit on any chain</div></div></button>
         </div>
-        <div class="wallet-switch" id="walletSwitch">
-          <label class="hint" style="margin:0;text-transform:none;letter-spacing:0">Wallets</label>
-          <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;justify-content:center">
-            <select class="chain-select" id="walletSelect" style="margin:0;flex:1;min-width:140px;max-width:220px"></select>
-            <button type="button" class="chip" id="btnWalletNew" style="cursor:pointer" title="Create another wallet">+ New</button>
-            <button type="button" class="chip" id="btnWalletImport" style="cursor:pointer" title="Import recovery phrase">Import phrase</button>
-            <button type="button" class="chip" id="btnWalletImportKey" style="cursor:pointer" title="Import HOWL private key (64 hex)">Import key</button>
-            <button type="button" class="chip" id="btnWalletDelete" style="cursor:pointer;color:var(--red,#f66);border-color:rgba(255,80,80,.35)" title="Remove selected wallet from this device">Delete</button>
+      </div>
+
+      <div class="wa-actions" role="navigation" aria-label="Quick actions">
+        <button class="wa-act" type="button" onclick="showPage('recv')"><span class="wa-ico">↓</span><span class="wa-lab">Receive</span></button>
+        <button class="wa-act" type="button" onclick="showPage('send')"><span class="wa-ico">↑</span><span class="wa-lab">Send</span></button>
+        <button class="wa-act" type="button" onclick="showPage('swap')"><span class="wa-ico">⇄</span><span class="wa-lab">Swap</span></button>
+        <button class="wa-act" type="button" onclick="showPage('nft')"><span class="wa-ico">◆</span><span class="wa-lab">NFTs</span></button>
+      </div>
+
+      <div class="wa-section">
+        <h2>Crypto</h2>
+        <button type="button" class="wa-link" onclick="showPage('assets')">Manage ›</button>
+      </div>
+      <div class="wa-pills" id="homeChainPills" aria-label="Filter by chain"></div>
+      <select class="chain-select hidden" id="homeChainSelect" aria-hidden="true"></select>
+      <div id="homeAssetList"><p class="hint">Loading…</p></div>
+
+      <details class="home-extra">
+        <summary>Network · wallets · tools</summary>
+        <div class="panel" style="margin-top:8px">
+          <div class="net-pulse" id="netPulse" title="Network status">
+            <span class="np live" id="npLive" onclick="showPage('activity')"><b>● …</b></span>
+            <span class="np" id="npH" onclick="openExternalUrl('https://howlscan.org/')">H <b id="height">—</b></span>
+            <span class="np" id="npD" onclick="openExternalUrl('https://howlscan.org/')">Diff <b id="homeDiff">—</b></span>
+            <span class="np" id="npM" onclick="showPage('activity')">Mem <b>—</b></span>
+            <span class="np" id="npShare" onclick="openShareCard('address')">Share</span>
           </div>
-          <p class="hint" id="walletSwitchHint" style="margin:6px 0 0">Switch · create · import · delete</p>
+          <div class="item"><div>Min fee</div><div class="r" id="minFee" style="color:var(--amber)">1 HOWL</div></div>
+          <div class="item"><div>Security</div><div class="r" id="secStatus" style="color:var(--text);font-size:.8rem">PIN</div></div>
+          <div class="wallet-switch" id="walletSwitch" style="margin-top:10px">
+            <label class="hint" style="margin:0;text-transform:none;letter-spacing:0">Wallets</label>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;justify-content:center">
+              <select class="chain-select" id="walletSelect" style="margin:0;flex:1;min-width:140px;max-width:220px"></select>
+              <button type="button" class="chip" id="btnWalletNew" style="cursor:pointer">+ New</button>
+              <button type="button" class="chip" id="btnWalletImport" style="cursor:pointer">Import</button>
+              <button type="button" class="chip" id="btnWalletImportKey" style="cursor:pointer">Key</button>
+              <button type="button" class="chip" id="btnWalletDelete" style="cursor:pointer;color:var(--danger)">Delete</button>
+            </div>
+            <p class="hint" id="walletSwitchHint" style="margin:6px 0 0">Switch · create · import</p>
+          </div>
+          <button type="button" class="btn sec" style="margin-top:10px" onclick="openExternalUrl('https://howlscan.org/')">Open explorer</button>
         </div>
-      </div>
-      <div class="actions quick-grid" role="navigation" aria-label="Quick actions">
-        <button class="action" type="button" onclick="showPage('send')"><span class="ico">↑</span><span class="n">Send</span></button>
-        <button class="action" type="button" onclick="showPage('recv')"><span class="ico">↓</span><span class="n">Deposit</span></button>
-        <button class="action" type="button" onclick="showPage('nft')"><span class="ico">◆</span><span class="n">NFTs</span></button>
-        <button class="action" type="button" onclick="showPage('swap')"><span class="ico">⇄</span><span class="n">Swap</span></button>
-        <button class="action" type="button" onclick="showPage('activity')"><span class="ico">☰</span><span class="n">Activity</span></button>
-        <button class="action" type="button" onclick="openJumpSheet()"><span class="ico">▦</span><span class="n">All apps</span></button>
-      </div>
-      <div class="panel">
-        <h2>Network</h2>
-        <div class="item"><div>Height</div><div class="r" id="height" style="color:var(--text)">—</div></div>
-        <div class="item"><div>Difficulty</div><div class="r" id="homeDiff" style="color:var(--text);font-size:.8rem">—</div></div>
-        <div class="item"><div>Min fee</div><div class="r" id="minFee" style="color:var(--amber)">1 HOWL</div></div>
-        <div class="item"><div>Security</div><div class="r" id="secStatus" style="color:var(--text);font-size:.8rem">PIN</div></div>
-        <button type="button" class="btn sec" style="margin-top:10px" onclick="openExternalUrl('https://howlscan.org/')">Open Howlscan</button>
-      </div>
-      <div class="panel">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">
-          <h2 style="margin:0">Assets</h2>
-          <button type="button" class="chip" style="cursor:pointer" onclick="showPage('assets')">All chains ›</button>
+        <div class="panel">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
+            <h2 style="margin:0">Recent activity</h2>
+            <button type="button" class="wa-link" onclick="showPage('activity')">All ›</button>
+          </div>
+          <div id="activity"><p class="hint">Syncing…</p></div>
         </div>
-        <label style="margin-bottom:6px">Chain</label>
-        <select class="chain-select" id="homeChainSelect"></select>
-        <div id="homeAssetList"><p class="hint">Loading assets…</p></div>
-      </div>
-      <div class="panel">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
-          <h2 style="margin:0">HOWL activity</h2>
-          <button type="button" class="chip" style="cursor:pointer" onclick="showPage('activity')">Full feed ›</button>
-        </div>
-        <div id="activity"><p class="hint">Syncing…</p></div>
-      </div>
+      </details>
     </div>
 
     <!-- ACTIVITY FEED -->
@@ -1751,8 +1770,8 @@ const TOOLBAR_CATALOG = [
   { id: "names", label: "Names", icon: "@", page: "names" },
   { id: "more", label: "More", icon: "☰", page: "more", fixed: true },
 ];
-/** Daily-use defaults: money + NFTs (user can customize under More → Toolbar) */
-const DEFAULT_TOOLBAR = ["home", "send", "recv", "nft", "more"];
+/** Four-tab wallet chrome (customize under More → Toolbar) */
+const DEFAULT_TOOLBAR = ["home", "discover", "browser", "more"];
 
 /** Structured More menu + jump sheet destinations */
 const MORE_MENU = [
@@ -2831,13 +2850,12 @@ function updateNetPulse(sum, pendingCount){
   const d = $("npD");
   const m = $("npM");
   if(live) live.innerHTML = `<b>● LIVE</b>`;
-  if(h) h.innerHTML = `H <b>${escHtml(String(sum?.height ?? chainInfo.height ?? "—"))}</b>`;
+  if(h) h.innerHTML = `H <b id="height">${escHtml(String(sum?.height ?? chainInfo.height ?? "—"))}</b>`;
   const dLab = sum?.difficulty_label || sum?.difficulty_float || sum?.difficulty;
-  if(d) d.innerHTML = `Diff <b>${escHtml(dLab != null ? String(dLab) : "—")}</b>`;
-  if(m) m.innerHTML = `Mempool <b>${escHtml(String(pendingCount ?? sum?.mempool ?? "—"))}</b>`;
-  if($("homeDiff") && dLab != null) $("homeDiff").textContent = String(dLab);
+  if(d) d.innerHTML = `Diff <b id="homeDiff">${escHtml(dLab != null ? String(dLab) : "—")}</b>`;
+  if(m) m.innerHTML = `Mem <b>${escHtml(String(pendingCount ?? sum?.mempool ?? "—"))}</b>`;
   if($("liveChip")){
-    $("liveChip").textContent = "● LIVE";
+    $("liveChip").textContent = "●";
     $("liveChip").className = "chip ok";
   }
 }
@@ -3758,7 +3776,6 @@ function fillChainSelects(){
       `<option value="${c.id}">${c.label}</option>`
     ).join("");
     el.value = prev;
-    // wire once (module scope — inline onchange cannot set `let selectedChain`)
     if(!el.dataset.wired){
       el.dataset.wired = "1";
       el.addEventListener("change", ()=>{
@@ -3766,24 +3783,47 @@ function fillChainSelects(){
       });
     }
   });
+  renderHomeChainPills();
+}
+function renderHomeChainPills(){
+  const host = $("homeChainPills");
+  if(!host) return;
+  // Compact pills: All (howl first chains users care about)
+  const pills = [
+    { id: "howl", label: "HOWL" },
+    { id: "solana", label: "SOL" },
+    { id: "ethereum", label: "ETH" },
+    { id: "tezos", label: "XTZ" },
+    { id: "bitcoin", label: "BTC" },
+  ];
+  host.innerHTML = pills.map(p =>
+    `<button type="button" class="wa-pill ${selectedChain===p.id?"on":""}" data-ch="${p.id}">${p.label}</button>`
+  ).join("") + `<button type="button" class="wa-pill" data-ch="__all" onclick="showPage('assets')">All</button>`;
+  host.querySelectorAll("[data-ch]").forEach(btn=>{
+    if(btn.dataset.ch === "__all") return;
+    btn.onclick = ()=> setSelectedChain(btn.dataset.ch, "home");
+  });
 }
 function renderAssetRows(containerId){
   const el = $(containerId);
   if(!el) return;
   const list = assetsForChain(selectedChain);
   if(!list.length){
-    el.innerHTML = `<p class="hint">No assets on this chain</p>`;
+    el.innerHTML = `<p class="hint" style="padding:16px 8px">No assets on this chain</p>`;
     return;
   }
-  el.innerHTML = list.map(a=>`
-    <button type="button" class="asset-row" data-id="${escHtml(a.id)}">
-      <span class="ico">${escHtml(assetDisplaySymbol(a).slice(0,4))}</span>
+  el.innerHTML = list.map(a=>{
+    const sym = assetDisplaySymbol(a);
+    const bal = assetBalanceText(a);
+    return `<button type="button" class="asset-row" data-id="${escHtml(a.id)}">
+      <span class="ico">${escHtml(sym.slice(0,4))}</span>
       <div class="meta">
-        <div class="sym">${escHtml(assetDisplaySymbol(a))}</div>
-        <div class="nm">${escHtml(a.name||a.network||"")}</div>
+        <div class="sym">${escHtml(sym)}</div>
+        <div class="nm">${escHtml(a.network||a.name||"")}</div>
       </div>
-      <div class="bal">${escHtml(assetBalanceText(a))}</div>
-    </button>`).join("");
+      <div class="bal">${escHtml(bal)}<small>${escHtml(a.name||"")}</small></div>
+    </button>`;
+  }).join("");
   el.querySelectorAll(".asset-row").forEach(btn=>{
     btn.onclick = ()=> openAssetDetail(btn.dataset.id);
   });
@@ -3793,6 +3833,7 @@ function renderHomeAssets(refill){
   if($("homeChainSelect") && $("homeChainSelect").value !== selectedChain){
     $("homeChainSelect").value = selectedChain;
   }
+  renderHomeChainPills();
   renderAssetRows("homeAssetList");
 }
 function renderAssetsList(refill){
@@ -8082,7 +8123,12 @@ async function refresh(){
       delete localPendingNonce[keypair.address];
     }
     chainInfo.txs = addr.transactions || [];
+    if(addr.name){
+      nameCache.byAddr[keypair.address] = addr.name;
+      nameCache.byName[addr.name] = keypair.address;
+    }
     minFeeHowl = fees.default_fee_howl || 1;
+    loadNameCache(false);
     setAssetBal("howl", howlAmount(), 8);
     $("addr").textContent = keypair.address;
     $("height").textContent = sum.height;
