@@ -2820,6 +2820,17 @@ class ExplorerServer:
                         )
                     return self._json(404, {"error": "security.txt not found"})
 
+                # robots.txt — AI training bots blocked; normal search allowed
+                if path == "/robots.txt":
+                    rob = ASSETS_DIR / "robots.txt"
+                    if rob.is_file():
+                        return self._bytes(
+                            200,
+                            rob.read_bytes(),
+                            "text/plain; charset=utf-8",
+                        )
+                    return self._json(404, {"error": "robots.txt not found"})
+
                 if path in ("/", "/index.html"):
                     return self._bytes(200, EXPLORER_HTML.encode(), "text/html; charset=utf-8")
 
