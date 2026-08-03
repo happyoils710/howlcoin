@@ -287,6 +287,18 @@ body::after{
 .btn:active{transform:scale(.98)}
 .btn.sec{background:var(--card2);color:var(--text);border-color:var(--border2);box-shadow:none}
 .btn.danger{background:transparent;color:var(--danger);border-color:var(--danger);box-shadow:none}
+/* Create-account wizard */
+.gate-steps{display:flex;gap:6px;justify-content:center;margin:0 0 14px}
+.gate-steps span{width:28px;height:4px;background:var(--border);border-radius:2px;opacity:.5}
+.gate-steps span.on{background:var(--green);opacity:1;box-shadow:0 0 10px rgba(0,255,198,.4)}
+.gate-steps span.done{background:var(--cyan);opacity:.85}
+.gate-check{display:flex;align-items:flex-start;gap:10px;margin:10px 0;padding:10px;border:1px solid var(--border);background:var(--field-bg);font-size:.9rem;color:var(--muted);cursor:pointer;text-align:left}
+.gate-check input{margin-top:3px;flex-shrink:0;width:18px;height:18px;accent-color:var(--green)}
+.gate-sec-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid var(--border);font-size:.92rem}
+.gate-sec-row:last-child{border-bottom:0}
+.gate-sec-row b{color:var(--text);display:block}
+.gate-sec-row span{color:var(--muted);font-size:.8rem}
+.gate-badge{display:inline-block;padding:2px 8px;border:1px solid var(--green);color:var(--green);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px}
 .btn:disabled{opacity:.5}
 .field{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border);
   background:var(--field-bg);color:var(--text);font:inherit;font-size:16px;margin:6px 0 12px}
@@ -712,7 +724,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 <body>
 <div id="gate" class="screen">
   <img class="logo" src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt="HOWL"/>
-  <h1>Howlcoin Wallet</h1>
+  <h1>Howlcoin</h1>
   <p id="gateMsg">Loading…</p>
   <div class="card" id="gateCard"></div>
 </div>
@@ -8175,99 +8187,311 @@ function removeCustom(key){
   toast("Removed");
 }
 
-// --- gates ---
+// --- gates / Create account wizard ---
+/** @type {null | { step:number, name:string, phrase:string, pin:string, words:string[], confirmIdx:number[], totpSecret:string|null, wantBio:boolean, backupAck:boolean }} */
+let accountWizard = null;
+
+function gateStepBar(step, total = 4){
+  return `<div class="gate-steps" aria-label="Step ${step} of ${total}">${
+    Array.from({length: total}, (_, i) =>
+      `<span class="${i+1===step?"on":(i+1<step?"done":"")}"></span>`
+    ).join("")
+  }</div>`;
+}
+
 function uiCreate(){
-  $("gateMsg").textContent = "HOWL · SOL · ETH · stables · Face ID · 2FA";
+  accountWizard = null;
+  $("gateMsg").textContent = "howlscan.org · non-custodial · PIN · 2FA · Face ID";
   showGate(`
-    <button class="btn" type="button" id="btnCreate">Create wallet</button>
-    <button class="btn sec" type="button" id="btnRestore">Restore with phrase</button>
+    <div class="gate-badge">howlscan.org</div>
+    <p class="hint" style="margin-top:0;text-align:left">Create a free local <b>account</b> on this device. Keys never leave your phone/browser — Howlscan does not store your phrase.</p>
+    <button class="btn" type="button" id="btnCreate">Create account</button>
+    <button class="btn sec" type="button" id="btnRestore">Sign in / restore phrase</button>
     <button class="btn sec" type="button" id="btnRestoreKey">Import private key</button>
+    <p class="hint" style="margin-top:12px;font-size:.78rem;text-align:left">Account security: device PIN vault · optional Google Authenticator · optional Face ID / Touch ID · 12-word recovery.</p>
   `);
-  $("btnCreate").onclick = ()=>{
-    const phrase = createMnemonic();
+  $("btnCreate").onclick = ()=> startAccountWizard();
+  $("btnRestore").onclick = ()=> uiRestorePhrase();
+  $("btnRestoreKey").onclick = ()=> uiRestoreKey();
+}
+
+function startAccountWizard(){
+  const phrase = createMnemonic();
+  const words = phrase.split(/\s+/);
+  // 3 random word positions to confirm later
+  const idxs = [];
+  while(idxs.length < 3){
+    const n = Math.floor(Math.random() * words.length);
+    if(!idxs.includes(n)) idxs.push(n);
+  }
+  idxs.sort((a,b)=>a-b);
+  accountWizard = {
+    step: 1,
+    name: "Main",
+    phrase,
+    words,
+    pin: "",
+    confirmIdx: idxs,
+    totpSecret: null,
+    wantBio: false,
+    backupAck: false,
+  };
+  renderAccountWizard();
+}
+
+function renderAccountWizard(){
+  const w = accountWizard;
+  if(!w) return uiCreate();
+  const step = w.step;
+  if(step === 1){
+    $("gateMsg").textContent = "Create account · 1/4 profile & PIN";
     showGate(`
-      <p class="hint">Write these 12 words offline. They restore HOWL + multi-chain deposit keys.</p>
-      <div class="words">${phrase.split(" ").map((w,i)=>`<div class="word"><b>${i+1}.</b> ${w}</div>`).join("")}</div>
-      <label>PIN (encrypts wallet on this device)</label>
-      <input class="field" id="pin1" type="password" inputmode="numeric" maxlength="8" placeholder="4–8 digits"/>
-      <input class="field" id="pin2" type="password" inputmode="numeric" maxlength="8" placeholder="Confirm PIN"/>
+      ${gateStepBar(1)}
+      <p class="hint" style="margin-top:0;text-align:left">Name this account and set a <b>device PIN</b>. The PIN encrypts your vault on this device only.</p>
+      <label>Account name</label>
+      <input class="field" id="accName" maxlength="24" placeholder="Main · Phone · Savings" value="${escAttr(w.name)}"/>
+      <label>PIN (4–8 digits)</label>
+      <input class="field" id="pin1" type="password" inputmode="numeric" maxlength="8" autocomplete="new-password" placeholder="••••"/>
+      <label>Confirm PIN</label>
+      <input class="field" id="pin2" type="password" inputmode="numeric" maxlength="8" autocomplete="new-password" placeholder="••••"/>
       <div class="err" id="gErr"></div>
-      <button class="btn" type="button" id="btnSave">Create wallet</button>
+      <button class="btn" type="button" id="accNext">Continue</button>
+      <button class="btn sec" type="button" id="accBack">Back</button>
     `);
-    $("btnSave").onclick = async ()=>{
+    $("accBack").onclick = uiCreate;
+    $("accNext").onclick = ()=>{
       try{
-        const a=$("pin1").value.trim(), b=$("pin2").value.trim();
+        const name = ($("accName").value || "").trim() || "Main";
+        if(name.length > 24) throw new Error("Name too long");
+        const a = $("pin1").value.trim(), b = $("pin2").value.trim();
         if(!/^\d{4,8}$/.test(a)) throw new Error("PIN must be 4–8 digits");
-        if(a!==b) throw new Error("PINs do not match");
-        await openSession(phrase, a, {});
-        toast("Wallet created");
-      }catch(e){ $("gErr").textContent=e.message; }
+        if(a !== b) throw new Error("PINs do not match");
+        w.name = name;
+        w.pin = a;
+        w.step = 2;
+        renderAccountWizard();
+      }catch(e){ $("gErr").textContent = e.message; }
     };
-  };
-  $("btnRestore").onclick = ()=>{
+    return;
+  }
+  if(step === 2){
+    $("gateMsg").textContent = "Create account · 2/4 recovery phrase";
     showGate(`
-      <label>Recovery phrase</label>
-      <textarea class="field" id="restPhrase" rows="3" style="resize:vertical"></textarea>
-      <label>Device PIN</label>
-      <input class="field" id="restPin" type="password" inputmode="numeric" maxlength="8"/>
+      ${gateStepBar(2)}
+      <p class="hint" style="margin-top:0;text-align:left"><b>Write these 12 words offline</b> (paper, not screenshots). They restore HOWL + multi-chain deposits. Anyone with them controls your funds.</p>
+      <div class="words">${w.words.map((word,i)=>`<div class="word"><b>${i+1}.</b> ${escHtml(word)}</div>`).join("")}</div>
+      <button class="btn sec" type="button" id="accCopyPhrase">Copy phrase (temporary)</button>
+      <label class="gate-check"><input type="checkbox" id="accAck"/> <span>I wrote down my recovery phrase and understand Howlscan cannot recover it for me.</span></label>
       <div class="err" id="gErr"></div>
-      <button class="btn" type="button" id="btnDoRest">Restore</button>
-      <button class="btn sec" type="button" id="btnBack">Back</button>
+      <button class="btn" type="button" id="accNext">I saved my phrase →</button>
+      <button class="btn sec" type="button" id="accBack">Back</button>
     `);
-    $("btnBack").onclick = uiCreate;
-    $("btnDoRest").onclick = async ()=>{
-      try{
-        const pin=$("restPin").value.trim();
-        if(!/^\d{4,8}$/.test(pin)) throw new Error("PIN must be 4–8 digits");
-        await openSession($("restPhrase").value, pin, {});
-        toast("Restored");
-      }catch(e){ $("gErr").textContent=e.message; }
+    $("accCopyPhrase").onclick = ()=>{ copyText(w.phrase); toast("Copied — clear clipboard after writing it down"); };
+    $("accBack").onclick = ()=>{ w.step = 1; renderAccountWizard(); };
+    $("accNext").onclick = ()=>{
+      if(!$("accAck")?.checked){ $("gErr").textContent = "Confirm you saved your recovery phrase"; return; }
+      w.backupAck = true;
+      w.step = 3;
+      renderAccountWizard();
     };
-  };
-  $("btnRestoreKey").onclick = ()=>{
+    return;
+  }
+  if(step === 3){
+    $("gateMsg").textContent = "Create account · 3/4 verify backup";
+    const fields = w.confirmIdx.map((idx, i) =>
+      `<label>Word #${idx+1}</label><input class="field" id="cw${i}" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="word ${idx+1}"/>`
+    ).join("");
     showGate(`
-      <p class="hint">Paste a raw HOWL secp256k1 private key (64 hex chars). Same format as the CLI import. HOWL + ETH only — multi-chain seed paths need a 12-word phrase.</p>
-      <label>Private key</label>
-      <textarea class="field" id="restKey" rows="2" style="resize:vertical;font-family:ui-monospace,Menlo,monospace;font-size:.85rem" placeholder="64 hex characters"></textarea>
-      <label>Device PIN</label>
-      <input class="field" id="restKeyPin" type="password" inputmode="numeric" maxlength="8"/>
+      ${gateStepBar(3)}
+      <p class="hint" style="margin-top:0;text-align:left">Prove you saved the phrase — enter the words below (any order as labeled).</p>
+      ${fields}
       <div class="err" id="gErr"></div>
-      <button class="btn" type="button" id="btnDoRestKey">Import key</button>
-      <button class="btn sec" type="button" id="btnBackKey">Back</button>
+      <button class="btn" type="button" id="accNext">Verified → security</button>
+      <button class="btn sec" type="button" id="accBack">Back</button>
     `);
-    $("btnBackKey").onclick = uiCreate;
-    $("btnDoRestKey").onclick = async ()=>{
+    $("accBack").onclick = ()=>{ w.step = 2; renderAccountWizard(); };
+    $("accNext").onclick = ()=>{
       try{
-        const pin = $("restKeyPin").value.trim();
-        if(!/^\d{4,8}$/.test(pin)) throw new Error("PIN must be 4–8 digits");
-        const keyHex = normalizePrivateKeyHex($("restKey").value);
-        const preview = keypairFromPrivateHex(keyHex);
-        const id = newWalletId();
-        const multi = {
-          version: 3,
-          activeId: id,
-          wallets: [{
-            id,
-            name: "Main",
-            mnemonic: null,
-            privateKeyHex: keyHex,
-            totpSecret: null,
-            totpEnabled: false,
-            createdAt: Date.now(),
-          }],
-        };
-        await openSession(null, pin, multi);
-        toast("Imported · " + preview.address.slice(0, 8) + "…");
-      }catch(e){ $("gErr").textContent = e.message || "Import failed"; }
+        for(let i = 0; i < w.confirmIdx.length; i++){
+          const got = ($("cw"+i).value || "").trim().toLowerCase();
+          const want = w.words[w.confirmIdx[i]];
+          if(got !== want) throw new Error("Word #" + (w.confirmIdx[i]+1) + " does not match");
+        }
+        w.step = 4;
+        renderAccountWizard();
+      }catch(e){ $("gErr").textContent = e.message; }
     };
+    return;
+  }
+  if(step === 4){
+    $("gateMsg").textContent = "Create account · 4/4 extra security";
+    const bioOk = !!(window.PublicKeyCredential);
+    showGate(`
+      ${gateStepBar(4)}
+      <p class="hint" style="margin-top:0;text-align:left">Add optional layers. You can change these later under <b>More → Security</b>.</p>
+      <div class="gate-sec-row">
+        <div><b>PIN vault</b><span>Required · encrypts this device</span></div>
+        <span class="badge on">On</span>
+      </div>
+      <div class="gate-sec-row">
+        <div><b>Recovery phrase</b><span>Verified backup</span></div>
+        <span class="badge on">Done</span>
+      </div>
+      <div class="gate-sec-row">
+        <div><b>Google Authenticator (2FA)</b><span>Code on unlock &amp; sends</span></div>
+        <button class="btn sec" type="button" id="accTotp" style="width:auto;min-height:40px;margin:0;padding:8px 12px;font-size:.65rem">${w.totpSecret?"✓ On":"Set up"}</button>
+      </div>
+      <div class="gate-sec-row">
+        <div><b>Face ID / Touch ID</b><span>${bioOk?"Unlock without typing PIN":"Not available in this browser"}</span></div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--muted)">
+          <input type="checkbox" id="accBio" ${w.wantBio?"checked":""} ${bioOk?"":"disabled"}/> Enable
+        </label>
+      </div>
+      <div id="accTotpBox" class="hidden" style="margin-top:8px">
+        <p class="hint">Scan with Google Authenticator / Authy, then enter the 6-digit code.</p>
+        <div class="qr" style="text-align:center"><img id="accTotpQr" alt="2FA QR" style="max-width:160px"/></div>
+        <div class="mono" id="accTotpSecret" style="font-size:.72rem;word-break:break-all;margin:8px 0"></div>
+        <label>Authenticator code</label>
+        <input class="field" id="accTotpCode" inputmode="numeric" maxlength="6" placeholder="000000"/>
+        <button class="btn sec" type="button" id="accTotpConfirm">Confirm 2FA</button>
+      </div>
+      <div class="err" id="gErr"></div>
+      <button class="btn" type="button" id="accFinish">Create secure account</button>
+      <button class="btn sec" type="button" id="accBack">Back</button>
+    `);
+    $("accBack").onclick = ()=>{ w.step = 3; renderAccountWizard(); };
+    $("accBio").onchange = ()=>{ w.wantBio = !!$("accBio").checked; };
+    $("accTotp").onclick = ()=>{
+      if(w.totpSecret){ toast("2FA already set for this account"); return; }
+      const secret = generateTotpSecret();
+      w._totpPending = secret;
+      const url = totpOtpauthUrl(secret, (w.name || "wallet").slice(0, 16), "Howlcoin");
+      $("accTotpBox").classList.remove("hidden");
+      $("accTotpSecret").textContent = secret;
+      $("accTotpQr").src = "https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=" + encodeURIComponent(url);
+    };
+    $("accTotpConfirm").onclick = ()=>{
+      const secret = w._totpPending;
+      if(!secret){ toast("Tap Set up first"); return; }
+      const code = ($("accTotpCode").value || "").trim();
+      if(!verifyTotp(secret, code)){ $("gErr").textContent = "Code incorrect — try again"; return; }
+      w.totpSecret = secret;
+      w._totpPending = null;
+      $("accTotpBox").classList.add("hidden");
+      $("accTotp").textContent = "✓ On";
+      $("gErr").textContent = "";
+      toast("2FA ready");
+    };
+    $("accFinish").onclick = ()=> finishAccountWizard();
+  }
+}
+
+async function finishAccountWizard(){
+  const w = accountWizard;
+  if(!w || !w.pin || !w.phrase) return;
+  const err = $("gErr");
+  try{
+    if(err) err.textContent = "";
+    const btn = $("accFinish");
+    if(btn){ btn.disabled = true; btn.textContent = "Creating…"; }
+    await openSession(w.phrase, w.pin, {
+      name: w.name,
+      totpSecret: w.totpSecret,
+      totpEnabled: !!w.totpSecret,
+    });
+    if(w.wantBio){
+      try{ await setupBiometric(); }
+      catch(e){ toast("Account created — Face ID skipped: " + (e.message || e)); }
+    }
+    const layers = ["PIN", "recovery phrase"];
+    if(w.totpSecret) layers.push("2FA");
+    if(hasBiometricUnlock()) layers.push("Face ID");
+    toast("Account ready · " + layers.join(" · "));
+    try{ fireConfetti("howl"); }catch(_){}
+    accountWizard = null;
+  }catch(e){
+    if(err) err.textContent = e.message || String(e);
+    const btn = $("accFinish");
+    if(btn){ btn.disabled = false; btn.textContent = "Create secure account"; }
+  }
+}
+
+function uiRestorePhrase(){
+  $("gateMsg").textContent = "Sign in with recovery phrase";
+  showGate(`
+    <p class="hint" style="margin-top:0;text-align:left">Restore an existing Howlcoin account on this device. You’ll set a new device PIN.</p>
+    <label>Recovery phrase (12 words)</label>
+    <textarea class="field" id="restPhrase" rows="3" style="resize:vertical" placeholder="word1 word2 … word12"></textarea>
+    <label>New device PIN</label>
+    <input class="field" id="restPin" type="password" inputmode="numeric" maxlength="8" placeholder="4–8 digits"/>
+    <label>Confirm PIN</label>
+    <input class="field" id="restPin2" type="password" inputmode="numeric" maxlength="8" placeholder="Confirm"/>
+    <div class="err" id="gErr"></div>
+    <button class="btn" type="button" id="btnDoRest">Restore account</button>
+    <button class="btn sec" type="button" id="btnBack">Back</button>
+  `);
+  $("btnBack").onclick = uiCreate;
+  $("btnDoRest").onclick = async ()=>{
+    try{
+      const pin = $("restPin").value.trim();
+      const pin2 = $("restPin2").value.trim();
+      if(!/^\d{4,8}$/.test(pin)) throw new Error("PIN must be 4–8 digits");
+      if(pin !== pin2) throw new Error("PINs do not match");
+      await openSession($("restPhrase").value, pin, { name: "Restored" });
+      toast("Account restored");
+    }catch(e){ $("gErr").textContent = e.message; }
+  };
+}
+
+function uiRestoreKey(){
+  $("gateMsg").textContent = "Import private key";
+  showGate(`
+    <p class="hint" style="margin-top:0;text-align:left">Paste a raw HOWL secp256k1 private key (64 hex). HOWL + ETH only — for Tezos/Solana use a 12-word phrase instead.</p>
+    <label>Private key</label>
+    <textarea class="field" id="restKey" rows="2" style="resize:vertical;font-family:ui-monospace,Menlo,monospace;font-size:.85rem" placeholder="64 hex characters"></textarea>
+    <label>Device PIN</label>
+    <input class="field" id="restKeyPin" type="password" inputmode="numeric" maxlength="8"/>
+    <label>Confirm PIN</label>
+    <input class="field" id="restKeyPin2" type="password" inputmode="numeric" maxlength="8"/>
+    <div class="err" id="gErr"></div>
+    <button class="btn" type="button" id="btnDoRestKey">Import key account</button>
+    <button class="btn sec" type="button" id="btnBackKey">Back</button>
+  `);
+  $("btnBackKey").onclick = uiCreate;
+  $("btnDoRestKey").onclick = async ()=>{
+    try{
+      const pin = $("restKeyPin").value.trim();
+      const pin2 = $("restKeyPin2").value.trim();
+      if(!/^\d{4,8}$/.test(pin)) throw new Error("PIN must be 4–8 digits");
+      if(pin !== pin2) throw new Error("PINs do not match");
+      const keyHex = normalizePrivateKeyHex($("restKey").value);
+      const preview = keypairFromPrivateHex(keyHex);
+      const id = newWalletId();
+      const multi = {
+        version: 3,
+        activeId: id,
+        wallets: [{
+          id,
+          name: "Key import",
+          mnemonic: null,
+          privateKeyHex: keyHex,
+          totpSecret: null,
+          totpEnabled: false,
+          createdAt: Date.now(),
+        }],
+      };
+      await openSession(null, pin, multi);
+      toast("Imported · " + preview.address.slice(0, 8) + "…");
+    }catch(e){ $("gErr").textContent = e.message || "Import failed"; }
   };
 }
 
 function uiUnlock(){
-  $("gateMsg").textContent = "Unlock your wallet";
+  $("gateMsg").textContent = "Unlock your howlscan account";
   const bio = hasBiometricUnlock();
   const need2fa = !!(meta.totpEnabled);
   showGate(`
+    <div class="gate-badge">howlscan.org</div>
     ${bio?`<button class="btn" type="button" id="btnBio">Unlock with Face ID / Touch ID</button>
     <p class="hint" style="text-align:center;margin:4px 0 10px">No PIN required when Face ID is enabled</p>`:""}
     ${bio?`<p class="hint" style="text-align:center;margin:0 0 8px">Or use PIN backup</p>`:""}
@@ -8275,8 +8499,8 @@ function uiUnlock(){
     <input class="field" id="unPin" type="password" inputmode="numeric" maxlength="8" placeholder="PIN"/>
     ${need2fa?`<label>Authenticator code</label><input class="field" id="unTotp" inputmode="numeric" maxlength="6" placeholder="6 digits"/>`:""}
     <div class="err" id="gErr"></div>
-    <button class="btn ${bio?"sec":""}" type="button" id="btnUn">${bio?"Open with PIN":"Open wallet"}</button>
-    <button class="btn sec" type="button" id="btnRest2">Restore different phrase</button>
+    <button class="btn ${bio?"sec":""}" type="button" id="btnUn">${bio?"Open with PIN":"Unlock account"}</button>
+    <button class="btn sec" type="button" id="btnRest2">Create / restore another account</button>
   `);
   async function applyVault(vault, pinOrNull){
     const multi = normalizeMultiVault(vault);
