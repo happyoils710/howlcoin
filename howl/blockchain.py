@@ -586,6 +586,23 @@ class Blockchain:
             # oracle posts are self-targeted (no coin transfer)
             if amount != 0:
                 return False, "oracle amount must be 0"
+            # On-chain names: howl.name.<slug> — first claimant wins
+            if key.startswith("howl.name."):
+                slug = key[len("howl.name.") :]
+                ok_n, msg_n = self._validate_name_slug(slug)
+                if not ok_n:
+                    return False, msg_n
+                existing = self.oracle.get(key)
+                if existing and (existing.get("reporter") or "") != tx["from"]:
+                    return False, f"name @{slug} already taken"
+                # value should identify the owner address (canonical)
+                if str(val).strip() and str(val).strip() != tx["from"]:
+                    # allow value == slug as soft display, or must be self address
+                    if str(val).strip().lower() != slug.lower():
+                        if not is_valid_address(str(val).strip()):
+                            return False, "name value must be your HOWL address or the name itself"
+                        if str(val).strip() != tx["from"]:
+                            return False, "name value address must match your wallet"
         elif t == "contract_deploy":
             ok, msg = self._validate_contract_deploy(tx, contracts)
             if not ok:
@@ -1736,6 +1753,117 @@ class Blockchain:
     def oracle_get(self, key: str) -> Optional[Dict[str, Any]]:
         return self.oracle.get(key)
 
+    # ---------- on-chain names (howl.name.<slug>) ----------
+
+    NAME_PREFIX = "howl.name."
+    NAME_RESERVED = frozenset(
+        {
+            "howl",
+            "howlcoin",
+            "admin",
+            "null",
+            "undefined",
+            "owner",
+            "root",
+            "miner",
+            "genesis",
+            "oracle",
+            "system",
+            "support",
+            "official",
+        }
+    )
+
+    @classmethod
+    def _validate_name_slug(cls, slug: str) -> Tuple[bool, str]:
+        s = (slug or "").strip().lower()
+        if len(s) < 3 or len(s) > 16:
+            return False, "name must be 3–16 characters"
+        if not all(c.isalnum() or c == "_" for c in s):
+            return False, "name: only a–z, 0–9, underscore"
+        if s[0] == "_" or s[-1] == "_":
+            return False, "name cannot start/end with underscore"
+        if s in cls.NAME_RESERVED:
+            return False, f"name @{s} is reserved"
+        if s.isdigit():
+            return False, "name cannot be only digits"
+        return True, "ok"
+
+    def name_registry(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Map slug -> { name, address, height, txid, key }.
+        Primary: oracle keys howl.name.<slug> (reporter = owner).
+        Legacy: single key howl.name with value=slug (reporter = owner).
+        """
+        reg: Dict[str, Dict[str, Any]] = {}
+        # legacy first (weaker) — overwritten by explicit howl.name.slug keys
+        legacy = self.oracle.get("howl.name")
+        if legacy:
+            slug = str(legacy.get("value") or "").strip().lower()
+            addr = legacy.get("reporter") or ""
+            ok, _ = self._validate_name_slug(slug)
+            if ok and addr:
+                reg[slug] = {
+                    "name": slug,
+                    "address": addr,
+                    "height": legacy.get("height"),
+                    "txid": legacy.get("txid"),
+                    "key": "howl.name",
+                    "legacy": True,
+                }
+        for key, row in self.oracle.items():
+            if not key.startswith(self.NAME_PREFIX):
+                continue
+            slug = key[len(self.NAME_PREFIX) :].strip().lower()
+            ok, _ = self._validate_name_slug(slug)
+            if not ok:
+                continue
+            addr = row.get("reporter") or ""
+            val = str(row.get("value") or "").strip()
+            if is_valid_address(val):
+                addr = val
+            if not addr:
+                continue
+            reg[slug] = {
+                "name": slug,
+                "address": addr,
+                "height": row.get("height"),
+                "txid": row.get("txid"),
+                "key": key,
+                "legacy": False,
+            }
+        return reg
+
+    def resolve_name(self, name: str) -> Optional[Dict[str, Any]]:
+        s = (name or "").strip().lower()
+        if s.startswith("@"):
+            s = s[1:]
+        if s.endswith(".howl"):
+            s = s[: -len(".howl")]
+        reg = self.name_registry()
+        return reg.get(s)
+
+    def name_for_address(self, address: str) -> Optional[str]:
+        addr = (address or "").strip()
+        if not addr:
+            return None
+        # prefer non-legacy, highest height if multiple
+        best: Optional[Tuple[int, str]] = None
+        for slug, row in self.name_registry().items():
+            if row.get("address") != addr:
+                continue
+            h = int(row.get("height") or 0)
+            if best is None or h >= best[0]:
+                best = (h, slug)
+        return best[1] if best else None
+
+    def list_names(self, limit: int = 200) -> List[Dict[str, Any]]:
+        items = list(self.name_registry().values())
+        items.sort(
+            key=lambda r: (-(r.get("height") or 0), r.get("name") or "")
+        )
+        return items[: max(1, min(500, limit))]
+
     def _enrich_contract(self, c: Dict[str, Any]) -> Dict[str, Any]:
         out = dict(c)
         bal = int(out.get("balance") or 0)
@@ -1815,11 +1943,14 @@ class Blockchain:
                         }
                     )
         txs = list(reversed(txs))[:limit]
+        nm = self.name_for_address(address)
         return {
             "address": address,
             "balance": self.balance(address),
             "balance_fmt": format_howl(self.balance(address)),
             "nonce": self.next_nonce(address),
+            "name": nm,
+            "name_display": f"@{nm}" if nm else None,
             "tx_count": len(txs),
             "transactions": txs,
         }

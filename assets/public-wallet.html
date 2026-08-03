@@ -960,13 +960,13 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       <div class="page-head"><button type="button" class="back" onclick="showPage('home')">‹ Home</button><h1>Send</h1></div>
       <div class="panel">
         <h2>Send HOWL</h2>
-        <label>To address</label>
+        <label>To address or @name</label>
         <div style="display:flex;gap:8px;align-items:center">
-          <input class="field" id="sendTo" placeholder="H…" spellcheck="false" style="margin:0;flex:1"/>
+          <input class="field" id="sendTo" placeholder="H… or @howler" spellcheck="false" style="margin:0;flex:1" autocapitalize="off"/>
           <button type="button" class="chip" style="cursor:pointer;flex-shrink:0" id="btnScanQr" onclick="toggleSendQrScan()">Scan QR</button>
         </div>
         <video id="sendQrVideo" playsinline muted style="width:100%;max-height:200px;margin:8px 0;display:none;border:1px solid var(--border);background:#000"></video>
-        <p class="hint" id="sendQrHint" style="margin:4px 0 8px">Or pick a recent / saved address</p>
+        <p class="hint" id="sendQrHint" style="margin:4px 0 8px">HOWL address, <b>@name</b>, or name.howl · <a href="#" onclick="showPage('names');return false" style="color:var(--cyan)">claim a name</a></p>
         <div class="addr-chips" id="sendAddrChips"></div>
         <label>Amount (HOWL)</label>
         <input class="field" id="sendAmt" inputmode="decimal" placeholder="0"/>
@@ -1501,13 +1501,27 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <div class="howl-feed" id="howlFeed"><p class="hint">—</p></div>
       </div>
       <div class="panel hidden" id="playNames">
-        <h2>Address names</h2>
-        <p class="hint">Nicknames stay on this device and show in Activity / Send. Set a public display name via oracle (1 HOWL fee).</p>
-        <label>Your public name (on-chain)</label>
-        <input class="field" id="pubName" maxlength="32" placeholder="Howler"/>
-        <button class="btn sec" type="button" onclick="postPublicName()">Publish name (1 HOWL)</button>
+        <h2>On-chain names</h2>
+        <p class="hint">Claim a unique <b>@name</b> on Howlcoin (3–16 chars, a–z 0–9 _). First claim wins. Costs <b>1 HOWL</b> fee. Shows in Activity &amp; Send.</p>
+        <p class="hint" id="myOnchainName" style="margin:0 0 10px">Your name: <b>—</b></p>
+        <label>Register name</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="color:var(--muted);font-weight:700">@</span>
+          <input class="field" id="pubName" maxlength="16" placeholder="howler" style="margin:0;flex:1" spellcheck="false" autocapitalize="off"/>
+        </div>
+        <button class="btn" type="button" onclick="postPublicName()">Claim name (1 HOWL)</button>
         <p class="err" id="pubNameErr"></p>
-        <label style="margin-top:12px">Local nickname for an address</label>
+        <p class="hint" id="pubNameTx"></p>
+        <label style="margin-top:14px">Lookup name → address</label>
+        <div style="display:flex;gap:8px">
+          <input class="field" id="nameLookup" placeholder="@howler or howler.howl" style="margin:0;flex:1" spellcheck="false"/>
+          <button type="button" class="chip" style="cursor:pointer" onclick="lookupOnchainName()">Lookup</button>
+        </div>
+        <div id="nameLookupOut" class="hint" style="margin-top:8px"></div>
+        <h3 style="margin:16px 0 8px;font-size:.85rem">Directory</h3>
+        <button class="btn sec" type="button" onclick="refreshNameDirectory()">↻ Refresh names</button>
+        <div id="nameDirectory" style="margin-top:10px"><p class="hint">Loading…</p></div>
+        <h3 style="margin:16px 0 8px;font-size:.85rem">Local nicknames (this device only)</h3>
         <input class="field" id="nickName" placeholder="Friend"/>
         <input class="field" id="nickAddr" placeholder="H…"/>
         <button class="btn sec" type="button" onclick="saveNickname()">Save local name</button>
@@ -1734,6 +1748,7 @@ const TOOLBAR_CATALOG = [
   { id: "nft", label: "NFT", icon: "◆", page: "nft" },
   { id: "oracle", label: "Oracle", icon: "◎", page: "oracle" },
   { id: "contracts", label: "Contracts", icon: "⚙", page: "contracts" },
+  { id: "names", label: "Names", icon: "@", page: "names" },
   { id: "more", label: "More", icon: "☰", page: "more", fixed: true },
 ];
 /** Daily-use defaults: money + NFTs (user can customize under More → Toolbar) */
@@ -1750,7 +1765,8 @@ const MORE_MENU = [
   ]},
   { section: "Collectibles", items: [
     { id: "nft", icon: "◆", title: "NFTs", sub: "Howl · Tezos · mint · send", page: "nft" },
-    { id: "contracts", icon: "⚙", title: "Smart contracts", sub: "Tip jar · timelock · escrow", page: "contracts" },
+    { id: "names", icon: "@", title: "On-chain names", sub: "Claim @name · send by name", page: "names" },
+    { id: "contracts", icon: "⚙", title: "Smart contracts", sub: "Pack pot · bark bond · tip jar", page: "contracts" },
   ]},
   { section: "Apps", items: [
     { id: "browser", icon: "⌕", title: "Howl Search", sub: "Web · dApps", page: "browser" },
@@ -2921,7 +2937,11 @@ function setPlayTab(tab){
     if(el) el.classList.toggle("hidden", k !== playTab);
   });
   if(playTab === "duel") renderDuelMyQr();
-  if(playTab === "names") renderNickList();
+  if(playTab === "names"){
+    renderNickList();
+    refreshNameDirectory();
+    refreshMyOnchainName();
+  }
   if(playTab === "howl") refreshHowlFeed();
   if(playTab !== "duel") stopDuelScan();
 }
@@ -3034,12 +3054,72 @@ function loadNicks(){
   try{ return JSON.parse(localStorage.getItem(LS_NICKS) || "{}"); }catch{ return {}; }
 }
 function saveNicks(m){ localStorage.setItem(LS_NICKS, JSON.stringify(m || {})); }
+
+/** On-chain name cache: { byAddr: {H…: slug}, byName: {slug: H…}, at } */
+let nameCache = { byAddr: {}, byName: {}, at: 0 };
+
+function normalizeNameSlug(raw){
+  let s = String(raw || "").trim().toLowerCase();
+  if(s.startsWith("@")) s = s.slice(1);
+  if(s.endsWith(".howl")) s = s.slice(0, -5);
+  return s;
+}
+function validateNameSlugClient(slug){
+  const s = normalizeNameSlug(slug);
+  if(s.length < 3 || s.length > 16) return "Name must be 3–16 characters";
+  if(!/^[a-z0-9_]+$/.test(s)) return "Only a–z, 0–9, underscore";
+  if(s[0] === "_" || s[s.length-1] === "_") return "Cannot start/end with underscore";
+  if(/^\d+$/.test(s)) return "Cannot be only digits";
+  const reserved = ["howl","howlcoin","admin","null","system","oracle","official"];
+  if(reserved.includes(s)) return "Name is reserved";
+  return null;
+}
+
+async function loadNameCache(force){
+  if(!force && nameCache.at && Date.now() - nameCache.at < 60_000) return nameCache;
+  try{
+    const j = await api("/api/public/names?limit=200");
+    const byAddr = {}, byName = {};
+    for(const row of (j.names || [])){
+      const n = (row.name || "").toLowerCase();
+      const a = row.address || "";
+      if(n && a){ byName[n] = a; byAddr[a] = n; }
+    }
+    nameCache = { byAddr, byName, at: Date.now() };
+  }catch(_){}
+  return nameCache;
+}
+
 function displayName(addr){
   if(!addr) return "—";
+  const on = nameCache.byAddr[addr];
+  if(on) return "@" + on;
   const n = loadNicks()[addr];
   if(n) return n + " · " + shortAddr(addr);
   return shortAddr(addr);
 }
+
+/** Resolve @name / name.howl / H… → HOWL address or null */
+async function resolveHowlRecipient(input){
+  const t = String(input || "").trim();
+  if(!t) return null;
+  if(isValidAddress(t)) return t;
+  const slug = normalizeNameSlug(t);
+  if(!slug) return null;
+  await loadNameCache(false);
+  if(nameCache.byName[slug]) return nameCache.byName[slug];
+  try{
+    const j = await api("/api/public/name/" + encodeURIComponent(slug));
+    const a = j.name?.address;
+    if(a && isValidAddress(a)){
+      nameCache.byName[slug] = a;
+      nameCache.byAddr[a] = slug;
+      return a;
+    }
+  }catch(_){}
+  return null;
+}
+
 function saveNickname(){
   const name = ($("nickName")?.value || "").trim();
   const addr = ($("nickAddr")?.value || "").trim();
@@ -3047,7 +3127,6 @@ function saveNickname(){
   const m = loadNicks();
   m[addr] = name;
   saveNicks(m);
-  // also address book
   try{ addAddressBookEntry(name, addr); }catch(_){}
   if($("nickName")) $("nickName").value = "";
   if($("nickAddr")) $("nickAddr").value = "";
@@ -3066,22 +3145,112 @@ function renderNickList(){
       <button type="button" class="chip" style="cursor:pointer" onclick="pickSendAddress(${JSON.stringify(a)});showPage('send')">Send</button>
     </div>`).join("");
 }
+
+async function refreshMyOnchainName(){
+  const el = $("myOnchainName");
+  if(!el || !keypair) return;
+  await loadNameCache(true);
+  const n = nameCache.byAddr[keypair.address];
+  el.innerHTML = n
+    ? `Your name: <b style="color:var(--green)">@${escHtml(n)}</b> · <span class="mono" style="font-size:.75rem">${escHtml(shortAddr(keypair.address))}</span>`
+    : `Your name: <b>not claimed</b> · <span class="mono" style="font-size:.75rem">${escHtml(shortAddr(keypair.address))}</span>`;
+}
+
+async function refreshNameDirectory(){
+  const el = $("nameDirectory");
+  if(!el) return;
+  el.innerHTML = `<p class="hint">Loading…</p>`;
+  try{
+    await loadNameCache(true);
+    const j = await api("/api/public/names?limit=100");
+    const rows = j.names || [];
+    if(!rows.length){
+      el.innerHTML = `<p class="hint">No names registered yet — be the first @howler</p>`;
+      return;
+    }
+    el.innerHTML = rows.map(r => `
+      <div class="item">
+        <div>
+          <b style="color:var(--green)">@${escHtml(r.name)}</b>
+          <div class="m mono" style="font-size:.72rem">${escHtml(r.address || "")}</div>
+          <div class="m">#${escHtml(String(r.height ?? "—"))}${r.legacy ? " · legacy" : ""}</div>
+        </div>
+        <button type="button" class="chip" style="cursor:pointer" onclick="pickSendAddress(${JSON.stringify(r.address||"")});showPage('send')">Send</button>
+      </div>`).join("");
+    await refreshMyOnchainName();
+  }catch(e){
+    el.innerHTML = `<p class="err">${escHtml(e.message || e)}</p>`;
+  }
+}
+
+async function lookupOnchainName(){
+  const out = $("nameLookupOut");
+  const raw = ($("nameLookup")?.value || "").trim();
+  if(!raw){ toast("Enter a name"); return; }
+  if(out) out.textContent = "Looking up…";
+  try{
+    const slug = normalizeNameSlug(raw);
+    const err = validateNameSlugClient(slug);
+    // still try lookup even if format soft-fails for partials
+    const j = await api("/api/public/name/" + encodeURIComponent(slug));
+    const a = j.name?.address;
+    if(!a) throw new Error("Not found");
+    nameCache.byName[slug] = a;
+    nameCache.byAddr[a] = slug;
+    if(out){
+      out.innerHTML = `<b>@${escHtml(slug)}</b> → <span class="mono">${escHtml(a)}</span>
+        <button type="button" class="chip" style="cursor:pointer;margin-left:8px" onclick="pickSendAddress(${JSON.stringify(a)});showPage('send')">Send HOWL</button>
+        <button type="button" class="chip" style="cursor:pointer" onclick="copyText(${JSON.stringify(a)},'address')">Copy</button>`;
+    }
+  }catch(e){
+    if(out) out.innerHTML = `<span class="err">Not found · ${escHtml(e.message || "try another name")}</span>`;
+  }
+}
+
 async function postPublicName(){
   $("pubNameErr") && ($("pubNameErr").textContent = "");
+  $("pubNameTx") && ($("pubNameTx").textContent = "");
   try{
-    const name = ($("pubName")?.value || "").trim();
-    if(!name) throw new Error("Enter a name");
-    if(name.length > 32) throw new Error("Max 32 chars");
-    await postOracle({
-      source_chain: "howlcoin",
-      oracle_key: "howl.name",
-      oracle_value: name,
+    if(!keypair) throw new Error("Unlock first");
+    const raw = ($("pubName")?.value || "").trim();
+    const slug = normalizeNameSlug(raw);
+    const verr = validateNameSlugClient(slug);
+    if(verr) throw new Error(verr);
+    // check taken
+    try{
+      const ex = await api("/api/public/name/" + encodeURIComponent(slug));
+      if(ex.name?.address && ex.name.address !== keypair.address){
+        throw new Error("@" + slug + " is already taken");
+      }
+    }catch(e){
+      if(e.message && e.message.includes("taken")) throw e;
+      // 404 ok
+    }
+    openSlideConfirm({
+      title: "Slide to claim @" + slug,
+      rows: [
+        { k: "Name", v: "@" + slug },
+        { k: "Owner", v: shortAddr(keypair.address) },
+        { k: "Fee", v: "1 HOWL (miner)" },
+        { k: "Key", v: "howl.name." + slug },
+      ],
+      onConfirm: async () => {
+        await postOracle({
+          source_chain: "howlcoin",
+          oracle_key: "howl.name." + slug,
+          oracle_value: keypair.address,
+        });
+        const m = loadNicks();
+        m[keypair.address] = slug;
+        saveNicks(m);
+        nameCache.byName[slug] = keypair.address;
+        nameCache.byAddr[keypair.address] = slug;
+        if($("pubNameTx")) $("pubNameTx").textContent = "Name claim queued — needs a mined block, then Refresh";
+        toast("@" + slug + " queued (1 HOWL fee)");
+        fireConfetti("howl");
+        setTimeout(()=>{ refreshNameDirectory(); refreshMyOnchainName(); }, 2000);
+      },
     });
-    const m = loadNicks();
-    if(keypair) m[keypair.address] = name;
-    saveNicks(m);
-    toast("Name queued on-chain (1 HOWL fee)");
-    fireConfetti("howl");
   }catch(e){
     if($("pubNameErr")) $("pubNameErr").textContent = e.message || String(e);
   }
@@ -3975,7 +4144,7 @@ function normalizeToolbar(ids){
 }
 /** Pages that live under More (for bottom-tab highlight) */
 const MORE_NESTED = new Set([
-  "more","sec","toolbar","appearance","wc","oracle","contracts","play","browser","discover","asset",
+  "more","sec","toolbar","appearance","wc","oracle","contracts","play","browser","discover","asset","names",
 ]);
 
 function toolbarActiveId(activePage){
@@ -4151,10 +4320,13 @@ function resetToolbar(){
 let currentPage = "home";
 
 function showPage(name){
-  currentPage = name || "home";
+  // On-chain names live under Play → Names (same UI, dedicated route)
+  const openNamesTab = (name === "names");
+  if(openNamesTab) name = "play";
+  currentPage = openNamesTab ? "names" : (name || "home");
   try{ closeJumpSheet(); }catch(_){}
   document.querySelectorAll(".page").forEach(p=>p.classList.toggle("on", p.id==="p-"+name));
-  renderToolbar(name);
+  renderToolbar(currentPage);
   const app = $("app");
   if(app) app.classList.toggle("browser-focus", name === "browser");
   if(name!=="browser" && app) app.classList.remove("browser-focus");
@@ -4187,8 +4359,15 @@ function showPage(name){
   if(name==="discover") loadDiscover(false);
   if(name==="nft"){ wireNftPage(); setNftDashTab(nftDashTab || "mine"); }
   if(name==="activity"){ renderActivityFull(); }
-  if(name==="send"){ renderSendAddrChips(); renderAddressBookUI(); }
-  if(name==="play"){ setPlayTab(playTab || "request"); }
+  if(name==="send"){ renderSendAddrChips(); renderAddressBookUI(); loadNameCache(); }
+  if(name==="play"){
+    setPlayTab(openNamesTab ? "names" : (playTab || "request"));
+    if(openNamesTab || playTab === "names"){
+      refreshNameDirectory();
+      refreshMyOnchainName();
+      renderNickList();
+    }
+  }
   if(name!=="send") try{ stopSendQrScan(); }catch(_){}
   if(name!=="play") try{ stopDuelScan(); }catch(_){}
   if(name!=="send") try{ closeSlideConfirm(); }catch(_){}
@@ -8095,7 +8274,16 @@ async function prepareSendConfirm(){
   $("sendErr").textContent = "";
   try{
     await requireTotpIfNeeded($("sendTotp"));
-    const to = $("sendTo").value.trim();
+    let toRaw = $("sendTo").value.trim();
+    // Resolve @name / name.howl → address
+    let to = toRaw;
+    if(!isValidAddress(to)){
+      const resolved = await resolveHowlRecipient(toRaw);
+      if(!resolved) throw new Error("Invalid address or unknown @name — try Names directory");
+      to = resolved;
+      if($("sendTo")) $("sendTo").value = to;
+      toast("Resolved " + toRaw + " → " + shortAddr(to));
+    }
     const amount = parseHowl($("sendAmt").value);
     const fee = parseHowl($("sendFee").value || String(minFeeHowl));
     if(fee < COIN) throw new Error("Fee must be at least 1 HOWL");
@@ -8114,12 +8302,13 @@ async function prepareSendConfirm(){
     }catch(e){
       if(e.message && e.message.includes("pending")) throw e;
     }
-    const nick = (typeof displayName === "function") ? displayName(to) : to;
+    const nick = displayName(to);
     $("sendBtn").disabled = true;
     openSlideConfirm({
       title: "Slide to send HOWL",
       rows: [
         { k: "To", v: nick },
+        { k: "Address", v: shortAddr(to) },
         { k: "Amount", v: formatHowl(amount) },
         { k: "Fee (miner)", v: formatHowl(fee) },
         { k: "Total", v: formatHowl(amount + fee) },
@@ -9261,7 +9450,7 @@ function boot(skipInstallPrompt){
       }
     }
   }catch(_){}
-  if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=7").catch(()=>{});
+  if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=8").catch(()=>{});
   if(!skipInstallPrompt && !isStandalone() && !sessionStorage.getItem("howl_skip_install") && !sessionStorage.getItem("howl_saw_install")){
     sessionStorage.setItem("howl_saw_install","1");
     uiInstall();
@@ -9350,6 +9539,10 @@ window.sharePayRequest = sharePayRequest;
 window.postHowlMemo = postHowlMemo;
 window.saveNickname = saveNickname;
 window.postPublicName = postPublicName;
+window.lookupOnchainName = lookupOnchainName;
+window.refreshNameDirectory = refreshNameDirectory;
+window.resolveHowlRecipient = resolveHowlRecipient;
+window.loadNameCache = loadNameCache;
 window.toggleDuelScan = toggleDuelScan;
 window.fireConfetti = fireConfetti;
 window.copyNftRecvAddr = copyNftRecvAddr;

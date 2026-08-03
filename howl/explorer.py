@@ -3468,6 +3468,45 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                             },
                         )
 
+                    # On-chain names: howl.name.<slug>
+                    if rest[0] in ("names", "name"):
+                        if rest[0] == "name" and len(rest) >= 2:
+                            q = urllib.parse.unquote(rest[1]).strip()
+                            row = chain.resolve_name(q)
+                            if not row:
+                                return self._json(404, {"error": "name not found"})
+                            return self._json(200, {"network": net, "name": row})
+                        # ?q= or ?address=
+                        q = (qs.get("q") or qs.get("name") or [None])[0]
+                        addr = (qs.get("address") or [None])[0]
+                        if q:
+                            row = chain.resolve_name(q)
+                            if not row:
+                                return self._json(404, {"error": "name not found"})
+                            return self._json(200, {"network": net, "name": row})
+                        if addr:
+                            nm = chain.name_for_address(addr)
+                            return self._json(
+                                200,
+                                {
+                                    "network": net,
+                                    "address": addr,
+                                    "name": nm,
+                                    "name_display": f"@{nm}" if nm else None,
+                                },
+                            )
+                        limit = int(qs.get("limit", ["100"])[0])
+                        rows = chain.list_names(limit=limit)
+                        return self._json(
+                            200,
+                            {
+                                "network": net,
+                                "names": rows,
+                                "count": len(rows),
+                                "note": "Register via oracle key howl.name.<slug> (3–16 a-z0-9_)",
+                            },
+                        )
+
                     if rest[0] in ("contracts", "contract"):
                         if rest[0] == "contract" and len(rest) >= 2:
                             cid = urllib.parse.unquote(rest[1])
