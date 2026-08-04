@@ -1,0 +1,20 @@
+[Unit]
+Description=Howl Swap bridge relayer (SOL/USDC deposits → native HOWL)
+After=network-online.target howlcoin.service howlcoin-explorer.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/howlcoin
+Environment=PATH=/opt/howlcoin-venv/bin:/usr/bin
+Environment=HOWL_PUBLIC_DATA=/var/lib/howlcoin
+Environment=HOWL_BRIDGE_DATA=/var/lib/howlcoin
+# Optional: drop-in EnvironmentFile from bootstrap (bridge.env)
+EnvironmentFile=-/var/lib/howlcoin/bridge.env
+ExecStart=/bin/bash -c 'if [ -x /opt/howlcoin-venv/bin/python3 ]; then PY=/opt/howlcoin-venv/bin/python3; else PY=python3; fi; cd /opt/howlcoin && exec "$PY" scripts/howl-bridge-relayer.py --interval 20'
+Restart=always
+RestartSec=8
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

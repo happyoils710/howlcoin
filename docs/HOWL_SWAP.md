@@ -8,7 +8,51 @@ Semi-custodial bridge for the public wallet.
 
 This is **not** trustless. Operators hold deposit funds and the HOWL inventory.
 
-## Server env
+## Go live (bootstrap — recommended)
+
+On the VPS as **root** (after code is at `/opt/howlcoin`):
+
+```bash
+# Default rates: 100k HOWL/SOL, 10 HOWL/USDC (~$0.10/HOWL)
+bash /opt/howlcoin/scripts/install-howl-bridge.sh
+
+# Launch index 1 HOWL ≈ $1:
+bash /opt/howlcoin/scripts/install-howl-bridge.sh --howl-per-usdc 1
+
+# Use an existing Solana treasury (no new keygen):
+bash /opt/howlcoin/scripts/install-howl-bridge.sh --sol-treasury <base58>
+
+# Only create wallets + bridge.env (no systemd start):
+bash /opt/howlcoin/scripts/install-howl-bridge.sh --bootstrap-only
+```
+
+What bootstrap does:
+
+1. Creates **HOWL hot wallet** → `/var/lib/howlcoin/bridge-hot-wallet.json`
+2. Creates **Solana treasury keypair** → `/var/lib/howlcoin/bridge-sol-treasury.json` (or uses `--sol-treasury`)
+3. Writes **`/var/lib/howlcoin/bridge.env`** (rates, secrets, paths)
+4. Installs **`howl-bridge-relayer.service`** + explorer `EnvironmentFile` drop-in
+5. Restarts explorer + starts relayer
+
+Then **fund the HOWL hot address** printed by the script (inventory). Users send SOL/USDC to the Solana treasury address.
+
+```bash
+# Status
+systemctl status howl-bridge-relayer
+journalctl -u howl-bridge-relayer -n 50 --no-pager
+curl -sS https://howlscan.org/api/public/bridge | python3 -m json.tool
+cat /var/lib/howlcoin/bridge-bootstrap.json
+```
+
+Disable:
+
+```bash
+bash /opt/howlcoin/scripts/install-howl-bridge.sh --disable
+```
+
+## Server env (manual)
+
+If you prefer hand-written env instead of bootstrap:
 
 ```bash
 export HOWL_BRIDGE_ENABLED=1

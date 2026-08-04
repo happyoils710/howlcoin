@@ -105,5 +105,6 @@ echo
 echo "== Bootstrap done =="
 echo "  Sampler: systemctl status howl-charts-sampler.timer"
 echo "  Health:  tail -f /var/log/howl-health.log"
-echo "  Howl Swap stays offline until you set HOWL_BRIDGE_* + relayer (by design)"
-echo "  Wallet soft-hides Howl Swap when bridge disabled"
+echo "  Howl Swap: bash $INSTALL_DIR/scripts/install-howl-bridge.sh"
+echo "    (creates treasury + HOWL hot wallet, starts relayer; fund HOWL inventory after)"
+echo "  Wallet soft-hides Howl Swap until bridge enabled"
