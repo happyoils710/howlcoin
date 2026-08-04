@@ -551,6 +551,23 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .duel-qr{text-align:center;padding:12px 0}
 .duel-qr img{max-width:220px;width:100%;border:1px solid var(--border);background:#fff}
 .howl-feed .item{flex-direction:column;align-items:stretch;gap:4px}
+/* Howl City (wallet) */
+.city-pulse{margin:0 0 12px;border:1px solid color-mix(in srgb,var(--green) 35%,var(--border));background:rgba(0,255,198,.05);border-radius:14px;overflow:hidden}
+.city-pulse .cp-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)}
+.city-pulse .cp-head h2{margin:0;font-size:.88rem;font-weight:800}
+.city-pulse .cp-live{color:var(--green);font-size:.68rem;font-weight:800;letter-spacing:.04em}
+.city-row{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer}
+.city-row:last-child{border-bottom:0}
+.city-row .cr-t{font-size:.88rem;font-weight:650;line-height:1.35}
+.city-row .cr-m{font-size:.72rem;color:var(--muted);margin-top:3px}
+.city-filters{display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;padding:0 0 10px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.city-filters::-webkit-scrollbar{display:none}
+.city-filters button{flex:0 0 auto;border:1px solid var(--border);background:transparent;color:var(--muted);font:inherit;font-size:.72rem;font-weight:700;padding:6px 12px;cursor:pointer;border-radius:999px}
+.city-filters button.on{color:var(--green);border-color:color-mix(in srgb,var(--green) 45%,transparent);background:rgba(0,255,198,.08)}
+.id-strip{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin:6px 0 2px;font-size:.8rem}
+.id-strip .id-name{color:var(--green);font-weight:800;cursor:pointer}
+.id-strip .id-claim{color:var(--cyan);font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.app-ver{font-size:.68rem;color:var(--muted);text-align:center;margin:12px 0 4px}
 /* Slide-to-confirm sheet */
 .slide-sheet{position:fixed;left:0;right:0;bottom:0;z-index:100;transform:translateY(110%);
   transition:transform .28s cubic-bezier(.2,.8,.2,1);padding:0 0 calc(12px + var(--safe-b));
@@ -896,6 +913,9 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <div class="price-hint" id="portfolioHint">Portfolio value</div>
         <div class="sub-bal" id="howlSubBal">HOWL: —</div>
         <div class="addr" id="addr" onclick="copyText(keypair&&keypair.address,'HOWL address')" style="cursor:pointer" title="Copy HOWL address">—</div>
+        <div class="id-strip" id="homeIdStrip">
+          <span class="hint" id="homeIdHint">Identity loading…</span>
+        </div>
         <div class="empty-cta hidden" id="homeEmptyCta">
           <button type="button" class="cta" onclick="openExternalUrl('https://howlscan.org/#/run')"><span class="ico">⛏</span><div><div class="t">Mine HOWL</div><div class="s">Run a node · public seed</div></div></button>
           <button type="button" class="cta" id="homeGetHowlCta" onclick="openGetHowl()"><span class="ico">⇄</span><div><div class="t">Get HOWL</div><div class="s" id="homeGetHowlSub">Mine · receive · swap</div></div></button>
@@ -906,8 +926,19 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       <div class="wa-actions" role="navigation" aria-label="Quick actions">
         <button class="wa-act" type="button" onclick="showPage('recv')"><span class="wa-ico" data-icon="recv"></span><span class="wa-lab">Receive</span></button>
         <button class="wa-act" type="button" onclick="showPage('send')"><span class="wa-ico" data-icon="send"></span><span class="wa-lab">Send</span></button>
-        <button class="wa-act" type="button" onclick="showPage('play')"><span class="wa-ico" data-icon="spark"></span><span class="wa-lab">Play</span></button>
+        <button class="wa-act" type="button" onclick="showPage('play');setPlayTab('city')"><span class="wa-ico" data-icon="spark"></span><span class="wa-lab">City</span></button>
         <button class="wa-act" type="button" onclick="showPage('markets')"><span class="wa-ico" data-icon="chart"></span><span class="wa-lab">Charts</span></button>
+      </div>
+
+      <div class="city-pulse" id="homeCityPulse">
+        <div class="cp-head">
+          <h2>Howl City</h2>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="cp-live">● live</span>
+            <button type="button" class="wa-link" onclick="showPage('play');setPlayTab('city')">Full feed ›</button>
+          </div>
+        </div>
+        <div id="homeCityList"><p class="hint" style="padding:10px 12px;margin:0">Loading city…</p></div>
       </div>
 
       <div class="wa-section">
@@ -1022,6 +1053,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
           <div class="cs"><span>NFTs</span><b id="stNfts">—</b></div>
         </div>
         <div class="pc-actions" style="margin-top:12px">
+          <button type="button" class="btn sec" onclick="showPage('play');setPlayTab('city')">Howl City</button>
           <button type="button" class="btn sec" onclick="showPage('play')">Open Play</button>
           <button type="button" class="btn sec" onclick="showPage('nft');setNftDashTab('all')">NFT culture</button>
           <button type="button" class="btn sec" onclick="openExternalUrl('https://howlscan.org/#/health')">Howlscan status ↗</button>
@@ -1103,12 +1135,14 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         </div>
         <button type="button" class="btn sec" style="margin:0 0 12px" onclick="openJumpSheet()">▦ Jump to any screen</button>
         <div id="moreMenuHost"></div>
+        <p class="app-ver" id="appVerLabel">Howlcoin Wallet · City build</p>
       </div>
       <div class="panel">
         <h2>Snapshot</h2>
         <div class="item"><div>NFTs owned</div><div class="r" id="nftCount" style="color:var(--text)">—</div></div>
         <div class="item"><div>Oracle keys</div><div class="r" id="oracleCount" style="color:var(--text)">—</div></div>
         <div class="item"><div>Assets</div><div class="r" style="color:var(--text);font-size:.75rem">SOL · XTZ · ETH</div></div>
+        <div class="item"><div>App build</div><div class="r" style="color:var(--muted);font-size:.75rem" id="appVerItem">—</div></div>
       </div>
     </div>
 
@@ -1628,13 +1662,14 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       </div>
     </div>
 
-    <!-- PLAY HUB — native Howlcoin L1 social (pots · howls · names · tips) -->
+    <!-- PLAY HUB — City · pots · howls · names · tips -->
     <div class="page" id="p-play">
       <div class="page-head"><button type="button" class="back" onclick="showPage('home')">‹ Home</button><h1>Play</h1></div>
-      <p class="hint" style="margin:0 0 10px"><b>Howl Play</b> — on-chain only. Pack pots, howls, @names, tip jars. Fee ≈ 1 HOWL to miners.</p>
+      <p class="hint" style="margin:0 0 10px"><b>Howl Play</b> — watch the city, then act on-chain. Pack pots, howls, @names, tip jars. Fee ≈ 1 HOWL to miners.</p>
       <div class="panel" style="padding-bottom:10px">
         <div class="play-tabs" id="playTabs">
-          <button type="button" class="on" data-pt="pots" onclick="setPlayTab('pots')">Pots</button>
+          <button type="button" class="on" data-pt="city" onclick="setPlayTab('city')">City</button>
+          <button type="button" data-pt="pots" onclick="setPlayTab('pots')">Pots</button>
           <button type="button" data-pt="howl" onclick="setPlayTab('howl')">Howls</button>
           <button type="button" data-pt="names" onclick="setPlayTab('names')">Names</button>
           <button type="button" data-pt="tips" onclick="setPlayTab('tips')">Tips</button>
@@ -1642,8 +1677,38 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         </div>
       </div>
 
+      <!-- HOWL CITY LIVE FEED -->
+      <div class="panel" id="playCity">
+        <div class="wa-section" style="margin:0 0 10px">
+          <h2 style="margin:0">Howl City <span class="cp-live" style="margin-left:6px">● live</span></h2>
+          <button type="button" class="wa-link" onclick="refreshPlayCity(true)">↻</button>
+        </div>
+        <p class="hint" style="margin:0 0 10px">Live L1 feed — same pulse as <a href="https://howlscan.org/#/city" onclick="openExternalUrl('https://howlscan.org/#/city');return false" style="color:var(--cyan)">howlscan.org/#/city</a>. Tap an event to act.</p>
+        <div class="city-filters" id="cityFilters">
+          <button type="button" class="on" data-ck="" onclick="setCityFilter('')">All</button>
+          <button type="button" data-ck="howl" onclick="setCityFilter('howl')">Howls</button>
+          <button type="button" data-ck="pot" onclick="setCityFilter('pot')">Pots</button>
+          <button type="button" data-ck="name" onclick="setCityFilter('name')">Names</button>
+          <button type="button" data-ck="nft" onclick="setCityFilter('nft')">NFTs</button>
+          <button type="button" data-ck="block" onclick="setCityFilter('block')">Blocks</button>
+          <button type="button" data-ck="tip" onclick="setCityFilter('tip')">Tips</button>
+        </div>
+        <div class="chart-stats" id="cityCultureStats" style="margin-bottom:12px">
+          <div class="cs"><span>Height</span><b id="cityH">—</b></div>
+          <div class="cs"><span>Open pots</span><b id="cityPots">—</b></div>
+          <div class="cs"><span>Howls</span><b id="cityHowls">—</b></div>
+          <div class="cs"><span>Names</span><b id="cityNames">—</b></div>
+        </div>
+        <div id="playCityList"><p class="hint">Loading city…</p></div>
+        <div class="pc-actions" style="margin-top:12px">
+          <button type="button" class="btn" onclick="setPlayTab('howl')">Post a howl</button>
+          <button type="button" class="btn sec" onclick="setPlayTab('pots')">Join a pot</button>
+          <button type="button" class="btn sec" onclick="openExternalUrl('https://howlscan.org/#/city')">Open on Howlscan ↗</button>
+        </div>
+      </div>
+
       <!-- PACK POTS -->
-      <div class="panel" id="playPots">
+      <div class="panel hidden" id="playPots">
         <div class="wa-section" style="margin:0 0 10px">
           <h2 style="margin:0">Pack pots</h2>
           <button type="button" class="wa-link" onclick="refreshPlayPots()">↻</button>
@@ -1970,6 +2035,7 @@ const TOOLBAR_CATALOG = [
   { id: "swap", label: "Swap", icon: "swap", page: "swap" },
   { id: "activity", label: "History", icon: "list", page: "activity" },
   { id: "play", label: "Play", icon: "spark", page: "play" },
+  { id: "city", label: "City", icon: "pulse", page: "play" },
   { id: "nft", label: "NFTs", icon: "nft", page: "nft" },
   { id: "status", label: "Network", icon: "pulse", page: "status" },
   { id: "oracle", label: "Oracle", icon: "oracle", page: "oracle" },
@@ -1996,14 +2062,15 @@ const MORE_MENU = [
     { id: "contracts", icon: "contract", title: "Contracts", sub: "Advanced Howl Script", page: "contracts" },
   ]},
   { section: "Apps", items: [
-    { id: "play", icon: "spark", title: "Play", sub: "Pots · howls · names · tips", page: "play" },
+    { id: "city", icon: "pulse", title: "Howl City", sub: "Live L1 feed · act in app", page: "play", playTab: "city" },
+    { id: "play", icon: "spark", title: "Play", sub: "City · pots · howls · names · tips", page: "play" },
     { id: "nft", icon: "nft", title: "Culture / NFTs", sub: "Gallery · mint from howl", page: "nft" },
     { id: "status", icon: "pulse", title: "Network", sub: "Hashrate · tip age · culture", page: "status" },
     { id: "browser", icon: "globe", title: "Browser", sub: "Search · dApps", page: "browser" },
     { id: "discover", icon: "spark", title: "Discover", sub: "Crypto radar", page: "discover" },
     { id: "wc", icon: "link", title: "Connect", sub: "WalletConnect", page: "wc", hintId: "moreWcHint" },
     { id: "oracle", icon: "oracle", title: "Oracle", sub: "On-chain posts", page: "oracle" },
-    { id: "share", icon: "share", title: "Share", sub: "Address card", action: "share" },
+    { id: "share", icon: "share", title: "Share profile", sub: "@name · address card", action: "share" },
   ]},
   { section: "Settings", items: [
     { id: "sec", icon: "shield", title: "Security", sub: "PIN · Face ID · 2FA", page: "sec", hintId: "moreSecHint" },
@@ -3192,15 +3259,19 @@ function celebrateIfNew(sum, addr){
   }catch(_){}
 }
 
-/* —— Play tabs · request · howl · names · duel —— */
-let playTab = "pots";
+/* —— Play tabs · City · pots · howl · names · duel —— */
+let playTab = "city";
+let cityFilter = "";
 let duelStream = null, duelTimer = null;
+const WALLET_APP_VER = "0.6.5-city";
+
 function setPlayTab(tab){
-  playTab = tab || "pots";
+  playTab = tab || "city";
   document.querySelectorAll("#playTabs [data-pt]").forEach(b=>{
     b.classList.toggle("on", b.getAttribute("data-pt") === playTab);
   });
   const map = {
+    city: "playCity",
     pots: "playPots",
     howl: "playHowl",
     names: "playNames",
@@ -3211,11 +3282,12 @@ function setPlayTab(tab){
     duel: "playMore",
     share: "playMore",
   };
-  const activeId = map[playTab] || "playPots";
+  const activeId = map[playTab] || "playCity";
   Object.values(map).filter((v,i,a)=>a.indexOf(v)===i).forEach(id=>{
     const el = $(id);
     if(el) el.classList.toggle("hidden", id !== activeId);
   });
+  if(playTab === "city") refreshPlayCity(false);
   if(playTab === "pots") refreshPlayPots();
   if(playTab === "howl") refreshPlayHowls();
   if(playTab === "names"){
@@ -3226,6 +3298,135 @@ function setPlayTab(tab){
   if(playTab === "tips") refreshPlayTips();
   if(playTab === "more" || playTab === "duel") renderDuelMyQr();
   if(playTab !== "more" && playTab !== "duel") stopDuelScan();
+}
+
+function setCityFilter(kind){
+  cityFilter = String(kind || "").toLowerCase();
+  document.querySelectorAll("#cityFilters [data-ck]").forEach(b=>{
+    b.classList.toggle("on", (b.getAttribute("data-ck") || "") === cityFilter);
+  });
+  refreshPlayCity(true);
+}
+
+function cityKindEmoji(k){
+  const m = {block:"⬛", howl:"🐺", name:"@", nft:"🖼", pot:"🍯", tip:"☕", bond:"🔗", mine:"⛏", transfer:"⇄", contract:"📜", oracle:"📡", other:"·"};
+  return m[k] || "·";
+}
+
+function cityEventBody(ev){
+  if(ev.kind === "howl" && ev.message){
+    const m = String(ev.message);
+    return "🐺 “" + escHtml(m.slice(0, 60)) + (m.length > 60 ? "…" : "") + "”";
+  }
+  if(ev.kind === "name" && ev.message) return "claimed @" + escHtml(String(ev.message));
+  if(ev.kind === "block") return "Block #" + escHtml(String(ev.height ?? "—"));
+  if(ev.kind === "nft" && ev.message) return escHtml(ev.label || "NFT") + " · " + escHtml(String(ev.message).slice(0, 36));
+  return escHtml(ev.label || ev.kind || "event");
+}
+
+function cityEventMeta(ev){
+  const h = ev.pending ? "mempool" : ("#" + (ev.height ?? "—"));
+  const who = ev.from ? displayName(ev.from) : (ev.to && ev.kind === "mine" ? displayName(ev.to) : "");
+  const amt = (ev.amount != null && Number(ev.amount) > 0)
+    ? (Number(ev.amount) / 1e8).toLocaleString(undefined, { maximumFractionDigits: 4 }) + " HOWL"
+    : "";
+  const pending = ev.pending ? " · waiting" : "";
+  return [who, h, amt].filter(Boolean).join(" · ") + pending;
+}
+
+function cityEventRowHtml(ev){
+  const body = cityEventBody(ev);
+  const meta = cityEventMeta(ev);
+  let act = "";
+  if(ev.kind === "howl") act = `setPlayTab('howl')`;
+  else if(ev.kind === "pot" && ev.meta && ev.meta.contract_id)
+    act = `window.__deepJoinCid=${JSON.stringify(ev.meta.contract_id)};setPlayTab('pots')`;
+  else if(ev.kind === "name" && ev.message)
+    act = `setPlayTab('names');openPlayNameProfile(${JSON.stringify(String(ev.message))})`;
+  else if(ev.kind === "tip") act = `setPlayTab('tips')`;
+  else if(ev.kind === "nft") act = `showPage('nft')`;
+  else if(ev.txid)
+    act = `openExternalUrl(${JSON.stringify("https://howlscan.org/#/public/tx/"+encodeURIComponent(ev.txid))})`;
+  else if(ev.kind === "block" && ev.height != null)
+    act = `openExternalUrl(${JSON.stringify("https://howlscan.org/#/public/block/"+ev.height)})`;
+  return `<div class="city-row"${act ? ` onclick="${act}"` : ""}>
+    <div class="cr-t">${cityKindEmoji(ev.kind)} ${body}</div>
+    <div class="cr-m">${escHtml(meta)}</div>
+  </div>`;
+}
+
+async function refreshPlayCity(force){
+  const el = $("playCityList");
+  if(!el) return;
+  if(force) el.innerHTML = `<p class="hint">Refreshing…</p>`;
+  try{
+    await loadNameCache(false);
+    const kindsQ = cityFilter ? ("&kinds=" + encodeURIComponent(cityFilter)) : "";
+    const j = await api("/api/public/city?limit=40" + kindsQ);
+    const events = j.events || [];
+    const cul = j.culture || {};
+    if($("cityH")) $("cityH").textContent = j.height != null ? String(j.height) : "—";
+    if($("cityPots")) $("cityPots").textContent = String(cul.packpots_open ?? "—");
+    if($("cityHowls")) $("cityHowls").textContent = String(cul.howls ?? "—");
+    if($("cityNames")) $("cityNames").textContent = String(cul.names ?? "—");
+    if(!events.length){
+      el.innerHTML = `<p class="hint">Quiet city — post a howl, open a pot, or mine a block.</p>`;
+      return;
+    }
+    el.innerHTML = events.map(cityEventRowHtml).join("");
+  }catch(e){
+    el.innerHTML = `<p class="err">${escHtml(e.message || e)}</p>`;
+  }
+}
+
+async function refreshHomeCity(){
+  const el = $("homeCityList");
+  if(!el) return;
+  try{
+    await loadNameCache(false);
+    const j = await api("/api/public/city?limit=6");
+    const events = j.events || [];
+    if(!events.length){
+      el.innerHTML = `<p class="hint" style="padding:10px 12px;margin:0">Quiet city — <a href="#" onclick="showPage('play');setPlayTab('city');return false" style="color:var(--cyan)">open feed</a></p>`;
+      return;
+    }
+    el.innerHTML = events.map(cityEventRowHtml).join("");
+  }catch(_){
+    el.innerHTML = `<p class="hint" style="padding:10px 12px;margin:0">City feed offline</p>`;
+  }
+}
+
+async function refreshHomeIdentity(){
+  const el = $("homeIdStrip");
+  if(!el || !keypair) return;
+  try{ await loadNameCache(false); }catch(_){}
+  const n = nameCache.byAddr[keypair.address];
+  if(n){
+    const share = "https://howlscan.org/@" + encodeURIComponent(n);
+    el.innerHTML = `
+      <span class="id-name" onclick="openPlayNameProfile(${JSON.stringify(n)});showPage('play');setPlayTab('names')" title="Open profile">@${escHtml(n)}</span>
+      <button type="button" class="chip" style="cursor:pointer;padding:4px 10px;font-size:.7rem" onclick="shareMyProfile()">Share</button>
+      <button type="button" class="chip" style="cursor:pointer;padding:4px 10px;font-size:.7rem" onclick="copyText(${JSON.stringify(share)},'Profile link')">Copy @link</button>`;
+  }else{
+    el.innerHTML = `<span class="id-claim" onclick="showPage('play');setPlayTab('names')">Claim your @name →</span>`;
+  }
+}
+
+async function shareMyProfile(){
+  if(!keypair){ toast("Unlock first"); return; }
+  await loadNameCache(false);
+  const n = nameCache.byAddr[keypair.address];
+  const url = n
+    ? "https://howlscan.org/@" + encodeURIComponent(n)
+    : "https://howlscan.org/app?to=" + encodeURIComponent(keypair.address);
+  const title = n ? ("@" + n + " on Howlcoin") : "My Howlcoin address";
+  const text = n
+    ? "Find me on Howlcoin as @" + n
+    : "Send me HOWL: " + keypair.address;
+  try{
+    if(navigator.share) await navigator.share({ title, text, url });
+    else{ copyText(url, "Profile link"); toast("Link copied"); }
+  }catch(_){ copyText(url, "Profile link"); }
 }
 
 function fmtBlocksLeft(unlockH){
@@ -3498,17 +3699,20 @@ async function openPlayNameProfile(slugOrAddr){
       api("/api/public/contracts?kind=packpot&limit=30").catch(()=>({contracts:[]})),
       api("/api/public/contracts?kind=tipjar&limit=30").catch(()=>({contracts:[]})),
     ]);
-    const slug = nameRow.name || nameRow.name_display || "";
+    const slug = String(nameRow.name || nameRow.name_display || "").replace(/^@/,"");
     const pots = (potsJ.contracts||[]).filter(c => c.owner === addr || c.last_joiner === addr).slice(0, 5);
     const tips = (tipsJ.contracts||[]).filter(c => c.owner === addr).slice(0, 5);
     const bal = balJ.balance_fmt || balJ.balance || "—";
+    const shareUrl = slug ? ("https://howlscan.org/@" + encodeURIComponent(slug)) : "";
     box.innerHTML = `
-      <div style="font-weight:800;font-size:1.05rem">${slug ? "@"+escHtml(String(slug).replace(/^@/,"")) : "Profile"}</div>
+      <div style="font-weight:800;font-size:1.05rem">${slug ? "@"+escHtml(slug) : "Profile"}</div>
       <div class="mono" style="font-size:.72rem;margin:6px 0;word-break:break-all" onclick="copyText('${escAttr(addr)}')">${escHtml(addr)}</div>
+      ${shareUrl?`<div class="hint" style="margin:0 0 6px"><a href="${escAttr(shareUrl)}" onclick="openExternalUrl('${escAttr(shareUrl)}');return false" style="color:var(--cyan)">${escHtml(shareUrl.replace("https://",""))}</a></div>`:""}
       <div class="hint">Balance · ${escHtml(String(bal))}</div>
       <div class="pc-actions" style="margin-top:10px">
-        <button type="button" class="btn" onclick="showPage('send');if($('sendTo'))$('sendTo').value='${escAttr(slug?"@"+String(slug).replace(/^@/,""):addr)}'">Send HOWL</button>
+        <button type="button" class="btn" onclick="showPage('send');if($('sendTo'))$('sendTo').value='${escAttr(slug?"@"+slug:addr)}'">Send HOWL</button>
         <button type="button" class="btn sec" onclick="copyText('${escAttr(addr)}','Address')">Copy address</button>
+        ${shareUrl?`<button type="button" class="btn sec" onclick="copyText('${escAttr(shareUrl)}','Profile link')">Share @link</button>`:""}
       </div>
       ${tips.length?`<h4 style="margin:12px 0 6px;font-size:.8rem">Tip jars</h4>${tips.map(t=>`<div class="hint">· ${escHtml(t.name||"jar")} · ${escHtml(t.balance_fmt||"")}</div>`).join("")}`:""}
       ${pots.length?`<h4 style="margin:12px 0 6px;font-size:.8rem">Pots</h4>${pots.map(t=>`<div class="hint">· ${escHtml(t.name||"pot")} · ${escHtml(t.balance_fmt||"")}</div>`).join("")}`:""}
@@ -3523,14 +3727,16 @@ function buildPayRequest(){
   const memo = ($("reqMemo")?.value || "").trim();
   const u = new URL(location.origin + location.pathname);
   u.searchParams.set("request", "1");
-  u.searchParams.set("to", keypair.address);
+  // Prefer @name when claimed so share links stay pretty
+  const myName = nameCache.byAddr[keypair.address];
+  u.searchParams.set("to", myName ? ("@" + myName) : keypair.address);
   u.searchParams.set("amount", amt);
   if(memo) u.searchParams.set("memo", memo);
   const link = u.toString();
   if($("reqLink")) $("reqLink").textContent = link;
   if($("reqQr")) $("reqQr").src = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" + encodeURIComponent(link);
   $("reqOut")?.classList.remove("hidden");
-  toast("Request ready");
+  toast(myName ? ("Request ready · @" + myName) : "Request ready");
 }
 async function sharePayRequest(){
   const link = $("reqLink")?.textContent || "";
@@ -3554,7 +3760,8 @@ function consumePayRequestParams(){
       !!to ||
       !!join ||
       howlQ != null ||
-      !!playQ;
+      !!playQ ||
+      q.get("city") != null;
     if(!hasDeep) return;
 
     // /app?join=<contract_id>  or  ?pot=<id> → Play pots
@@ -3593,6 +3800,12 @@ function consumePayRequestParams(){
     if(playQ === "pots" || playQ === "pot"){
       showPage("play");
       try{ setPlayTab("pots"); }catch(_){}
+      history.replaceState(null, "", location.pathname + (location.hash || ""));
+      return;
+    }
+    if(playQ === "city" || playQ === "live" || q.get("city") != null){
+      showPage("play");
+      try{ setPlayTab("city"); }catch(_){}
       history.replaceState(null, "", location.pathname + (location.hash || ""));
       return;
     }
@@ -3762,9 +3975,16 @@ async function refreshMyOnchainName(){
   if(!el || !keypair) return;
   await loadNameCache(true);
   const n = nameCache.byAddr[keypair.address];
-  el.innerHTML = n
-    ? `Your name: <b style="color:var(--green)">@${escHtml(n)}</b> · <span class="mono" style="font-size:.75rem">${escHtml(shortAddr(keypair.address))}</span>`
-    : `Your name: <b>not claimed</b> · <span class="mono" style="font-size:.75rem">${escHtml(shortAddr(keypair.address))}</span>`;
+  if(n){
+    const share = "https://howlscan.org/@" + encodeURIComponent(n);
+    el.innerHTML = `Your name: <b style="color:var(--green)">@${escHtml(n)}</b>
+      · <button type="button" class="chip" style="cursor:pointer;padding:2px 8px;font-size:.7rem" onclick="shareMyProfile()">Share</button>
+      · <button type="button" class="chip" style="cursor:pointer;padding:2px 8px;font-size:.7rem" onclick="copyText(${JSON.stringify(share)},'Profile link')">@link</button>
+      · <span class="mono" style="font-size:.75rem">${escHtml(shortAddr(keypair.address))}</span>`;
+  }else{
+    el.innerHTML = `Your name: <b>not claimed</b> · <span class="mono" style="font-size:.75rem">${escHtml(shortAddr(keypair.address))}</span>`;
+  }
+  try{ refreshHomeIdentity(); }catch(_){}
 }
 
 async function refreshNameDirectory(){
@@ -4812,16 +5032,18 @@ function renderToolbar(activePage){
   nav.innerHTML = ids.map(id=>{
     const t = cat[id];
     if(!t) return "";
-    const on = t.id === active || t.page === active;
+    const on = t.id === active || t.page === active || (t.id === "city" && activePage === "play" && playTab === "city");
     const ico = ICON_PATHS[t.icon] ? iconSvg(t.icon, 22) : `<span class="ico">${t.icon}</span>`;
-    return `<button type="button" class="tab ${on?"on":""}" data-p="${t.page}" onclick="showPage('${t.page}')"><span class="ico">${ico}</span>${t.label}</button>`;
+    let click = `showPage('${t.page}')`;
+    if(t.id === "city") click = `showPage('play');setPlayTab('city')`;
+    return `<button type="button" class="tab ${on?"on":""}" data-p="${t.page}" data-id="${t.id}" onclick="${click}"><span class="ico">${ico}</span>${t.label}</button>`;
   }).join("");
 }
 
 function runMoreAction(action){
-  if(action === "share") openShareCard("address");
+  if(action === "share") shareMyProfile();
   else if(action === "refresh"){ refresh(); toast("Synced"); }
-  else if(action === "explorer") openExternalUrl("https://howlscan.org/");
+  else if(action === "explorer") openExternalUrl("https://howlscan.org/#/city");
   else if(action === "lock") lockWallet();
 }
 
@@ -4841,9 +5063,15 @@ function renderMoreMenu(filter){
     html += `<div class="more-sec-title">${escHtml(sec.section)}</div><div class="menu-list">`;
     for(const it of items){
       shown++;
-      const click = it.page
+      let click = it.page
         ? `showPage('${it.page}')`
         : `runMoreAction('${it.action}')`;
+      if(it.page === "play" && it.playTab){
+        click = `showPage('play');setPlayTab('${it.playTab}')`;
+      }
+      if(it.id === "city"){
+        click = `showPage('play');setPlayTab('city')`;
+      }
       const hintAttr = it.hintId ? ` id="${it.hintId}"` : "";
       // ms may be dynamic for security/wc
       const ms = it.hintId
@@ -4859,7 +5087,7 @@ function renderMoreMenu(filter){
     html += `</div>`;
   }
   if(!shown){
-    html = `<p class="hint">No matches for “${escHtml(q)}”. Try send, nft, security…</p>`;
+    html = `<p class="hint">No matches for “${escHtml(q)}”. Try city, send, nft, security…</p>`;
   }
   host.innerHTML = html;
   // re-apply live security / wc hints if elements recreated
@@ -4888,9 +5116,12 @@ function openJumpSheet(){
   // always include home
   tiles.unshift({ id: "home", icon: "⌂", title: "Home", page: "home" });
   grid.innerHTML = tiles.map(it=>{
-    const click = it.page
+    let click = it.page
       ? `closeJumpSheet();showPage('${it.page}')`
       : `closeJumpSheet();runMoreAction('${it.action}')`;
+    if(it.id === "city" || (it.page === "play" && it.playTab === "city")){
+      click = `closeJumpSheet();showPage('play');setPlayTab('city')`;
+    }
     const ji = ICON_PATHS[it.icon] ? iconSvg(it.icon, 20) : escHtml(it.icon || "·");
     return `<button type="button" onclick="${click}"><span class="ji">${ji}</span><span class="jl">${escHtml(it.title)}</span></button>`;
   }).join("");
@@ -5001,6 +5232,8 @@ function showPage(name){
   if(name==="more"){
     wireMoreSearch();
     renderMoreMenu($("moreSearch")?.value || "");
+    if($("appVerLabel")) $("appVerLabel").textContent = "Howlcoin Wallet · " + WALLET_APP_VER;
+    if($("appVerItem")) $("appVerItem").textContent = WALLET_APP_VER;
   }
   if(name==="swap"){ initSwapUI(); if(swapMode==="howl") initBridgeUI(); }
   if(name==="markets"){ initHowlCharts(); }
@@ -5018,17 +5251,19 @@ function showPage(name){
   if(name==="activity"){ renderActivityFull(); }
   if(name==="send"){ renderSendAddrChips(); renderAddressBookUI(); loadNameCache(); }
   if(name==="play"){
-    // deep links: ?play=pots|howls|names|tips  or openNamesTab
-    let tab = playTab || "pots";
+    // deep links: ?play=city|pots|howls|names|tips  or openNamesTab
+    let tab = playTab || "city";
     try{
       const sp = new URLSearchParams(location.search);
       const p = (sp.get("play") || "").toLowerCase();
-      if(p === "howls" || p === "howl") tab = "howl";
+      if(p === "city" || p === "live") tab = "city";
+      else if(p === "howls" || p === "howl") tab = "howl";
       else if(p === "names" || p === "name") tab = "names";
       else if(p === "tips" || p === "tip") tab = "tips";
       else if(p === "pots" || p === "pot") tab = "pots";
       else if(p === "more") tab = "more";
       if(sp.get("tip")) tab = "tips";
+      if(sp.get("city") != null) tab = "city";
     }catch(_){}
     if(openNamesTab) tab = "names";
     setPlayTab(tab);
@@ -8920,6 +9155,12 @@ async function refresh(){
     renderHomeActivity();
     if($("p-activity")?.classList.contains("on")) renderActivityFull();
     celebrateIfNew(sum, addr);
+    // Identity + Howl City pulse (non-blocking)
+    try{ refreshHomeIdentity(); }catch(_){}
+    try{ refreshHomeCity(); }catch(_){}
+    if(currentPage === "play" && playTab === "city"){
+      try{ refreshPlayCity(false); }catch(_){}
+    }
     // Prices + SOL first, then full multi-chain balances
     refreshMarketPrices(false);
     refreshSolBalances(true).then(()=> refreshEthBalances());
@@ -10706,6 +10947,12 @@ window.refreshHowlChart = refreshHowlChart;
 window.refreshMarketsBoard = refreshMarketsBoard;
 window.refreshMarketsAll = refreshMarketsAll;
 window.paintIcons = paintIcons;
+window.setPlayTab = setPlayTab;
+window.setCityFilter = setCityFilter;
+window.refreshPlayCity = refreshPlayCity;
+window.refreshHomeCity = refreshHomeCity;
+window.shareMyProfile = shareMyProfile;
+window.openPlayNameProfile = openPlayNameProfile;
 
 boot();
 </script>
