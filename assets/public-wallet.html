@@ -1155,12 +1155,18 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
       </div>
     </div>
 
-    <!-- SEND HOWL -->
+    <!-- SEND (HOWL · SOL · USDC) -->
     <div class="page" id="p-send">
       <div class="page-head"><button type="button" class="back" onclick="showPage('home')">‹ Home</button><h1>Send</h1></div>
       <div class="panel">
-        <h2>Send HOWL</h2>
-        <label>To address or @name</label>
+        <h2 id="sendTitle">Send</h2>
+        <div class="seg" id="sendAssetSeg" role="tablist" aria-label="Asset to send" style="margin-bottom:12px">
+          <button type="button" class="on" data-sa="howl" onclick="setSendAsset('howl')">HOWL</button>
+          <button type="button" data-sa="sol" onclick="setSendAsset('sol')">SOL</button>
+          <button type="button" data-sa="usdc_sol" onclick="setSendAsset('usdc_sol')">USDC</button>
+        </div>
+        <p class="hint" id="sendAssetBal" style="margin:0 0 10px">Balance: —</p>
+        <label id="sendToLabel">To address or @name</label>
         <div style="display:flex;gap:8px;align-items:center">
           <input class="field" id="sendTo" placeholder="H… or @howler" spellcheck="false" style="margin:0;flex:1" autocapitalize="off"/>
           <button type="button" class="chip" style="cursor:pointer;flex-shrink:0" id="btnScanQr" onclick="toggleSendQrScan()">Scan QR</button>
@@ -1168,7 +1174,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <video id="sendQrVideo" playsinline muted style="width:100%;max-height:200px;margin:8px 0;display:none;border:1px solid var(--border);background:#000"></video>
         <p class="hint" id="sendQrHint" style="margin:4px 0 8px">HOWL address, <b>@name</b>, or name.howl · <a href="#" onclick="showPage('names');return false" style="color:var(--cyan)">claim a name</a></p>
         <div class="addr-chips" id="sendAddrChips"></div>
-        <label>Amount (HOWL)</label>
+        <label id="sendAmtLabel">Amount (HOWL)</label>
         <input class="field" id="sendAmt" inputmode="decimal" placeholder="0"/>
         <div class="amt-chips">
           <button type="button" onclick="setSendAmtPct(0.25)">25%</button>
@@ -1177,15 +1183,18 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
           <button type="button" onclick="setSendAmtPct(1)">Max</button>
           <button type="button" onclick="pasteSendTo()">Paste address</button>
         </div>
-        <label>Network fee (HOWL → miner)</label>
-        <input class="field" id="sendFee" value="1" inputmode="decimal"/>
-        <label>Memo (optional)</label>
-        <input class="field" id="sendMemo" placeholder=""/>
+        <div id="sendHowlOnly">
+          <label>Network fee (HOWL → miner)</label>
+          <input class="field" id="sendFee" value="1" inputmode="decimal"/>
+          <label>Memo (optional)</label>
+          <input class="field" id="sendMemo" placeholder=""/>
+        </div>
+        <p class="hint hidden" id="sendSolFeeHint" style="margin:8px 0">Solana network fee is paid in SOL automatically. Leave a little SOL for fees when sending max.</p>
         <div id="send2faBox" class="hidden">
           <label>Authenticator code</label>
           <input class="field" id="sendTotp" inputmode="numeric" maxlength="6" placeholder="6-digit code"/>
         </div>
-        <label class="hint" style="display:flex;align-items:center;gap:8px;margin:8px 0;cursor:pointer">
+        <label class="hint" style="display:flex;align-items:center;gap:8px;margin:8px 0;cursor:pointer" id="sendSaveRow">
           <input type="checkbox" id="sendSaveAddr" checked style="width:auto;margin:0"/> Save address after send
         </label>
         <button class="btn" type="button" id="sendBtn" onclick="prepareSendConfirm()">Review &amp; slide to send</button>
@@ -1959,7 +1968,7 @@ import {
   SOL_RPC as JUP_SOL_RPC,
 } from "/assets/wallet-swap.mjs";
 import {
-  listSolNfts, transferSolNft, transferTezosFa2,
+  listSolNfts, transferSolNft, transferNativeSol, transferSplToken, transferTezosFa2,
   erc721TokenURIData, erc721TransferFromData, sendErc721Transfer,
   ethCall, decodeAbiString,
 } from "/assets/wallet-nft.mjs";
@@ -4716,6 +4725,12 @@ function assetActions(a){
     acts.push({ label: "Explorer", fn: ()=> openExternalUrl("https://howlscan.org/#/public/address/"+encodeURIComponent(keypair.address)) });
   }
   if(a.kind === "sol" || a.kind === "spl"){
+    if(a.kind === "sol" || a.id === "sol"){
+      acts.push({ label: "Send SOL", fn: ()=> openSendAsset("sol") });
+    }
+    if(a.id === "usdc_sol" || (a.symbol || "").toUpperCase() === "USDC"){
+      acts.push({ label: "Send USDC", fn: ()=> openSendAsset("usdc_sol") });
+    }
     acts.push({ label: "Swap (Jupiter)", fn: ()=>{ showPage("swap"); setSwapMode("jup"); } });
     if(isHowlSwapLive() && (a.id === "sol" || a.id === "usdc_sol")){
       acts.push({ label: "Howl Swap → HOWL", fn: ()=>{ showPage("swap"); setSwapMode("howl"); if($("bridgeAsset")) $("bridgeAsset").value = a.id==="sol"?"sol":"usdc"; } });
@@ -5271,7 +5286,13 @@ function showPage(name){
   if(name==="discover") loadDiscover(false);
   if(name==="nft"){ wireNftPage(); setNftDashTab(nftDashTab || "mine"); }
   if(name==="activity"){ renderActivityFull(); }
-  if(name==="send"){ renderSendAddrChips(); renderAddressBookUI(); loadNameCache(); }
+  if(name==="send"){
+    renderSendAddrChips();
+    renderAddressBookUI();
+    loadNameCache();
+    setSendAsset(sendAsset || "howl");
+    try{ if(sendAsset === "sol" || sendAsset === "usdc_sol") refreshSolBalances(false).then(paintSendAssetBal); }catch(_){}
+  }
   if(name==="play"){
     // deep links: ?play=city|pots|howls|names|tips  or openNamesTab
     let tab = playTab || "city";
@@ -9309,13 +9330,100 @@ function closeSlideConfirm(){
   if($("sendBtn")) $("sendBtn").disabled = false;
 }
 
+/** Send page asset: howl | sol | usdc_sol */
+let sendAsset = "howl";
+const USDC_MINT_SOL = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+
+function isValidSolAddress(s){
+  const t = String(s || "").trim();
+  // Base58 Solana pubkey ~32–44 chars (no 0,O,I,l)
+  return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(t);
+}
+
+function setSendAsset(id){
+  sendAsset = id || "howl";
+  document.querySelectorAll("#sendAssetSeg [data-sa]").forEach(b=>{
+    b.classList.toggle("on", b.getAttribute("data-sa") === sendAsset);
+  });
+  const howlOnly = $("sendHowlOnly");
+  const solHint = $("sendSolFeeHint");
+  const saveRow = $("sendSaveRow");
+  const isHowl = sendAsset === "howl";
+  const isSol = sendAsset === "sol";
+  const isUsdc = sendAsset === "usdc_sol";
+  if(howlOnly) howlOnly.classList.toggle("hidden", !isHowl);
+  if(solHint){
+    solHint.classList.toggle("hidden", isHowl);
+    solHint.style.display = isHowl ? "none" : "";
+  }
+  if(saveRow) saveRow.classList.toggle("hidden", !isHowl);
+  if($("sendTitle")) $("sendTitle").textContent =
+    isHowl ? "Send HOWL" : isSol ? "Send SOL" : "Send USDC";
+  if($("sendToLabel")) $("sendToLabel").textContent =
+    isHowl ? "To address or @name" : "To Solana address";
+  if($("sendTo")){
+    $("sendTo").placeholder = isHowl ? "H… or @howler" : "Solana base58 address";
+  }
+  if($("sendAmtLabel")) $("sendAmtLabel").textContent =
+    isHowl ? "Amount (HOWL)" : isSol ? "Amount (SOL)" : "Amount (USDC)";
+  if($("sendQrHint")){
+    $("sendQrHint").innerHTML = isHowl
+      ? `HOWL address, <b>@name</b>, or name.howl · <a href="#" onclick="showPage('names');return false" style="color:var(--cyan)">claim a name</a>`
+      : `Paste a <b>Solana</b> address (Phantom, treasury, etc.). QR scan works for base58.`;
+  }
+  // chips: HOWL address book only on HOWL
+  const chips = $("sendAddrChips");
+  if(chips) chips.style.display = isHowl ? "" : "none";
+  paintSendAssetBal();
+  if($("sendErr")) $("sendErr").textContent = "";
+}
+
+function paintSendAssetBal(){
+  const el = $("sendAssetBal");
+  if(!el) return;
+  if(sendAsset === "howl"){
+    el.textContent = "Balance: " + (formatHowl(chainInfo.balance || 0) || "—");
+  }else if(sendAsset === "sol"){
+    const s = ethBalances.sol;
+    el.textContent = "Balance: " + (s != null && s !== "…" ? s + " SOL" : "…") +
+      (solInfo?.address ? " · " + shortAddr(solInfo.address) : "");
+  }else if(sendAsset === "usdc_sol"){
+    const s = ethBalances.usdc_sol ?? ethBalances.usdc;
+    el.textContent = "Balance: " + (s != null && s !== "…" ? s + " USDC" : "…") +
+      (solInfo?.address ? " · " + shortAddr(solInfo.address) : "");
+  }
+}
+
+function openSendAsset(id){
+  showPage("send");
+  setSendAsset(id || "howl");
+  try{ refreshSolBalances(false); }catch(_){}
+  paintSendAssetBal();
+}
+
 function setSendAmtPct(pct){
   try{
+    if(sendAsset === "sol"){
+      const bal = Number(ethBalances.sol);
+      if(!Number.isFinite(bal) || bal <= 0) throw new Error("SOL balance not ready");
+      // reserve ~0.001 SOL for fees when max
+      const reserve = pct >= 1 ? 0.001 : 0;
+      const spend = Math.max(0, bal - reserve);
+      const v = spend * pct;
+      if($("sendAmt")) $("sendAmt").value = v > 0 ? String(Number(v.toFixed(6))) : "0";
+      return;
+    }
+    if(sendAsset === "usdc_sol"){
+      const bal = Number(ethBalances.usdc_sol ?? ethBalances.usdc);
+      if(!Number.isFinite(bal) || bal <= 0) throw new Error("USDC balance not ready");
+      const v = bal * pct;
+      if($("sendAmt")) $("sendAmt").value = v > 0 ? String(Number(v.toFixed(4))) : "0";
+      return;
+    }
     const fee = parseHowl($("sendFee")?.value || String(minFeeHowl || 1));
     const bal = chainInfo.balance || 0n;
     let spend = bal - fee;
     if(spend < 0n) spend = 0n;
-    // pct of (balance - fee)
     const raw = (spend * BigInt(Math.round(pct * 1000))) / 1000n;
     if($("sendAmt")) $("sendAmt").value = formatHowl(raw).replace(" HOWL","");
   }catch(e){ toast(e.message || "Balance not ready"); }
@@ -9324,8 +9432,11 @@ function setSendAmtPct(pct){
 async function pasteSendTo(){
   try{
     const t = (await navigator.clipboard.readText()).trim();
-    const m = t.match(/H[1-9A-HJ-NP-Za-km-z]{20,}/);
-    const addr = m ? m[0] : t;
+    const mHowl = t.match(/H[1-9A-HJ-NP-Za-km-z]{20,}/);
+    const mSol = t.match(/[1-9A-HJ-NP-Za-km-z]{32,44}/);
+    const addr = sendAsset === "howl"
+      ? (mHowl ? mHowl[0] : t)
+      : (mSol ? mSol[0] : t);
     if(!isValidAddress(addr)) throw new Error("Clipboard is not a HOWL address");
     if($("sendTo")) $("sendTo").value = addr;
     toast("Address pasted");
@@ -9336,6 +9447,9 @@ async function prepareSendConfirm(){
   $("sendErr").textContent = "";
   try{
     await requireTotpIfNeeded($("sendTotp"));
+    if(sendAsset === "sol" || sendAsset === "usdc_sol"){
+      return prepareSendSolConfirm();
+    }
     let toRaw = $("sendTo").value.trim();
     // Resolve @name / name.howl → address
     let to = toRaw;
@@ -9384,6 +9498,90 @@ async function prepareSendConfirm(){
   }catch(e){
     $("sendErr").textContent = e.message;
     if($("sendBtn")) $("sendBtn").disabled = false;
+  }
+}
+
+async function prepareSendSolConfirm(){
+  $("sendErr").textContent = "";
+  try{
+    if(!mnemonic || !solInfo?.privateKeyHex){
+      throw new Error("Solana send needs a seed wallet (unlock with recovery phrase)");
+    }
+    if(!solInfo?.address) throw new Error("Solana address not ready — unlock and wait a moment");
+    const to = ($("sendTo")?.value || "").trim();
+    if(!isValidSolAddress(to)) throw new Error("Enter a valid Solana address");
+    const amtStr = ($("sendAmt")?.value || "").trim();
+    const amt = Number(amtStr);
+    if(!Number.isFinite(amt) || amt <= 0) throw new Error("Enter an amount greater than 0");
+
+    const isSol = sendAsset === "sol";
+    const symbol = isSol ? "SOL" : "USDC";
+    if(isSol){
+      const bal = Number(ethBalances.sol);
+      if(Number.isFinite(bal) && amt > bal) throw new Error("Insufficient SOL balance");
+    }else{
+      const bal = Number(ethBalances.usdc_sol ?? ethBalances.usdc);
+      if(Number.isFinite(bal) && amt > bal) throw new Error("Insufficient USDC balance");
+    }
+
+    $("sendBtn").disabled = true;
+    openSlideConfirm({
+      title: "Slide to send " + symbol,
+      rows: [
+        { k: "Network", v: "Solana" },
+        { k: "Asset", v: symbol },
+        { k: "From", v: shortAddr(solInfo.address) },
+        { k: "To", v: shortAddr(to) },
+        { k: "Amount", v: amtStr + " " + symbol },
+        { k: "Fee", v: isSol ? "~0.000005 SOL (network)" : "SOL for network fee" },
+      ],
+      onConfirm: async () => {
+        await executeSendSol({ to, amount: amtStr, asset: sendAsset });
+      },
+    });
+  }catch(e){
+    $("sendErr").textContent = e.message || String(e);
+    if($("sendBtn")) $("sendBtn").disabled = false;
+  }
+}
+
+async function executeSendSol({ to, amount, asset }){
+  try{
+    if(!solInfo?.privateKeyHex) throw new Error("Missing Solana key");
+    toast("Broadcasting on Solana…");
+    const rpc = await pickSolRpc(typeof SOL_RPC !== "undefined" ? SOL_RPC : JUP_SOL_RPC);
+    let sig;
+    if(asset === "sol"){
+      sig = await transferNativeSol({
+        privateKeyHex: solInfo.privateKeyHex,
+        to,
+        amountSol: amount,
+        rpc,
+      });
+    }else{
+      sig = await transferSplToken({
+        privateKeyHex: solInfo.privateKeyHex,
+        mint: USDC_MINT_SOL,
+        toOwner: to,
+        amountUi: amount,
+        decimals: 6,
+        rpc,
+      });
+    }
+    toast("Sent · " + String(sig).slice(0, 12) + "…");
+    try{ fireConfetti("send"); }catch(_){}
+    if($("sendAmt")) $("sendAmt").value = "";
+    if($("sendBtn")) $("sendBtn").disabled = false;
+    try{
+      openExternalUrl("https://solscan.io/tx/" + encodeURIComponent(sig));
+    }catch(_){}
+    setTimeout(()=> refreshSolBalances(true).then(()=> paintSendAssetBal()), 1200);
+    showPage("activity");
+  }catch(e){
+    if($("sendBtn")) $("sendBtn").disabled = false;
+    if($("sendErr")) $("sendErr").textContent = e.message || String(e);
+    toast(e.message || "Solana send failed");
+    throw e;
   }
 }
 
@@ -10900,6 +11098,9 @@ function boot(skipInstallPrompt){
 window.showPage = showPage;
 window.doSend = doSend;
 window.prepareSendConfirm = prepareSendConfirm;
+window.setSendAsset = setSendAsset;
+window.openSendAsset = openSendAsset;
+window.prepareSendSolConfirm = prepareSendSolConfirm;
 window.closeSlideConfirm = closeSlideConfirm;
 window.setSendAmtPct = setSendAmtPct;
 window.pasteSendTo = pasteSendTo;

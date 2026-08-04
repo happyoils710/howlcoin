@@ -88,6 +88,135 @@ export async function listSolNfts(owner, { rpc, solRpc } = {}) {
   return nfts;
 }
 
+/**
+ * Native SOL transfer (SystemProgram).
+ * privateKeyHex = 32-byte ed25519 seed (same as wallet solInfo.privateKeyHex).
+ */
+export async function transferNativeSol({
+  privateKeyHex,
+  to,
+  amountSol,
+  rpc = "https://api.mainnet-beta.solana.com",
+}) {
+  const seed = hexToBytes(privateKeyHex);
+  if (seed.length !== 32) throw new Error("Invalid Solana private key");
+  const kp = Keypair.fromSeed(seed);
+  const connection = new Connection(rpc, "confirmed");
+  let toPk;
+  try {
+    toPk = new PublicKey(String(to || "").trim());
+  } catch {
+    throw new Error("Invalid Solana address");
+  }
+  const sol = Number(amountSol);
+  if (!Number.isFinite(sol) || sol <= 0) throw new Error("Enter a SOL amount greater than 0");
+  const lamports = Math.round(sol * 1e9);
+  if (lamports < 1) throw new Error("Amount too small");
+  const bal = await connection.getBalance(kp.publicKey, "confirmed");
+  const feeReserve = 10_000; // leave room for base fee
+  if (lamports + feeReserve > bal) {
+    const have = (bal / 1e9).toFixed(6);
+    const need = ((lamports + feeReserve) / 1e9).toFixed(6);
+    throw new Error(`Insufficient SOL (have ${have}, need ~${need} incl. fee)`);
+  }
+  const tx = new Transaction().add(
+    SystemProgram.transfer({
+      fromPubkey: kp.publicKey,
+      toPubkey: toPk,
+      lamports,
+    })
+  );
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+  tx.recentBlockhash = blockhash;
+  tx.feePayer = kp.publicKey;
+  tx.sign(kp);
+  const sig = await connection.sendRawTransaction(tx.serialize(), {
+    skipPreflight: false,
+    maxRetries: 3,
+  });
+  try {
+    await connection.confirmTransaction(
+      { signature: sig, blockhash, lastValidBlockHeight },
+      "confirmed"
+    );
+  } catch (_) {}
+  return sig;
+}
+
+/**
+ * SPL token transfer (e.g. USDC) by mint + UI amount.
+ * Creates destination ATA if missing.
+ */
+export async function transferSplToken({
+  privateKeyHex,
+  mint,
+  toOwner,
+  amountUi,
+  decimals = 6,
+  rpc = "https://api.mainnet-beta.solana.com",
+}) {
+  const seed = hexToBytes(privateKeyHex);
+  if (seed.length !== 32) throw new Error("Invalid Solana private key");
+  const kp = Keypair.fromSeed(seed);
+  const connection = new Connection(rpc, "confirmed");
+  const mintPk = new PublicKey(mint);
+  let toPk;
+  try {
+    toPk = new PublicKey(String(toOwner || "").trim());
+  } catch {
+    throw new Error("Invalid Solana address");
+  }
+  const raw = (() => {
+    const t = String(amountUi || "").trim();
+    if (!t || Number(t) <= 0) throw new Error("Enter an amount");
+    if (t.includes(".")) {
+      let [a, b] = t.split(".");
+      b = (b + "0".repeat(decimals)).slice(0, decimals);
+      return BigInt(a || "0") * 10n ** BigInt(decimals) + BigInt(b || "0");
+    }
+    return BigInt(t) * 10n ** BigInt(decimals);
+  })();
+  if (raw <= 0n) throw new Error("Amount too small");
+
+  const fromAta = await getAssociatedTokenAddress(mintPk, kp.publicKey);
+  const toAta = await getAssociatedTokenAddress(mintPk, toPk);
+  const tx = new Transaction();
+  let needCreate = false;
+  try {
+    await getAccount(connection, toAta);
+  } catch {
+    needCreate = true;
+  }
+  if (needCreate) {
+    tx.add(
+      createAssociatedTokenAccountInstruction(
+        kp.publicKey,
+        toAta,
+        toPk,
+        mintPk,
+        TOKEN_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID
+      )
+    );
+  }
+  tx.add(createTransferInstruction(fromAta, toAta, kp.publicKey, raw, [], TOKEN_PROGRAM_ID));
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+  tx.recentBlockhash = blockhash;
+  tx.feePayer = kp.publicKey;
+  tx.sign(kp);
+  const sig = await connection.sendRawTransaction(tx.serialize(), {
+    skipPreflight: false,
+    maxRetries: 3,
+  });
+  try {
+    await connection.confirmTransaction(
+      { signature: sig, blockhash, lastValidBlockHeight },
+      "confirmed"
+    );
+  } catch (_) {}
+  return sig;
+}
+
 /** Transfer 1 SPL token (NFT) to recipient address. */
 export async function transferSolNft({
   privateKeyHex,
