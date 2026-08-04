@@ -5853,8 +5853,12 @@ def default_networks(
     """Build network map (public Howlcoin ledger only)."""
     import os
 
-    pub = Path(os.environ.get("HOWL_PUBLIC_DATA", public_dir or DEFAULT_PUBLIC))
-    return {"public": pub}
+    # Prefer explicit CLI dir, then env, then default
+    if public_dir is not None:
+        pub = Path(public_dir)
+    else:
+        pub = Path(os.environ.get("HOWL_PUBLIC_DATA") or DEFAULT_PUBLIC)
+    return {"public": pub.expanduser()}
 
 
 def main(
@@ -5863,6 +5867,11 @@ def main(
     public_dir: Optional[str] = None,
     telegram_dir: Optional[str] = None,
 ) -> None:
+    # Align Howl Charts sample store with the public ledger path
+    if public_dir:
+        os.environ["HOWL_PUBLIC_DATA"] = str(Path(public_dir).expanduser())
+    elif not os.environ.get("HOWL_PUBLIC_DATA"):
+        os.environ["HOWL_PUBLIC_DATA"] = str(Path(DEFAULT_PUBLIC).expanduser())
     nets = default_networks(Path(public_dir) if public_dir else None)
     hub = ExplorerHub(nets)
     ExplorerServer(hub, host=host, port=port).serve_forever()
