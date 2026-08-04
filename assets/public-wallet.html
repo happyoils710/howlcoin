@@ -9549,14 +9549,22 @@ async function executeSendSol({ to, amount, asset }){
   try{
     if(!solInfo?.privateKeyHex) throw new Error("Missing Solana key");
     toast("Broadcasting on Solana…");
-    const rpc = await pickSolRpc(typeof SOL_RPC !== "undefined" ? SOL_RPC : JUP_SOL_RPC);
+    // Always use Howlscan Solana proxy first — public RPCs 403 Origin: howlscan.org
+    // ("failed to get balance of account: Access forbidden")
+    const rpcCall = async (method, params) => {
+      try{
+        return await solRpc(method, params);
+      }catch(e){
+        throw new Error((e && e.message) || "Solana RPC failed");
+      }
+    };
     let sig;
     if(asset === "sol"){
       sig = await transferNativeSol({
         privateKeyHex: solInfo.privateKeyHex,
         to,
         amountSol: amount,
-        rpc,
+        rpcCall,
       });
     }else{
       sig = await transferSplToken({
@@ -9565,7 +9573,7 @@ async function executeSendSol({ to, amount, asset }){
         toOwner: to,
         amountUi: amount,
         decimals: 6,
-        rpc,
+        rpcCall,
       });
     }
     toast("Sent · " + String(sig).slice(0, 12) + "…");

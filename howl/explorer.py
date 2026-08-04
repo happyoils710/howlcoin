@@ -5764,7 +5764,7 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                         params = []
                     if not isinstance(params, list):
                         return self._json(400, {"error": "params must be array"})
-                    # allowlist methods used by the wallet
+                    # allowlist methods used by the wallet (browser Solana RPCs 403 howlscan.org)
                     allowed = {
                         "getBalance",
                         "getSignaturesForAddress",
@@ -5776,6 +5776,10 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                         "getLatestBlockhash",
                         "sendTransaction",
                         "getTokenLargestAccounts",
+                        "getSignatureStatuses",
+                        "getFeeForMessage",
+                        "simulateTransaction",
+                        "getRecentPrioritizationFees",
                     }
                     if method not in allowed:
                         return self._json(400, {"error": f"method not allowed: {method}"})

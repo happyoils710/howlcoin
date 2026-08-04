@@ -89,19 +89,75 @@ export async function listSolNfts(owner, { rpc, solRpc } = {}) {
 }
 
 /**
+ * Prefer Howlscan-proxied RPC (rpcCall) — public Solana RPCs often 403 Origin: howlscan.org.
+ * rpcCall(method, params) → JSON-RPC result (same shape as window.solRpc in the wallet).
+ */
+async function solRpcOrConn(rpcCall, method, params, connection) {
+  if (typeof rpcCall === "function") {
+    return rpcCall(method, params);
+  }
+  if (!connection) throw new Error("No Solana RPC");
+  // Minimal Connection fallbacks used below
+  if (method === "getBalance") {
+    const pk = params[0];
+    const cfg = params[1] || {};
+    const lamports = await connection.getBalance(new PublicKey(pk), cfg.commitment || "confirmed");
+    return { value: lamports };
+  }
+  if (method === "getLatestBlockhash") {
+    const cfg = params[0] || {};
+    const r = await connection.getLatestBlockhash(cfg.commitment || "confirmed");
+    return { value: r };
+  }
+  if (method === "getAccountInfo") {
+    const pk = params[0];
+    const cfg = params[1] || {};
+    const info = await connection.getAccountInfo(new PublicKey(pk), cfg.commitment || "confirmed");
+    if (!info) return { value: null };
+    const raw = info.data instanceof Uint8Array ? info.data : new Uint8Array(info.data || []);
+    return {
+      value: {
+        data: [b64FromBytes(raw), "base64"],
+        executable: info.executable,
+        lamports: info.lamports,
+        owner: info.owner.toBase58(),
+        rentEpoch: info.rentEpoch,
+      },
+    };
+  }
+  if (method === "sendTransaction") {
+    const b64 = params[0];
+    const raw = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    return connection.sendRawTransaction(raw, { skipPreflight: false, maxRetries: 3 });
+  }
+  throw new Error("Unsupported RPC method: " + method);
+}
+
+function b64FromBytes(u8) {
+  let s = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < u8.length; i += chunk) {
+    s += String.fromCharCode.apply(null, u8.subarray(i, i + chunk));
+  }
+  return btoa(s);
+}
+
+/**
  * Native SOL transfer (SystemProgram).
  * privateKeyHex = 32-byte ed25519 seed (same as wallet solInfo.privateKeyHex).
+ * Pass rpcCall (Howlscan /api/public/sol/rpc) to avoid browser Origin 403s.
  */
 export async function transferNativeSol({
   privateKeyHex,
   to,
   amountSol,
   rpc = "https://api.mainnet-beta.solana.com",
+  rpcCall = null,
 }) {
   const seed = hexToBytes(privateKeyHex);
   if (seed.length !== 32) throw new Error("Invalid Solana private key");
   const kp = Keypair.fromSeed(seed);
-  const connection = new Connection(rpc, "confirmed");
+  const connection = typeof rpcCall === "function" ? null : new Connection(rpc, "confirmed");
   let toPk;
   try {
     toPk = new PublicKey(String(to || "").trim());
@@ -112,13 +168,32 @@ export async function transferNativeSol({
   if (!Number.isFinite(sol) || sol <= 0) throw new Error("Enter a SOL amount greater than 0");
   const lamports = Math.round(sol * 1e9);
   if (lamports < 1) throw new Error("Amount too small");
-  const bal = await connection.getBalance(kp.publicKey, "confirmed");
-  const feeReserve = 10_000; // leave room for base fee
-  if (lamports + feeReserve > bal) {
+
+  let bal = null;
+  try {
+    const br = await solRpcOrConn(
+      rpcCall,
+      "getBalance",
+      [kp.publicKey.toBase58(), { commitment: "confirmed" }],
+      connection
+    );
+    bal = Number(br?.value ?? br ?? NaN);
+  } catch (e) {
+    // Don't hard-fail on 403 if UI already showed balance; still try broadcast
+    const msg = e.message || String(e);
+    if (/forbidden|403|access/i.test(msg)) {
+      bal = null;
+    } else {
+      throw new Error("Failed to get SOL balance: " + msg);
+    }
+  }
+  const feeReserve = 10_000;
+  if (bal != null && Number.isFinite(bal) && lamports + feeReserve > bal) {
     const have = (bal / 1e9).toFixed(6);
     const need = ((lamports + feeReserve) / 1e9).toFixed(6);
     throw new Error(`Insufficient SOL (have ${have}, need ~${need} incl. fee)`);
   }
+
   const tx = new Transaction().add(
     SystemProgram.transfer({
       fromPubkey: kp.publicKey,
@@ -126,26 +201,60 @@ export async function transferNativeSol({
       lamports,
     })
   );
-  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+  const bhRes = await solRpcOrConn(
+    rpcCall,
+    "getLatestBlockhash",
+    [{ commitment: "confirmed" }],
+    connection
+  );
+  const blockhash = bhRes?.value?.blockhash || bhRes?.blockhash;
+  const lastValidBlockHeight =
+    bhRes?.value?.lastValidBlockHeight ?? bhRes?.lastValidBlockHeight;
+  if (!blockhash) throw new Error("Could not fetch Solana blockhash (RPC)");
   tx.recentBlockhash = blockhash;
   tx.feePayer = kp.publicKey;
   tx.sign(kp);
-  const sig = await connection.sendRawTransaction(tx.serialize(), {
-    skipPreflight: false,
-    maxRetries: 3,
-  });
-  try {
-    await connection.confirmTransaction(
-      { signature: sig, blockhash, lastValidBlockHeight },
-      "confirmed"
-    );
-  } catch (_) {}
+  const b64 = b64FromBytes(tx.serialize());
+  const sig = await solRpcOrConn(
+    rpcCall,
+    "sendTransaction",
+    [
+      b64,
+      {
+        encoding: "base64",
+        skipPreflight: false,
+        preflightCommitment: "confirmed",
+        maxRetries: 3,
+      },
+    ],
+    connection
+  );
+  // Optional confirm via proxy
+  if (typeof rpcCall === "function" && sig) {
+    try {
+      for (let i = 0; i < 8; i++) {
+        await new Promise((r) => setTimeout(r, 400));
+        const st = await rpcCall("getSignatureStatuses", [[sig], { searchTransactionHistory: true }]);
+        // may be not allowlisted — ignore
+        void st;
+        break;
+      }
+    } catch (_) {}
+  } else if (connection && sig) {
+    try {
+      await connection.confirmTransaction(
+        { signature: sig, blockhash, lastValidBlockHeight },
+        "confirmed"
+      );
+    } catch (_) {}
+  }
   return sig;
 }
 
 /**
  * SPL token transfer (e.g. USDC) by mint + UI amount.
  * Creates destination ATA if missing.
+ * Pass rpcCall to use Howlscan Solana proxy (avoids browser 403).
  */
 export async function transferSplToken({
   privateKeyHex,
@@ -154,11 +263,12 @@ export async function transferSplToken({
   amountUi,
   decimals = 6,
   rpc = "https://api.mainnet-beta.solana.com",
+  rpcCall = null,
 }) {
   const seed = hexToBytes(privateKeyHex);
   if (seed.length !== 32) throw new Error("Invalid Solana private key");
   const kp = Keypair.fromSeed(seed);
-  const connection = new Connection(rpc, "confirmed");
+  const connection = typeof rpcCall === "function" ? null : new Connection(rpc, "confirmed");
   const mintPk = new PublicKey(mint);
   let toPk;
   try {
@@ -183,7 +293,15 @@ export async function transferSplToken({
   const tx = new Transaction();
   let needCreate = false;
   try {
-    await getAccount(connection, toAta);
+    if (typeof rpcCall === "function") {
+      const info = await rpcCall("getAccountInfo", [
+        toAta.toBase58(),
+        { encoding: "base64", commitment: "confirmed" },
+      ]);
+      if (!info || info.value == null) needCreate = true;
+    } else {
+      await getAccount(connection, toAta);
+    }
   } catch {
     needCreate = true;
   }
@@ -200,20 +318,42 @@ export async function transferSplToken({
     );
   }
   tx.add(createTransferInstruction(fromAta, toAta, kp.publicKey, raw, [], TOKEN_PROGRAM_ID));
-  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+  const bhRes = await solRpcOrConn(
+    rpcCall,
+    "getLatestBlockhash",
+    [{ commitment: "confirmed" }],
+    connection
+  );
+  const blockhash = bhRes?.value?.blockhash || bhRes?.blockhash;
+  const lastValidBlockHeight =
+    bhRes?.value?.lastValidBlockHeight ?? bhRes?.lastValidBlockHeight;
+  if (!blockhash) throw new Error("Could not fetch Solana blockhash (RPC)");
   tx.recentBlockhash = blockhash;
   tx.feePayer = kp.publicKey;
   tx.sign(kp);
-  const sig = await connection.sendRawTransaction(tx.serialize(), {
-    skipPreflight: false,
-    maxRetries: 3,
-  });
-  try {
-    await connection.confirmTransaction(
-      { signature: sig, blockhash, lastValidBlockHeight },
-      "confirmed"
-    );
-  } catch (_) {}
+  const b64 = b64FromBytes(tx.serialize());
+  const sig = await solRpcOrConn(
+    rpcCall,
+    "sendTransaction",
+    [
+      b64,
+      {
+        encoding: "base64",
+        skipPreflight: false,
+        preflightCommitment: "confirmed",
+        maxRetries: 3,
+      },
+    ],
+    connection
+  );
+  if (connection && sig) {
+    try {
+      await connection.confirmTransaction(
+        { signature: sig, blockhash, lastValidBlockHeight },
+        "confirmed"
+      );
+    } catch (_) {}
+  }
   return sig;
 }
 
