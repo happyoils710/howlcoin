@@ -567,10 +567,11 @@ def fetch_markets_board(force: bool = False) -> Dict[str, Any]:
     HOWL (Howl Swap) + Chainlink feeds. Charts history is our own samples.
     """
     now = time.time()
+    # Client polls Howl Charts every 30s — keep board cache ≤ that window
     if (
         not force
         and _markets_board_cache.get("data")
-        and (now - float(_markets_board_cache.get("ts") or 0)) < 45
+        and (now - float(_markets_board_cache.get("ts") or 0)) < 30
     ):
         out = dict(_markets_board_cache["data"])  # type: ignore[arg-type]
         out["cached"] = True
@@ -679,7 +680,7 @@ def fetch_coin_profile(coin_id: str = "bitcoin", force: bool = False) -> Dict[st
     if (
         not force
         and hit
-        and (now - float(hit.get("ts") or 0)) < 120
+        and (now - float(hit.get("ts") or 0)) < 30
         and hit.get("data")
     ):
         out = dict(hit["data"])
@@ -835,7 +836,8 @@ def fetch_market_chart(
         cid = _HOWL_CHART_ID
     key = f"{cid}:{d}"
     now = time.time()
-    ttl = 180 if d in ("1", "7") else 300
+    # Short ranges refresh with the 30s Howl Charts UI poll; longer ranges cache more
+    ttl = 30 if d in ("1", "7", "14", "30") else 120
     hit = _chart_cache.get(key)
     if (
         not force
