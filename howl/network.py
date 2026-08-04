@@ -395,15 +395,18 @@ class Node:
         if mtype == "get_blocks":
             from_h = int(msg.get("from_height", 0))
             with self.chain_lock:
-                blocks = self.chain.get_blocks_from(from_h, limit=200)
-            # send in chunks of 20
-            for i in range(0, len(blocks), 20):
-                peer.send({"type": "blocks", "blocks": blocks[i : i + 20]})
+                # Larger batches so peers behind a fork can IBD in fewer round-trips
+                blocks = self.chain.get_blocks_from(from_h, limit=500)
+            # send in chunks of 25
+            for i in range(0, len(blocks), 25):
+                peer.send({"type": "blocks", "blocks": blocks[i : i + 25]})
             peer.send(
                 {
                     "type": "sync_done",
                     "height": self.chain.height(),
                     "tip": self.chain.tip()["hash"],
+                    "from_height": from_h,
+                    "sent": len(blocks),
                 }
             )
             return
@@ -484,11 +487,15 @@ class Node:
             if h == 0:
                 buf = []
                 peer._sync_buf = buf  # type: ignore[attr-defined]
+            # skip duplicate heights already in buffer
+            if buf and int(buf[-1].get("height", -1)) >= h:
+                continue
             buf.append(b)
+        peer._sync_buf = buf  # type: ignore[attr-defined]
 
         with self.chain_lock:
             applied = 0
-            # Prefer tip-extend for live blocks
+            # Prefer tip-extend for live blocks (same fork)
             for b in blocks:
                 hsh = b.get("hash", "")
                 if any(x["hash"] == hsh for x in self.chain.blocks):
@@ -500,28 +507,39 @@ class Node:
                     applied += 1
 
             # Full-chain adopt when we have a longer contiguous buffer from genesis
-            if buf and buf[0].get("height") == 0 and len(buf) > len(self.chain.blocks):
-                # ensure contiguous heights
+            # (covers forks: local short/wrong tip, peer longer public chain)
+            if buf and int(buf[0].get("height", -1)) == 0:
                 contiguous = True
                 for i, b in enumerate(buf):
                     if int(b.get("height", -1)) != i:
                         contiguous = False
                         break
-                if contiguous:
+                if contiguous and len(buf) > len(self.chain.blocks):
                     ok, msg = self.chain.adopt_chain(buf)
                     if ok:
                         self.log(msg)
                         for b in buf:
-                            self._seen_blocks.add(b["hash"])
+                            self._seen_blocks.add(b.get("hash", ""))
                         peer._sync_buf = []  # type: ignore[attr-defined]
                         return
+                # Partial IBD still growing — keep requesting next heights
+                if contiguous and peer.remote_height > len(buf) - 1:
+                    peer.send({"type": "get_blocks", "from_height": len(buf)})
+                    return
 
             if applied:
                 self.log(f"synced +{applied} blocks → height {self.chain.height()}")
 
-        # If still behind after batch, request full chain again
+        # Still behind and no useful buffer progress — restart IBD from genesis
         if peer.remote_height > self.chain.height():
-            peer.send({"type": "get_blocks", "from_height": 0})
+            next_h = 0
+            if (
+                hasattr(peer, "_sync_buf")
+                and peer._sync_buf  # type: ignore[attr-defined]
+                and int(peer._sync_buf[0].get("height", -1)) == 0  # type: ignore[attr-defined]
+            ):
+                next_h = len(peer._sync_buf)  # type: ignore[attr-defined]
+            peer.send({"type": "get_blocks", "from_height": next_h})
 
     def _ingest_single_block(
         self, block: Dict[str, Any], relay: bool = True, origin: Optional[PeerConnection] = None
