@@ -33,14 +33,14 @@ def main() -> int:
     ap.add_argument(
         "--interval",
         type=int,
-        default=int(os.environ.get("HOWL_CHARTS_SAMPLE_INTERVAL", "300")),
-        help="Seconds between samples in --loop mode (default 300)",
+        default=int(os.environ.get("HOWL_CHARTS_SAMPLE_INTERVAL", "60")),
+        help="Seconds between samples in --loop mode (default 60)",
     )
     ap.add_argument(
         "--min-gap",
         type=int,
-        default=int(os.environ.get("HOWL_CHARTS_MIN_GAP", "240")),
-        help="Minimum seconds between stored samples per asset (default 240)",
+        default=int(os.environ.get("HOWL_CHARTS_MIN_GAP", "60")),
+        help="Minimum seconds between stored samples per asset (default 60)",
     )
     ap.add_argument(
         "--force",

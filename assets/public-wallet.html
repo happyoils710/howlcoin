@@ -1006,11 +1006,11 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         </div>
         <div class="chart-ranges" id="chartRanges">
           <button type="button" data-d="1">1D</button>
-          <button type="button" data-d="7" class="on">7D</button>
+          <button type="button" data-d="7">7D</button>
           <button type="button" data-d="30">30D</button>
           <button type="button" data-d="90">90D</button>
           <button type="button" data-d="365">1Y</button>
-          <button type="button" data-d="max">Lifetime</button>
+          <button type="button" data-d="max" class="on">Lifetime</button>
         </div>
         <div class="chart-canvas-wrap" id="chartWrap">
           <canvas id="howlChart" width="400" height="240" aria-label="Price chart"></canvas>
@@ -2787,15 +2787,15 @@ function computePortfolioTotals(){
   let btc = 0;
   let priced = 0;
   let unpriced = 0;
-  // HOWL has no public market price — exclude from fiat total
   for(const a of allAssets()){
     if(a.kind === "external") continue;
-    if(a.kind === "howl") continue;
     const amt = assetRaw[a.id];
     if(amt == null || !Number.isFinite(amt) || amt === 0) continue;
-    const cid = ASSET_PRICE_ID[a.id];
+    // HOWL live index from Howl Charts (howlcoin / howl)
+    let cid = ASSET_PRICE_ID[a.id];
+    if(a.kind === "howl") cid = "howlcoin";
     if(!cid){ unpriced++; continue; }
-    const row = marketPrices[cid];
+    const row = marketPrices[cid] || (cid === "howlcoin" ? marketPrices.howl : null);
     if(!row){ unpriced++; continue; }
     const pu = Number(row.usd);
     const pb = Number(row.btc);
@@ -2912,7 +2912,27 @@ function updatePortfolioTotal(){
   setBalDisplay(portfolioUnit === "btc" ? formatBtc(t.btc) : formatUsd(t.usd));
   if(hint){
     const other = portfolioUnit === "btc" ? formatUsd(t.usd) : formatBtc(t.btc);
-    hint.textContent = other + " · priced assets only · HOWL not listed";
+    const howlPx = marketPrices.howlcoin?.usd ?? marketPrices.howl?.usd;
+    const live = howlPx != null ? (" · HOWL " + fmtUsdPx(Number(howlPx)) + " live") : "";
+    hint.textContent = other + " · live prices" + live;
+  }
+  paintLiveHowlSub();
+}
+
+function paintLiveHowlSub(){
+  const el = $("howlSubBal");
+  if(!el) return;
+  const h = howlAmount();
+  const px = marketPrices.howlcoin?.usd ?? marketPrices.howl?.usd;
+  if(hideBalances){
+    el.textContent = "HOWL: " + HIDDEN_BAL;
+    return;
+  }
+  if(px != null && Number.isFinite(Number(px))){
+    const fiat = Number.isFinite(h) ? formatUsd(h * Number(px)) : "—";
+    el.textContent = `HOWL: ${Number.isFinite(h) ? h.toLocaleString(undefined,{maximumFractionDigits:4}) : "—"} · ${fmtUsdPx(Number(px))} live · ${fiat}`;
+  }else{
+    el.textContent = `HOWL: ${Number.isFinite(h) ? h.toLocaleString(undefined,{maximumFractionDigits:4}) : "—"}`;
   }
 }
 
@@ -4934,6 +4954,8 @@ function showApp(){
   paintIcons(document);
   refresh();
   setInterval(refresh, 15000);
+  // Live HOWL + majors always — not only on Charts page
+  startHowlLivePrices();
   // WalletConnect + injected provider after unlock
   try{
     installHowlProvider();
@@ -10457,8 +10479,9 @@ function uiUnlock(){
 }
 
 /* —— Howl Charts: first-party Howlcoin product (HOWL index + market coverage) —— */
-let chartState = { id: "howlcoin", days: "7", points: [], profile: null, wired: false };
+let chartState = { id: "howlcoin", days: "max", points: [], profile: null, wired: false };
 let marketsBoardTimer = null;
+let howlLivePriceTimer = null;
 let marketsLive = [];
 
 function fmtUsdPx(n){
@@ -10497,10 +10520,14 @@ function initHowlCharts(){
     if(ranges){
       ranges.querySelectorAll("button").forEach(btn=>{
         btn.onclick = ()=>{
-          chartState.days = btn.dataset.d || "7";
+          chartState.days = btn.dataset.d || "max";
           ranges.querySelectorAll("button").forEach(b=>b.classList.toggle("on", b===btn));
           refreshHowlChart(false);
         };
+      });
+      // Default Lifetime selected
+      ranges.querySelectorAll("button").forEach(b=>{
+        b.classList.toggle("on", (b.dataset.d || "") === (chartState.days || "max"));
       });
     }
     const wrap = $("chartWrap");
@@ -10517,12 +10544,62 @@ function initHowlCharts(){
       window.addEventListener("resize", ()=>{ if(currentPage==="markets") drawHowlChart(chartState.points); });
     }
   }
+  // ensure Lifetime is default for Howlcoin product view
+  if(!chartState.days) chartState.days = "max";
   refreshMarketsAll(false);
   if(marketsBoardTimer) clearInterval(marketsBoardTimer);
   // Live board + selected chart every 30s while Howl Charts is open
   marketsBoardTimer = setInterval(()=>{
     if(currentPage === "markets") refreshMarketsAll(false);
   }, 30000);
+  startHowlLivePrices();
+}
+
+/** Always-on live prices (home + portfolio + charts) — every 30s while unlocked */
+function startHowlLivePrices(){
+  if(howlLivePriceTimer) return;
+  const tick = async ()=>{
+    try{
+      const [m, p] = await Promise.all([
+        api("/api/public/markets").catch(()=>({})),
+        api("/api/public/prices").catch(()=>({})),
+      ]);
+      if(p.prices){
+        marketPrices = { ...marketPrices, ...p.prices };
+        marketPricesUpdated = p.updated || Date.now() / 1000;
+      }
+      if(m.coins){
+        marketsLive = m.coins;
+        for(const c of m.coins){
+          if(c.usd == null) continue;
+          const id = c.id || "";
+          marketPrices[id] = marketPrices[id] || {};
+          marketPrices[id].usd = Number(c.usd);
+          if(id === "howlcoin" || id === "howl"){
+            marketPrices.howlcoin = marketPrices.howlcoin || {};
+            marketPrices.howl = marketPrices.howl || {};
+            marketPrices.howlcoin.usd = Number(c.usd);
+            marketPrices.howl.usd = Number(c.usd);
+            if(marketPrices.bitcoin?.usd){
+              marketPrices.howlcoin.btc = Number(c.usd) / Number(marketPrices.bitcoin.usd);
+              marketPrices.howl.btc = marketPrices.howlcoin.btc;
+            }
+          }
+        }
+      }
+      updatePortfolioTotal();
+      paintLiveHowlSub();
+      // Keep chart price badge live even mid-range
+      if(currentPage === "markets" && $("chartPrice")){
+        const id = chartState.id || "howlcoin";
+        const live = marketsLive.find(c => c.id === id);
+        const px = live?.usd ?? marketPrices[id]?.usd ?? marketPrices.howlcoin?.usd;
+        if(px != null) $("chartPrice").textContent = fmtUsdPx(Number(px));
+      }
+    }catch(_){}
+  };
+  tick();
+  howlLivePriceTimer = setInterval(tick, 30000);
 }
 
 async function refreshMarketsAll(force){
@@ -10617,7 +10694,7 @@ async function refreshHowlChart(force){
   if(meta) meta.textContent = "Loading Howl Charts…";
   try{
     const id = chartState.id || "howlcoin";
-    const days = chartState.days || "7";
+    const days = chartState.days || "max";
     const j = await api(`/api/public/chart?id=${encodeURIComponent(id)}&days=${encodeURIComponent(days)}${force?"&force=1":""}`);
     if(j.error && !(j.points||[]).length) throw new Error(j.error);
     chartState.points = j.points || [];
@@ -10625,28 +10702,33 @@ async function refreshHowlChart(force){
     const name = j.name || live?.name || id;
     const sym = j.symbol || live?.symbol || "";
     const isHowl = id === "howlcoin" || j.index === "howl-swap";
-    if($("chartCoinName")) $("chartCoinName").textContent = name + (sym ? " · " + sym : "") + (isHowl ? " · Howlcoin" : "");
-    const close = j.close != null ? j.close : (live?.usd != null ? live.usd : chartState.points.slice(-1)[0]?.p);
+    if($("chartCoinName")) $("chartCoinName").textContent = name + (sym ? " · " + sym : "") + (isHowl ? " · Howlcoin" : "") + " · LIVE";
+    const close = j.live != null ? j.live : (j.close != null ? j.close : (live?.usd != null ? live.usd : chartState.points.slice(-1)[0]?.p));
     const chg = j.change_pct;
     if($("chartPrice")){
-      const livePx = chartState.profile?.usd ?? live?.usd ?? close;
+      const livePx = live?.usd ?? chartState.profile?.usd ?? marketPrices[id]?.usd ?? close;
       $("chartPrice").textContent = fmtUsdPx(livePx);
     }
     if($("chartChg") && !(chartState.days === "1" && chartState.profile?.change_24h != null)){
-      if(isHowl && j.howl_per_usdc != null){
+      if(isHowl && j.howl_per_usdc != null && days !== "max"){
         $("chartChg").className = "ch-chg up";
-        $("chartChg").textContent = `${Number(j.howl_per_usdc)} HOWL / USDC · Howl Swap index`;
+        $("chartChg").textContent = `${Number(j.howl_per_usdc)} HOWL / USDC · Howl Swap · live`;
       } else {
         const up = Number(chg) >= 0;
         $("chartChg").className = "ch-chg " + (up ? "up" : "dn");
         const label = days === "max" ? "lifetime" : (days + "d");
-        $("chartChg").textContent = chg == null ? "—" : (fmtPct(chg) + " · " + label);
+        $("chartChg").textContent = chg == null ? "live" : (fmtPct(chg) + " · " + label);
       }
     }
     if(meta){
       const range = days === "max" ? "lifetime" : (days + " day");
-      meta.textContent = `Howl Charts · ${range} · ${j.count||chartState.points.length} pts`
-        + (j.cached ? " · cached" : " · live")
+      const samples = j.sample_count != null ? j.sample_count : (j.count || chartState.points.length);
+      let spanTxt = "";
+      if(j.first_ts && j.last_ts && j.last_ts > j.first_ts){
+        const daysSpan = Math.max(1, Math.round((j.last_ts - j.first_ts) / 86400));
+        spanTxt = daysSpan >= 2 ? ` · ${daysSpan}d history` : " · building history";
+      }
+      meta.textContent = `Howl Charts · ${range}${spanTxt} · ${samples} samples · live price always on`
         + (j.high != null ? ` · H ${fmtUsdPx(j.high)}` : "")
         + (j.low != null ? ` L ${fmtUsdPx(j.low)}` : "")
         + " · Howlcoin product";
@@ -10948,6 +11030,7 @@ window.refreshHowlChart = refreshHowlChart;
 window.refreshMarketsBoard = refreshMarketsBoard;
 window.refreshMarketsAll = refreshMarketsAll;
 window.paintIcons = paintIcons;
+window.startHowlLivePrices = startHowlLivePrices;
 window.setPlayTab = setPlayTab;
 window.setCityFilter = setCityFilter;
 window.refreshPlayCity = refreshPlayCity;

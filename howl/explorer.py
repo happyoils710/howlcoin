@@ -334,9 +334,9 @@ def _save_all_chart_samples(store: Dict[str, List[Dict[str, Any]]]) -> None:
 
 
 def _record_price_sample(
-    cid: str, usd: float, now: float, min_gap: int = 900, force: bool = False
+    cid: str, usd: float, now: float, min_gap: int = 60, force: bool = False
 ) -> bool:
-    """Append sparse samples into Howl Charts' own history store. Returns True if written."""
+    """Append samples into Howl Charts history. Default 60s gap densifies lifetime."""
     with _chart_samples_lock:
         store = _load_all_chart_samples()
         samples = list(store.get(cid) or [])
@@ -345,8 +345,9 @@ def _record_price_sample(
             if now - last_t < min_gap:
                 return False
         samples.append({"t": int(now), "p": float(usd)})
-        if len(samples) > 20000:
-            samples = samples[-20000:]
+        # ~60s samples × years of history; cap keeps file size sane
+        if len(samples) > 100_000:
+            samples = samples[-100_000:]
         store[cid] = samples
         _save_all_chart_samples(store)
         return True
@@ -359,6 +360,7 @@ def _load_price_samples(cid: str) -> List[Dict[str, Any]]:
 def _series_from_samples(
     cid: str, days: str, usd: float, now: float
 ) -> List[Dict[str, Any]]:
+    """Full sample history for the window, always ending with live spot."""
     samples = _load_price_samples(cid)
     if days == "max":
         cutoff = 0
@@ -368,14 +370,22 @@ def _series_from_samples(
         except ValueError:
             n = 7
         cutoff = int(now) - n * 86400
-    pts = [p for p in samples if p["t"] >= cutoff]
-    if not pts or pts[-1]["t"] < int(now) - 30:
-        pts.append({"t": int(now), "p": float(usd)})
+    pts = [{"t": int(p["t"]), "p": float(p["p"])} for p in samples if p["t"] >= cutoff]
+    # Always pin live price as the right edge of the chart
+    live = {"t": int(now), "p": float(usd)}
+    if pts:
+        if pts[-1]["t"] >= int(now) - 15:
+            pts[-1] = live
+        else:
+            pts.append(live)
+    else:
+        pts = [live]
     if len(pts) < 2:
+        # bootstrap flat segment so canvas can draw until history grows
         span = 86400 if days == "1" else (7 * 86400 if days != "max" else 30 * 86400)
         pts = [
             {"t": int(now) - span, "p": float(usd)},
-            {"t": int(now), "p": float(usd)},
+            live,
         ]
     return pts
 
@@ -430,20 +440,22 @@ def howl_swap_index(record: bool = True) -> Dict[str, Any]:
     }
     if record and usd is not None:
         try:
-            _record_price_sample(_HOWL_CHART_ID, float(usd), now)
+            _record_price_sample(_HOWL_CHART_ID, float(usd), now, min_gap=60)
         except Exception:
             pass
+    out["live"] = True
     return out
 
 
 def fetch_onchain_spot(
-    cid: str, record: bool = True, force_record: bool = False, min_gap: int = 900
+    cid: str, record: bool = True, force_record: bool = False, min_gap: int = 60
 ) -> Dict[str, Any]:
     """
     Live USD from blockchain data only:
       - howlcoin → Howl Swap index (our chain/product rate)
       - majors → Chainlink AggregatorV3 on Ethereum (on-chain oracle)
     No CoinGecko / Yahoo price APIs.
+    Samples every ~min_gap seconds so lifetime history grows continuously.
     """
     now = time.time()
     key = (cid or "").strip().lower()
@@ -457,6 +469,7 @@ def fetch_onchain_spot(
                 out["recorded"] = wrote
             except Exception as e:
                 out["record_error"] = str(e)
+        out["live"] = True
         return out
     meta = _CHAINLINK_FEEDS.get(key)
     if not meta:
@@ -477,6 +490,7 @@ def fetch_onchain_spot(
         "symbol": sym,
         "name": name,
         "usd": usd,
+        "live": True,
         "feed": addr,
         "oracle": "onchain",
         "chain": "ethereum",
@@ -490,11 +504,12 @@ def fetch_onchain_spot(
 
 
 def sample_howl_charts(
-    force: bool = False, min_gap: int = 300
+    force: bool = False, min_gap: int = 60
 ) -> Dict[str, Any]:
     """
     One sampling pass for the 24/7 Howl Charts systemd sampler.
     Reads on-chain spots (parallel) then records under a file lock.
+    Default min_gap=60s builds lifetime history at ~1 sample/min.
     """
     now = time.time()
     ids = [_HOWL_CHART_ID] + list(_CHAINLINK_FEEDS.keys())
@@ -567,11 +582,11 @@ def fetch_markets_board(force: bool = False) -> Dict[str, Any]:
     HOWL (Howl Swap) + Chainlink feeds. Charts history is our own samples.
     """
     now = time.time()
-    # Client polls Howl Charts every 30s — keep board cache ≤ that window
+    # Client polls Howl Charts every 30s — board stays fresh for live prices
     if (
         not force
         and _markets_board_cache.get("data")
-        and (now - float(_markets_board_cache.get("ts") or 0)) < 30
+        and (now - float(_markets_board_cache.get("ts") or 0)) < 15
     ):
         out = dict(_markets_board_cache["data"])  # type: ignore[arg-type]
         out["cached"] = True
@@ -773,9 +788,18 @@ def fetch_coin_profile(coin_id: str = "bitcoin", force: bool = False) -> Dict[st
 def _downsample_points(points: List[Dict[str, Any]], target: int = 180) -> List[Dict[str, Any]]:
     if len(points) <= target + 20:
         return points
-    step = max(1, len(points) // target)
-    out = points[::step]
-    # always keep the last point for "live" close
+    # Keep first, last, global min/max, plus even steps — lifetime charts stay faithful
+    n = len(points)
+    keep = {0, n - 1}
+    min_i = min(range(n), key=lambda i: points[i]["p"])
+    max_i = max(range(n), key=lambda i: points[i]["p"])
+    keep.add(min_i)
+    keep.add(max_i)
+    step = max(1, n // max(1, target - 4))
+    for i in range(0, n, step):
+        keep.add(i)
+    out = [points[i] for i in sorted(keep)]
+    # always keep the last point for live close
     if out and points and out[-1]["t"] != points[-1]["t"]:
         out.append(points[-1])
     return out
@@ -788,10 +812,15 @@ def _chart_payload(
     source: str,
     now: float,
 ) -> Dict[str, Any]:
-    points = _downsample_points(points)
+    raw_count = len(points)
+    # Lifetime keeps more detail; short ranges stay light
+    target = 1500 if d == "max" else (400 if d in ("90", "180", "365") else 240)
+    points = _downsample_points(points, target=target)
     first = points[0]["p"] if points else 0.0
     last = points[-1]["p"] if points else 0.0
     chg = ((last - first) / first * 100.0) if first else 0.0
+    first_ts = int(points[0]["t"]) if points else int(now)
+    last_ts = int(points[-1]["t"]) if points else int(now)
     if cid == _HOWL_CHART_ID:
         sym, name = "HOWL", "Howlcoin"
     elif cid in _CHAINLINK_FEEDS:
@@ -806,11 +835,16 @@ def _chart_payload(
         "range": "lifetime" if d == "max" else f"{d}d",
         "points": points,
         "count": len(points),
+        "sample_count": raw_count,
         "open": first,
         "close": last,
+        "live": last,
         "change_pct": round(chg, 3),
         "high": max((x["p"] for x in points), default=0.0),
         "low": min((x["p"] for x in points), default=0.0),
+        "first_ts": first_ts,
+        "last_ts": last_ts,
+        "span_seconds": max(0, last_ts - first_ts),
         "updated": int(now),
         "source": source,
         "product": "Howl Charts",
@@ -836,8 +870,8 @@ def fetch_market_chart(
         cid = _HOWL_CHART_ID
     key = f"{cid}:{d}"
     now = time.time()
-    # Short ranges refresh with the 30s Howl Charts UI poll; longer ranges cache more
-    ttl = 30 if d in ("1", "7", "14", "30") else 120
+    # Live price always: short TTL so close/live tick updates continuously
+    ttl = 15 if d in ("1", "7", "14", "30", "max") else 60
     hit = _chart_cache.get(key)
     if (
         not force
@@ -848,10 +882,26 @@ def fetch_market_chart(
     ):
         out = dict(hit["data"])
         out["cached"] = True
+        # Still refresh live close on cache hits when we have a recent spot
+        try:
+            spot = fetch_onchain_spot(cid, record=True, min_gap=60)
+            if spot.get("usd") is not None:
+                live_px = float(spot["usd"])
+                out["close"] = live_px
+                out["live"] = live_px
+                pts = list(out.get("points") or [])
+                if pts:
+                    pts[-1] = {"t": int(now), "p": live_px}
+                    out["points"] = pts
+                out["updated"] = int(now)
+                if cid == _HOWL_CHART_ID and spot.get("howl_per_usdc") is not None:
+                    out["howl_per_usdc"] = spot.get("howl_per_usdc")
+        except Exception:
+            pass
         return out
 
     try:
-        spot = fetch_onchain_spot(cid, record=True)
+        spot = fetch_onchain_spot(cid, record=True, min_gap=60)
         usd = float(spot["usd"]) if spot.get("usd") is not None else None
         if usd is None:
             raise RuntimeError("no on-chain spot")
@@ -887,18 +937,73 @@ def fetch_market_chart(
         }
 
 
+def _inject_howl_live_price(prices: Dict[str, Dict[str, float]], now: float) -> None:
+    """Always attach live HOWL (Howl Swap index) into the wallet price map."""
+    try:
+        h = howl_swap_index(record=True)
+        usd = h.get("usd")
+        if usd is None:
+            return
+        usd_f = float(usd)
+        entry: Dict[str, float] = {"usd": usd_f}
+        btc_usd = (prices.get("bitcoin") or {}).get("usd")
+        if btc_usd and float(btc_usd) > 0:
+            entry["btc"] = usd_f / float(btc_usd)
+        prices["howlcoin"] = entry
+        prices["howl"] = entry
+    except Exception:
+        pass
+    # Prefer on-chain majors when Howl Charts has them (live always)
+    try:
+        for cid in ("bitcoin", "ethereum", "solana"):
+            try:
+                spot = fetch_onchain_spot(cid, record=True, min_gap=60)
+                if spot.get("usd") is None:
+                    continue
+                usd_f = float(spot["usd"])
+                row = dict(prices.get(cid) or {})
+                row["usd"] = usd_f
+                btc_usd = (prices.get("bitcoin") or {}).get("usd") or (
+                    usd_f if cid == "bitcoin" else None
+                )
+                if cid == "bitcoin":
+                    row["btc"] = 1.0
+                    prices["bitcoin"] = row
+                    # recompute howl btc if present
+                    if "howlcoin" in prices and prices["howlcoin"].get("usd"):
+                        prices["howlcoin"]["btc"] = float(prices["howlcoin"]["usd"]) / usd_f
+                        prices["howl"] = prices["howlcoin"]
+                elif btc_usd and float(btc_usd) > 0:
+                    row["btc"] = usd_f / float(btc_usd)
+                    prices[cid] = row
+                else:
+                    prices[cid] = row
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+
 def fetch_market_prices(force: bool = False) -> Dict[str, Any]:
     """
-    USD + BTC prices for wallet assets (CoinGecko simple/price, cached ~60s).
-    Returns { prices: { id: {usd, btc} }, updated, source }.
+    USD + BTC prices for wallet assets.
+    Majors: CoinGecko (portfolio) overlaid with on-chain Chainlink + Howl Swap for HOWL.
+    HOWL live price is always injected (Howl Charts index).
     """
     now = time.time()
     if (
         not force
         and _price_cache.get("data")
-        and (now - float(_price_cache.get("ts") or 0)) < 60
+        and (now - float(_price_cache.get("ts") or 0)) < 30
     ):
-        return _price_cache["data"]  # type: ignore[return-value]
+        cached = dict(_price_cache["data"])  # type: ignore[arg-type]
+        prices = dict(cached.get("prices") or {})
+        _inject_howl_live_price(prices, now)
+        cached["prices"] = prices
+        cached["cached"] = True
+        cached["howl_live"] = True
+        cached["updated"] = int(now)
+        return cached
     url = (
         "https://api.coingecko.com/api/v3/simple/price?"
         + urllib.parse.urlencode(
@@ -950,10 +1055,12 @@ def fetch_market_prices(force: bool = False) -> Dict[str, Any]:
                 if prices[stable].get("btc", 0) == 0 and btc_usd > 0:
                     prices[stable]["btc"] = 1.0 / btc_usd
             prices["bitcoin"]["btc"] = 1.0
+        _inject_howl_live_price(prices, now)
         out = {
             "prices": prices,
             "updated": int(now),
-            "source": "coingecko",
+            "source": "howl-charts+coingecko",
+            "howl_live": True,
             "cached": False,
         }
         _price_cache["ts"] = now
@@ -962,11 +1069,18 @@ def fetch_market_prices(force: bool = False) -> Dict[str, Any]:
     except Exception as e:
         if _price_cache.get("data"):
             stale = dict(_price_cache["data"])  # type: ignore[arg-type]
+            prices = dict(stale.get("prices") or {})
+            _inject_howl_live_price(prices, now)
+            stale["prices"] = prices
             stale["stale"] = True
+            stale["howl_live"] = True
             stale["error"] = str(e)
             return stale
+        # HOWL-only fallback so wallet always has a live Howl price
+        prices = {}
+        _inject_howl_live_price(prices, now)
         return {
-            "prices": {},
+            "prices": prices,
             "updated": int(now),
             "source": "none",
             "error": str(e),
@@ -4199,17 +4313,17 @@ async function showChartsBoard(){
   try{
     [markets, chart, howlChart] = await Promise.all([
       api('/api/public/markets').catch(()=>({coins:[]})),
-      api('/api/public/chart?id=bitcoin&days=7').catch(()=>({points:[]})),
-      api('/api/public/chart?id=howlcoin&days=7').catch(()=>({points:[]})),
+      api('/api/public/chart?id=bitcoin&days=max').catch(()=>({points:[]})),
+      api('/api/public/chart?id=howlcoin&days=max').catch(()=>({points:[]})),
     ]);
   }catch(e){}
   const coins = markets.coins || [];
   const btcPts = sparkPts(chart.points, 320, 80);
   const howlPts = sparkPts(howlChart.points, 320, 80);
-  const howlPx = howlChart.close!=null?Number(howlChart.close):(coins.find(c=>c.id==='howlcoin')?Number(coins.find(c=>c.id==='howlcoin').usd):null);
+  const howlPx = howlChart.live!=null?Number(howlChart.live):(howlChart.close!=null?Number(howlChart.close):(coins.find(c=>c.id==='howlcoin')?Number(coins.find(c=>c.id==='howlcoin').usd):null));
   setPageMeta(
     'Howl Charts · Howlscan',
-    `Howlcoin markets board${howlPx!=null?': HOWL ~ $'+howlPx.toPrecision(4):''}. On-chain spots + Howl Swap index.`,
+    `Howlcoin markets board${howlPx!=null?': HOWL ~ $'+howlPx.toPrecision(4):''} live. Lifetime history from Howl Charts samples.`,
     '#/charts'
   );
   app().innerHTML = `<div class="main" style="padding-top:12px">
@@ -4219,24 +4333,25 @@ async function showChartsBoard(){
       <button class="chipbtn" onclick="location.hash='#/health'">Network</button>
       <a class="chipbtn" href="/app" style="text-decoration:none">Wallet charts</a>
       <button class="chipbtn" onclick="showChartsBoard()">↻ Refresh</button>
-      <span class="muted" style="font-size:.72rem;align-self:center">Live · 45s</span>
+      <span class="muted" style="font-size:.72rem;align-self:center">● Live · lifetime</span>
     </div>
     <div class="card detail">
       <div class="badge ok">HOWL CHARTS</div>
+      <span class="badge ok" style="margin-left:6px">● live</span>
       <h2 style="margin:8px 0 6px">Markets · Howlcoin product</h2>
-      <p class="muted" style="margin:0 0 10px">${esc(markets.note||'On-chain spots + Howl Swap index for HOWL. Built by Howlcoin.')}</p>
+      <p class="muted" style="margin:0 0 10px">${esc(markets.note||'Live on-chain spots + Howl Swap index. Lifetime series from Howl Charts samples.')}</p>
     </div>
     <div class="main cols" style="padding:12px 0 0;margin:0">
       <div class="card">
-        <h3>HOWL · Howl Swap index</h3>
+        <h3>HOWL · live + lifetime</h3>
         <div style="padding:8px 12px">
-          <div style="font-size:1.4rem;font-weight:800;color:var(--green)">${howlChart.close!=null?('$'+Number(howlChart.close).toPrecision(4)): (coins.find(c=>c.id==='howlcoin')?('$'+Number(coins.find(c=>c.id==='howlcoin').usd).toPrecision(4)):'—')}</div>
-          <div class="muted" style="font-size:.78rem;margin:4px 0 8px">${esc(howlChart.range||'7d')} · ${howlChart.count||0} pts · ${esc(howlChart.source||'howl-swap')}</div>
-          ${howlPts?`<svg viewBox="0 0 320 80" width="100%" height="80" style="display:block;background:rgba(0,0,0,.2);border:1px solid var(--border)"><polyline fill="none" stroke="var(--green)" stroke-width="2" points="${howlPts}"/></svg>`:`<div class="muted">Not enough samples yet — sampler builds history over time.</div>`}
+          <div style="font-size:1.4rem;font-weight:800;color:var(--green)">${howlPx!=null?('$'+Number(howlPx).toPrecision(4)):'—'}</div>
+          <div class="muted" style="font-size:.78rem;margin:4px 0 8px">lifetime · ${howlChart.sample_count||howlChart.count||0} samples · live close · ${esc(howlChart.source||'howl-swap')}</div>
+          ${howlPts?`<svg viewBox="0 0 320 80" width="100%" height="80" style="display:block;background:rgba(0,0,0,.2);border:1px solid var(--border)"><polyline fill="none" stroke="var(--green)" stroke-width="2" points="${howlPts}"/></svg>`:`<div class="muted">Not enough samples yet — 1‑min sampler builds lifetime history.</div>`}
         </div>
       </div>
       <div class="card">
-        <h3>BTC reference (7d)</h3>
+        <h3>BTC · lifetime</h3>
         <div style="padding:8px 12px">
           <div style="font-size:1.4rem;font-weight:800">${chart.close!=null?('$'+Number(chart.close).toLocaleString(undefined,{maximumFractionDigits:0})):'—'}</div>
           <div class="muted" style="font-size:.78rem;margin:4px 0 8px">${chart.change_pct!=null?((chart.change_pct>=0?'+':'')+Number(chart.change_pct).toFixed(2)+'%'):'—'} · on-chain oracle feed</div>
