@@ -242,11 +242,14 @@ def process_once(dd: Path, dry_run: bool = False) -> int:
 
         if st in ("awaiting_deposit", "confirming") and not o.get("deposit_tx"):
             sig = ""
+            # Accept deposits up to 48h *before* order creation (user often sends first).
+            # since_ts is a lower bound: ignore txs older than this.
+            lookback = max(0.0, float(created or 0) - 48 * 3600)
             try:
                 if asset == "sol":
-                    sig = find_sol_deposit(treasury, raw, created, memo=oid)
+                    sig = find_sol_deposit(treasury, raw, lookback, memo=oid)
                 elif asset == "usdc":
-                    sig = find_usdc_deposit(treasury, raw, created)
+                    sig = find_usdc_deposit(treasury, raw, lookback)
             except Exception as e:
                 print(f"[{oid}] scan error: {e}")
                 continue
