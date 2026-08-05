@@ -899,8 +899,8 @@ def fetch_market_chart(
     d = (days or "7").strip()
     if d not in ("1", "7", "14", "30", "90", "180", "365", "max"):
         d = "7"
-    if cid not in _charts_allowed_ids():
-        cid = _HOWL_CHART_ID
+    # Prefer on-chain Howl Charts when available; otherwise CoinGecko lifetime
+    use_onchain = cid in _charts_allowed_ids() or cid in _CHAINLINK_FEEDS
     key = f"{cid}:{d}"
     now = time.time()
     # Live price always: short TTL so close/live tick updates continuously
@@ -933,7 +933,7 @@ def fetch_market_chart(
             pass
         return out
 
-    if _unknown:
+    if not use_onchain:
         try:
             gecko = _fetch_coingecko_market_chart(cid, d)
             if gecko.get("points"):
