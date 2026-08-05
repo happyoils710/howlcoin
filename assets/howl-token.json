@@ -1,8 +1,8 @@
 {
   "name": "Howlcoin",
   "symbol": "HOWL",
-  "description": "Howlcoin (HOWL) is a native Scrypt proof-of-work cryptocurrency. https://howlscan.org",
-  "image": "https://howlscan.org/assets/token-logos/howl.png",
+  "description": "Howlcoin (HOWL) native Scrypt PoW. https://howlscan.org",
+  "image": "https://howlscan.org/assets/token-logos/howl.png?v=3",
   "external_url": "https://howlscan.org",
   "tags": [
     "howl",
