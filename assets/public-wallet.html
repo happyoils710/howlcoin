@@ -984,19 +984,8 @@ html.embed .gate{min-height:100dvh}
       <div class="wa-actions" role="navigation" aria-label="Quick actions">
         <button class="wa-act" type="button" onclick="showPage('recv')"><span class="wa-ico" data-icon="recv"></span><span class="wa-lab">Receive</span></button>
         <button class="wa-act" type="button" onclick="showPage('send')"><span class="wa-ico" data-icon="send"></span><span class="wa-lab">Send</span></button>
-        <button class="wa-act" type="button" onclick="showPage('play');setPlayTab('city')"><span class="wa-ico" data-icon="spark"></span><span class="wa-lab">City</span></button>
+        <button class="wa-act" type="button" onclick="showPage('assets')"><span class="wa-ico" data-icon="assets"></span><span class="wa-lab">Assets</span></button>
         <button class="wa-act" type="button" onclick="showPage('markets')"><span class="wa-ico" data-icon="chart"></span><span class="wa-lab">Charts</span></button>
-      </div>
-
-      <div class="city-pulse" id="homeCityPulse">
-        <div class="cp-head">
-          <h2>Howl City</h2>
-          <div style="display:flex;align-items:center;gap:10px">
-            <span class="cp-live">● live</span>
-            <button type="button" class="wa-link" onclick="showPage('play');setPlayTab('city')">Full feed ›</button>
-          </div>
-        </div>
-        <div id="homeCityList"><p class="hint" style="padding:10px 12px;margin:0">Loading city…</p></div>
       </div>
 
       <div class="wa-section">
@@ -9290,9 +9279,8 @@ async function refresh(){
     renderHomeActivity();
     if($("p-activity")?.classList.contains("on")) renderActivityFull();
     celebrateIfNew(sum, addr);
-    // Identity + Howl City pulse (non-blocking)
+    // Identity strip (non-blocking)
     try{ refreshHomeIdentity(); }catch(_){}
-    try{ refreshHomeCity(); }catch(_){}
     if(currentPage === "play" && playTab === "city"){
       try{ refreshPlayCity(false); }catch(_){}
     }
