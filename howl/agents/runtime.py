@@ -73,11 +73,19 @@ class AgentRuntime:
         self.interval = float(interval)
         self.council = Council()
         self.treasury = load_treasury(self.state_dir / "treasury.json")
+        seeds_path = None
+        if Path("/var/lib/howlcoin").is_dir():
+            seeds_path = Path("/var/lib/howlcoin/public_seeds.json")
+        elif _env("HOWL_SEEDS_FILE"):
+            seeds_path = Path(_env("HOWL_SEEDS_FILE"))
+        else:
+            seeds_path = self.state_dir / "public_seeds.json"
         self.infra = InfraGovernor(
             self.state_dir / "infra",
             seed=seed,
             howl_root=howl_root,
             dry_run=dry_run_infra,
+            seeds_registry_path=seeds_path,
         )
         ctx = {"api_base": self.api_base, "state_dir": str(self.state_dir)}
         self.agents = {
@@ -90,6 +98,11 @@ class AgentRuntime:
         self.results: List[Dict[str, Any]] = []
         self.tick_count = 0
         self._load_history()
+        # Always keep primary seed in the public directory
+        try:
+            self.infra.publish_seed_directory()
+        except Exception:
+            pass
 
     def _load_history(self) -> None:
         p = self.state_dir / "history.json"
@@ -121,6 +134,19 @@ class AgentRuntime:
         )
 
     def status(self) -> Dict[str, Any]:
+        seeds_summary: Dict[str, Any] = {}
+        try:
+            from ..seeds import list_seeds
+
+            sd = list_seeds(probe=False)
+            seeds_summary = {
+                "primary": sd.get("primary"),
+                "count": sd.get("count"),
+                "endpoints": [s.get("endpoint") for s in (sd.get("seeds") or [])],
+                "registry_files": sd.get("registry_files"),
+            }
+        except Exception as e:
+            seeds_summary = {"error": str(e)}
         return {
             "system": "howl-agents/v1",
             "api_base": self.api_base,
@@ -130,6 +156,7 @@ class AgentRuntime:
             "wallet": str(self.wallet_path) if self.wallet_path else None,
             "treasury": self.treasury.to_dict(),
             "infra": self.infra.inventory(),
+            "public_seeds": seeds_summary,
             "recent_findings": self.findings[-15:],
             "recent_results": self.results[-10:],
             "open_proposals": len(self.council.proposals),
@@ -289,6 +316,12 @@ class AgentRuntime:
         self.tick_count += 1
         all_findings: List[Finding] = []
         errors: List[str] = []
+
+        # Keep public seed directory fresh (primary + fleet)
+        try:
+            self.infra.publish_seed_directory()
+        except Exception as e:
+            errors.append(f"seed_registry: {e}")
 
         for aid, mon in self.agents.items():
             try:

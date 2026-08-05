@@ -1,0 +1,31 @@
+[Unit]
+Description=Howlcoin secondary public full node (node2)
+After=network-online.target howlcoin.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/howlcoin
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/opt/howlcoin
+# Separate chain/wallet data — never share primary data dir
+Environment=HOWL_NODE2_DATA=/var/lib/howlcoin-node2
+# Hard caps so node2 cannot starve the primary seed on a small VPS
+MemoryMax=450M
+MemoryHigh=380M
+CPUQuota=80%
+ExecStart=/opt/howlcoin-venv/bin/python3 -m howl node \
+  --data-dir /var/lib/howlcoin-node2 \
+  --host 0.0.0.0 \
+  --port 42071 \
+  --rpc-host 127.0.0.1 \
+  --rpc-port 42072 \
+  --connect 147.182.223.204:42069 \
+  --public \
+  --no-mine
+Restart=on-failure
+RestartSec=25
+
+[Install]
+WantedBy=multi-user.target

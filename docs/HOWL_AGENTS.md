@@ -134,13 +134,41 @@ systemctl enable --now howl-agents
 journalctl -u howl-agents -f
 ```
 
+## Public seeds
+
+Agents maintain a **public seed directory** so the network is not a single hardcoded IP forever.
+
+| Piece | Path / API |
+|-------|------------|
+| Registry file | `/var/lib/howlcoin/public_seeds.json` (or `HOWL_SEEDS_FILE`) |
+| HTTP API | `GET /api/public/seeds` |
+| Docs | [SEEDS.md](../SEEDS.md) |
+
+Every tick, agents:
+
+1. Ensure the **primary** seed (`147.182.223.204:42069`) is registered  
+2. Re-publish any **fleet** nodes that have a public announce address  
+3. Expose counts in agent `status.json` → `/api/public/agents` → `live.public_seeds`
+
+When bootstrapping nodes with a public host:
+
+```bash
+# On agent host — advertise this IP:port for new nodes
+export HOWL_PUBLIC_NODE_HOST=203.0.113.10
+# optional extra static seeds
+export HOWL_PUBLIC_SEEDS=203.0.113.10:42069
+```
+
+Local/`127.0.0.1` endpoints are **not** listed as public. Live infra + open firewall still required for a new seed to show `status: up`.
+
 ## Safety
 
 - **Dry-run by default** for infrastructure.  
 - Settlement is **opt-in** and costs real HOWL fees.  
 - Treasury caps prevent runaway spend.  
 - No private keys in DePIN manifests.  
-- Agents do not control mint authority or bridge hot wallets unless you point `--wallet` at those files (not recommended for production mint authority).
+- Agents do not control mint authority or bridge hot wallets unless you point `--wallet` at those files (not recommended for production mint authority).  
+- Public seed registry only lists endpoints; it does not grant mint/wallet control.
 
 ## Roadmap
 
@@ -148,4 +176,6 @@ journalctl -u howl-agents -f
 - Live Akash `tx deployment create` automation  
 - Nosana job submit SDK  
 - Pack-wallet alerts for critical severity  
-- Agent-governed funding pools (on-chain multisig budgets)
+- Agent-governed funding pools (on-chain multisig budgets)  
+- Cross-chain agent messaging (allowlisted)  
+- Auto-promote healthy community seeds after multi-agent attestation

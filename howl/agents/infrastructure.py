@@ -268,6 +268,11 @@ class InfraGovernor:
                 "treasury": treasury.to_dict(),
             }
 
+        # Cap dry-run placeholders so the fleet does not grow forever on every slow-tip tick
+        if dry:
+            self.fleet = [e for e in self.fleet if str(e.get("status") or "") != "dry_run"]
+            count = min(count, 1)
+
         jobs: List[Dict[str, Any]] = []
         for i in range(count):
             node_id = f"n-{uuid.uuid4().hex[:8]}"
