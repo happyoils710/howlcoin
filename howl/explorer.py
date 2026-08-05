@@ -2770,9 +2770,11 @@ input.field,textarea.field{border-radius:10px}
     <a href="#/health">Network</a> ·
     <a href="/app">Wallet</a> ·
     <a href="#/run">Mine</a> ·
-    <a href="#/api">API</a>
+    <a href="#/api">API</a> ·
+    <a href="/whitepaper">White paper</a>
   </div>
   <div>seed <span class="mono">147.182.223.204:42069</span> ·
+    <a href="/whitepaper">White paper</a> ·
     <a href="https://github.com/happyoils710/howlcoin" target="_blank" rel="noopener">Code</a>
   </div>
 </div>
@@ -3386,6 +3388,7 @@ async function loadHome(){
         <a class="rail-link" href="#/health">💓 Network</a>
         <a class="rail-link" href="/app">💎 Wallet</a>
         <a class="rail-link" href="#/run">⛏ Mine</a>
+        <a class="rail-link" href="/whitepaper">📄 White paper</a>
       </div>
       <div class="rail-card">
         <h4>Account</h4>
@@ -3489,6 +3492,22 @@ async function loadHome(){
           }).join('')||'<div class="mrow"><div class="muted">No transactions yet</div></div>'}
         </div>
         <div class="post-ft"><a href="#/${net}/mempool">mempool →</a></div>
+      </article>
+
+      <article class="post">
+        <div class="post-hd">
+          <div class="post-av-emoji" aria-hidden="true">📄</div>
+          <div>
+            <div class="post-who">White paper</div>
+            <div class="post-meta">Howlcoin · Scrypt PoW · emission · wallets</div>
+          </div>
+        </div>
+        <div class="post-body">
+          <p class="muted" style="margin:0">Read the full HOWL white paper — design, mining, and how the pack works.</p>
+        </div>
+        <div class="post-ft">
+          <a href="/whitepaper">Open white paper →</a>
+        </div>
       </article>
     </div>
 
