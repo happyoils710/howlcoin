@@ -3998,7 +3998,7 @@ async function showHowlCity(filterKind){
       <button class="chipbtn" onclick="copyText('https://howlscan.org/#/city', this)">Share city</button>
       <a class="chipbtn" href="/app?howl=1" style="text-decoration:none;color:var(--green)">Howl in wallet</a>
       <button class="chipbtn" onclick="showHowlCity(${JSON.stringify(fk)})">↻</button>
-      <span class="muted" style="font-size:.72rem;align-self:center">● live · 15s</span>
+      <span class="muted" style="font-size:.72rem;align-self:center">● live · on new blocks</span>
     </div>
     <div class="card detail" style="border-color:rgba(61,255,154,.35)">
       <div class="badge ok">HOWL CITY</div>
@@ -4067,7 +4067,7 @@ async function showPlayBoard(){
       <button class="chipbtn" onclick="location.hash='#/culture'">Culture</button>
       <button class="chipbtn" onclick="location.hash='#/app'">Open wallet to act</button>
       <button class="chipbtn" onclick="showPlayBoard()">↻ Refresh</button>
-      <span class="muted" style="font-size:.72rem;align-self:center" id="liveHint">Live · 15s</span>
+      <span class="muted" style="font-size:.72rem;align-self:center" id="liveHint">Live · on new blocks</span>
     </div>
     ${city.length?`<div class="card" style="margin-bottom:12px;border-color:rgba(61,255,154,.3)">
       <h3 style="margin:0;padding:12px 14px;border-bottom:1px solid var(--border)">City pulse <a class="more" href="#/city">full feed →</a></h3>
