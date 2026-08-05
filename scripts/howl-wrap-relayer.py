@@ -101,37 +101,46 @@ def mint_whowl(to_sol: str, amount: float, mint: str) -> str:
     """Mint amount wHOWL (UI units) to to_sol owner ATA. Returns signature or CLI output."""
     kp = str(keypair_path())
     bin_ = spl_token_bin()
-    # amount as UI units; spl-token uses UI amount with --
+    # Ensure associated token account exists (ignore if already exists)
+    ca = subprocess.run(
+        [bin_, "create-account", mint, "--owner", to_sol, "--fee-payer", kp],
+        capture_output=True,
+        text=True,
+    )
+    if ca.returncode != 0 and "already in use" not in (ca.stderr or "").lower() and "already exists" not in (ca.stderr or ca.stdout or "").lower():
+        # non-fatal if account exists under other wording
+        if "error" in (ca.stderr or "").lower() and "exist" not in (ca.stderr or ca.stdout or "").lower():
+            print("  create-account note:", (ca.stderr or ca.stdout or "")[:200])
+
+    # Correct CLI: --recipient-owner (wallet), not positional owner / --owner
+    # Only pass --mint-authority once; fee-payer can share same keypair.
     cmd = [
         bin_,
         "mint",
         mint,
         f"{amount:.8f}",
+        "--recipient-owner",
         to_sol,
         "--fee-payer",
         kp,
         "--mint-authority",
         kp,
-        "--owner",
-        to_sol,
     ]
-    # Ensure ATA exists
-    subprocess.run(
-        [bin_, "create-account", mint, "--owner", to_sol, "--fee-payer", kp],
-        capture_output=True,
-        text=True,
-    )
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
-        raise RuntimeError(r.stderr or r.stdout or "mint failed")
-    # parse signature if present
-    out = (r.stdout or "") + (r.stderr or "")
+        raise RuntimeError((r.stderr or r.stdout or "mint failed")[:400])
+    out = (r.stdout or "") + "
+" + (r.stderr or "")
     for line in out.splitlines():
         if "Signature" in line or "signature" in line:
             parts = line.split()
-            for p in parts:
-                if len(p) >= 64:
-                    return p
+            for part in parts:
+                if len(part) >= 64 and part.replace("=", "").isalnum() is False:
+                    # base58 sig
+                    return part.strip()
+            for part in parts:
+                if len(part) >= 64:
+                    return part.strip()
     return out.strip()[:120] or "minted"
 
 
@@ -487,6 +496,7 @@ def main() -> None:
     ap.add_argument("--fulfill-txid", default="", help="Howl L1 deposit txid to fulfill manually")
     ap.add_argument("--sol", default="", help="User Solana address to receive wHOWL (with --fulfill-txid)")
     ap.add_argument("--amount", type=float, default=None, help="Override amount HOWL for fulfill")
+    ap.add_argument("--retry-errors", action="store_true", help="Retry wrap orders stuck in error status")
     args = ap.parse_args()
     print("Howl Wrap relayer · orders", orders_path())
     if args.list_orphans:
@@ -496,6 +506,15 @@ def main() -> None:
         print(json.dumps(rows, indent=2))
         if not rows:
             print("(no orphan deposits in lookback)")
+        return
+    if args.retry_errors:
+        hot = load_hot_wallet()
+        for o in list_orders(limit=100):
+            if o.get("status") == "error" and o.get("direction") == "wrap" and o.get("deposit_txid"):
+                print(f"retry {o.get('id')}…")
+                update_order(o["id"], status="confirming", error=None)
+                o2 = get_order(o["id"]) or o
+                process_wrap(o2, hot)
         return
     if args.fulfill_txid:
         if not args.sol:
