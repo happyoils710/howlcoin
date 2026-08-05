@@ -2679,20 +2679,18 @@ tbody tr:hover{background:var(--rowh)}
 </div>
 <div id="app"></div>
 <div class="footer">
-  <div>Howlscan · Scrypt PoW · not financial advice ·
+  <div>Howlscan · Scrypt PoW ·
     <a href="#/public">Home</a> ·
+    <a href="#/city">City</a> ·
     <a href="#/play">Play</a> ·
     <a href="#/culture">Culture</a> ·
-    <a href="#/contracts">Contracts</a> ·
     <a href="#/charts">Charts</a> ·
     <a href="#/health">Network</a> ·
-    <a href="#/api">API</a> ·
     <a href="/app">Wallet</a> ·
-    <a href="#/run">Run a node</a> ·
-    <a href="#/public/richlist">Richlist</a> ·
-    <a href="#/public/mempool">Mempool</a>
+    <a href="#/run">Mine</a> ·
+    <a href="#/api">API</a>
   </div>
-  <div>API <span class="mono">/api/networks</span> · seed <span class="mono">147.182.223.204:42069</span> ·
+  <div>seed <span class="mono">147.182.223.204:42069</span> ·
     <a href="https://github.com/happyoils710/howlcoin" target="_blank" rel="noopener">Code</a>
   </div>
 </div>
@@ -3098,93 +3096,61 @@ async function loadHome(){
   const liveNote = slowMining
     ? `Seed online · last block ${tipAge} · diff ${dLabel} — CPU mining can take a while. Chain is live.`
     : `Seed online · last block ${tipAge} · network live`;
-  // Only replace #app — hero/banner stay mounted so animation never restarts
+  // Compact home: one status strip · core stats · city · blocks/txs (no repeated culture/nav stacks)
   app().innerHTML = `
-  <div class="main" style="padding-top:4px;padding-bottom:4px">
+  <div class="main" style="padding-top:4px;padding-bottom:8px">
     <div class="card" style="padding:12px 14px;border-color:rgba(61,255,154,.35);background:rgba(61,255,154,.06)">
       <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
         <span class="badge ok">LIVE</span>
-        <span style="font-weight:700;color:var(--green)">Howlcoin public network</span>
-        <span class="badge" style="background:rgba(192,132,252,.15);color:#c084fc;border:1px solid rgba(192,132,252,.35)">v0.6 smooth diff</span>
+        <span style="font-weight:700;color:var(--green)">Howlcoin</span>
         <span class="muted" style="font-size:.88rem">${esc(liveNote)}</span>
       </div>
-      <p class="muted" style="margin:8px 0 0;font-size:.82rem;line-height:1.4">
-        Seed <span class="mono">147.182.223.204:42069</span> · height <b>${s.height}</b>
-        ${smoothOn
-          ? ` · <b>smooth difficulty</b> active from height ${s.smooth_diff_activation_height||120} (continuous work target + 2h stall relief).`
-          : ` · smooth difficulty activates at height <b>${s.smooth_diff_activation_height||120}</b> (next blocks).`}
-        Nodes must run <b>v0.6+</b>.
-        <a href="#/run">Run a node / mine</a>
-        · <a href="#/health">Network</a>
-        · <a href="#/play">Play</a>
-        · <a href="#/culture">Culture</a>
-      </p>
       <div id="tipTicker" class="mono" style="margin-top:10px;padding:8px 10px;border:1px solid rgba(0,255,198,.2);background:rgba(0,0,0,.25);font-size:.78rem;overflow:hidden;white-space:nowrap;cursor:pointer"
-        onclick="location.hash='#/${net}/block/${s.height}'"
-        title="Tap for tip block">
+        onclick="location.hash='#/${net}/block/${s.height}'" title="Tip block">
         <span style="color:var(--green)">● tip</span>
         <span class="muted"> #${s.height}</span>
         · <span id="tipTickerHash">${esc(short(s.tip,18))}</span>
         <span class="muted"> · ${esc(tipAge)}</span>
+        · seed <span class="muted">${esc(SEED)}</span>
       </div>
     </div>
   </div>
   <div class="stats">
     <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/block/${s.height}'">
       <div class="k">Height</div><div class="v">${s.height}</div><div class="s">last ${esc(tipAge)}</div></div>
-    <div class="stat" title="${esc(dLabel)}"><div class="k">Difficulty</div><div class="v">${esc(dShow)}</div><div class="s">${smoothOn?'smooth work':'Scrypt PoW'} · ~${esc(expectTxt)} H</div></div>
+    <div class="stat" title="${esc(dLabel)}"><div class="k">Difficulty</div><div class="v">${esc(dShow)}</div><div class="s">~${esc(expectTxt)} H next</div></div>
     <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/richlist'" title="${esc(String(s.circulating||''))}">
-      <div class="k">Circulating</div><div class="v">${esc(circulatingShort(s))}</div><div class="s">HOWL · richlist</div></div>
+      <div class="k">Circulating</div><div class="v">${esc(circulatingShort(s))}</div><div class="s">${esc(String(s.addresses??'—'))} addrs</div></div>
     <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/mempool'">
-      <div class="k">Mempool</div><div class="v">${s.mempool}</div><div class="s">pending txs</div></div>
-    <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/richlist'">
-      <div class="k">Addresses</div><div class="v">${s.addresses??'—'}</div><div class="s">richlist</div></div>
-    <div class="stat stat-wide" style="cursor:pointer" onclick="location.hash='#/${net}/block/${encodeURIComponent(s.tip)}'">
-      <div class="k">Tip hash</div><div class="v mono" style="font-size:.85rem">${esc(short(s.tip,14))}</div><div class="s">tap → tip block</div></div>
+      <div class="k">Mempool</div><div class="v">${s.mempool}</div><div class="s">pending</div></div>
   </div>
-  <div class="main" style="padding-bottom:4px;padding-top:0">
-    <div class="card" style="padding:12px 14px">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-        <b style="font-size:.95rem">Culture pulse</b>
-        <span class="muted" style="font-size:.78rem">on-chain · live</span>
-      </div>
-      <div class="stats" style="margin:0;padding:0">
-        <div class="stat" style="cursor:pointer" onclick="location.hash='#/play'">
-          <div class="k">Open pots</div><div class="v">${cul.packpots_open??0}</div><div class="s">${cul.packpots??0} total · Play</div></div>
-        <div class="stat" style="cursor:pointer" onclick="location.hash='#/play'">
-          <div class="k">Howls</div><div class="v">${cul.howls??0}</div><div class="s">posts</div></div>
-        <div class="stat" style="cursor:pointer" onclick="location.hash='#/play'">
-          <div class="k">Names</div><div class="v">${cul.names??0}</div><div class="s">@handles</div></div>
-        <div class="stat" style="cursor:pointer" onclick="location.hash='#/culture'">
-          <div class="k">NFTs</div><div class="v">${cul.nfts??0}</div><div class="s">${cul.tipjars??0} tip jars</div></div>
-      </div>
-    </div>
-  </div>
-  <div class="main" style="padding-bottom:8px">
+  <div class="main" style="padding-bottom:8px;padding-top:0">
     <div class="quick-row">
-      <button class="chipbtn" style="border-color:rgba(61,255,154,.45);color:var(--green)" onclick="location.hash='#/city'">Howl City ●</button>
-      <button class="chipbtn" onclick="location.hash='#/play'">Play board</button>
-      <button class="chipbtn" onclick="location.hash='#/culture'">Culture gallery</button>
+      <button class="chipbtn" style="border-color:rgba(61,255,154,.45);color:var(--green)" onclick="location.hash='#/city'">City</button>
+      <button class="chipbtn" onclick="location.hash='#/play'">Play</button>
+      <button class="chipbtn" onclick="location.hash='#/culture'">Culture</button>
       <button class="chipbtn" onclick="location.hash='#/charts'">Charts</button>
-      <button class="chipbtn" onclick="location.hash='#/health'">Network status</button>
-      <button class="chipbtn" onclick="location.hash='#/${net}/block/${s.height}'">Latest #${s.height}</button>
-      <button class="chipbtn" onclick="location.hash='#/run'">Run a node</button>
+      <button class="chipbtn" onclick="location.hash='#/health'">Network</button>
+      <a class="chipbtn" href="/app" style="text-decoration:none;color:var(--green)">Wallet</a>
+      <button class="chipbtn" onclick="location.hash='#/run'">Mine</button>
     </div>
   </div>
   <div class="main" style="padding-top:0;padding-bottom:8px" id="homeCityPulse">
     <div class="card" style="border-color:rgba(61,255,154,.28)">
-      <h3 style="margin:0;padding:12px 14px;border-bottom:1px solid var(--border)">Howl City <a class="more" href="#/city">live feed →</a></h3>
-      <div class="mlist" id="homeCityList"><div class="mrow"><div class="muted">Loading city…</div></div></div>
+      <h3 style="margin:0;padding:12px 14px;border-bottom:1px solid var(--border)">Activity
+        <span class="muted" style="font-weight:500;font-size:.78rem;margin-left:6px">${cul.howls??0} howls · ${cul.names??0} names · ${cul.packpots_open??0} pots · ${cul.nfts??0} NFTs</span>
+        <a class="more" href="#/city">city →</a></h3>
+      <div class="mlist" id="homeCityList"><div class="mrow"><div class="muted">Loading…</div></div></div>
     </div>
   </div>
   <div class="main cols">
     <div class="card">
-      <h3>Latest blocks <a class="more" href="#/${net}/block/${s.height}">tip →</a></h3>
+      <h3>Blocks <a class="more" href="#/${net}/block/${s.height}">tip →</a></h3>
       <div class="desktop-only table-wrap">
       <table>
         <thead><tr><th>Height</th><th>Hash</th><th>Txs</th><th>Miner</th><th>Reward</th><th>Time</th></tr></thead>
         <tbody>
-          ${bl.map(b=>`<tr onclick="location.hash='#/${net}/block/${b.height}'">
+          ${bl.slice(0,12).map(b=>`<tr onclick="location.hash='#/${net}/block/${b.height}'">
             <td><b>${linkBlock(b.height)}</b></td>
             <td class="mono">${esc(short(b.hash,12))}</td>
             <td>${b.tx_count}</td>
@@ -3196,37 +3162,37 @@ async function loadHome(){
       </table>
       </div>
       <div class="mobile-only mlist">
-        ${bl.map(b=>`<div class="mrow" onclick="location.hash='#/${net}/block/${b.height}'">
+        ${bl.slice(0,12).map(b=>`<div class="mrow" onclick="location.hash='#/${net}/block/${b.height}'">
           <div class="ml">
             <div class="mt">Block #${b.height}</div>
             <div class="ms mono">${esc(short(b.hash,10))} · ${b.tx_count} tx · ${ago(b.timestamp)}</div>
           </div>
-          <div class="mr"><div class="ma">${fmtAmt(b.reward)}</div><div class="ms">reward</div></div>
+          <div class="mr"><div class="ma">${fmtAmt(b.reward)}</div></div>
         </div>`).join('')||'<div class="mrow"><div class="muted">No blocks</div></div>'}
       </div>
     </div>
     <div class="card">
-      <h3>Latest transactions <a class="more" href="#/${net}/mempool">mempool →</a></h3>
+      <h3>Transactions <a class="more" href="#/${net}/mempool">mempool →</a></h3>
       <div class="desktop-only table-wrap">
       <table>
         <thead><tr><th>Txid</th><th>Type</th><th>Flow</th><th>Amount</th><th>Status</th></tr></thead>
         <tbody>
-          ${tl.map(t=>`<tr onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
+          ${tl.slice(0,12).map(t=>`<tr onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
             <td onclick="event.stopPropagation()">${linkTx(t.txid)}</td>
             <td>${txTypeBadge(t)}</td>
             <td class="mono" onclick="event.stopPropagation()">${txFlowHtml(t)}</td>
             <td class="amount">${fmtAmt(t.amount)}</td>
-            <td>${t.confirmed?`<span class="badge ok" onclick="event.stopPropagation();location.hash='#/${net}/block/${t.block_height}'">#${t.block_height}</span>`:`<span class="badge warn">waiting for miner</span>`}</td>
+            <td>${t.confirmed?`<span class="badge ok" onclick="event.stopPropagation();location.hash='#/${net}/block/${t.block_height}'">#${t.block_height}</span>`:`<span class="badge warn">pending</span>`}</td>
           </tr>`).join('') || '<tr><td colspan="5" class="muted" style="padding:16px">No transactions yet</td></tr>'}
         </tbody>
       </table>
       </div>
       <div class="mobile-only mlist">
-        ${tl.map(t=>{
+        ${tl.slice(0,12).map(t=>{
           const m = txTypeMeta(t);
           return `<div class="mrow" onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
           <div class="ml">
-            <div class="mt">${esc(m.label)} <span class="badge ${t.confirmed?'ok':'warn'}" style="margin-left:4px">${t.confirmed?'#'+t.block_height:'waiting'}</span></div>
+            <div class="mt">${esc(m.label)} <span class="badge ${t.confirmed?'ok':'warn'}" style="margin-left:4px">${t.confirmed?'#'+t.block_height:'pending'}</span></div>
             <div class="ms mono">${txFlowHtml(t)}</div>
           </div>
           <div class="mr"><div class="ma">${fmtAmt(t.amount)}</div></div>
@@ -3235,7 +3201,6 @@ async function loadHome(){
       </div>
     </div>
   </div>`;
-  // Howl City pulse on home (async so blocks/txs paint first)
   fillHomeCityList();
 }
 
@@ -3991,46 +3956,24 @@ async function showHowlCity(filterKind){
   ];
   const cityHash = (k)=> k ? `#/city/${k}` : '#/city';
   app().innerHTML = `<div class="main" style="padding-top:12px">
-    ${crumbs([{label:'Home',href:'#/'+net},{label:'Howl City'}])}
+    ${crumbs([{label:'Home',href:'#/'+net},{label:'City'}])}
     <div class="page-actions">
       <button class="back" onclick="location.hash='#/${net}'">← Home</button>
-      <button class="chipbtn" onclick="location.hash='#/play'">Play board</button>
-      <button class="chipbtn" onclick="copyText('https://howlscan.org/#/city', this)">Share city</button>
-      <a class="chipbtn" href="/app?howl=1" style="text-decoration:none;color:var(--green)">Howl in wallet</a>
+      <button class="chipbtn" onclick="location.hash='#/play'">Play</button>
+      <a class="chipbtn" href="/app" style="text-decoration:none;color:var(--green)">Wallet</a>
       <button class="chipbtn" onclick="showHowlCity(${JSON.stringify(fk)})">↻</button>
-      <span class="muted" style="font-size:.72rem;align-self:center">● live · on new blocks</span>
     </div>
-    <div class="card detail" style="border-color:rgba(61,255,154,.35)">
-      <div class="badge ok">HOWL CITY</div>
-      <span class="badge ok" style="margin-left:6px">● live</span>
-      <h2 style="margin:8px 0 6px">The chain is howling</h2>
-      <p class="muted" style="margin:0 0 10px">Live L1 feed — blocks, howls, pack pots, @names, NFTs. No wallet needed to watch. Join the action in the <a href="/app">app</a>.</p>
-      <div class="stats" style="margin:0">
-        <div class="stat" style="cursor:pointer" onclick="location.hash='#/health'"><div class="k">Height</div><div class="v">${esc(String(height))}</div><div class="s">tip</div></div>
-        <div class="stat" style="cursor:pointer" onclick="location.hash='${cityHash('pot')}'"><div class="k">Open pots</div><div class="v">${cul.packpots_open??0}</div><div class="s">${cul.packpots??0} total</div></div>
-        <div class="stat" style="cursor:pointer" onclick="location.hash='${cityHash('howl')}'"><div class="k">Howls</div><div class="v">${cul.howls??0}</div><div class="s">posts</div></div>
-        <div class="stat" style="cursor:pointer" onclick="location.hash='${cityHash('name')}'"><div class="k">Names</div><div class="v">${cul.names??0}</div><div class="s">@handles</div></div>
-        <div class="stat" style="cursor:pointer" onclick="location.hash='#/culture'"><div class="k">NFTs</div><div class="v">${cul.nfts??0}</div><div class="s">culture</div></div>
-      </div>
-      <div class="quick-row" style="margin-top:12px">
+    <div class="card detail" style="border-color:rgba(61,255,154,.35);padding-bottom:12px">
+      <h2 style="margin:0 0 6px;font-size:1.15rem">Howl City <span class="badge ok">#${esc(String(height))}</span></h2>
+      <p class="muted" style="margin:0 0 10px;font-size:.88rem">Live chain feed · ${cul.packpots_open??0} open pots · ${cul.howls??0} howls · ${cul.names??0} names · ${cul.nfts??0} NFTs</p>
+      <div class="quick-row" style="margin:0">
         ${filters.map(([k,lab])=>`<button class="chipbtn ${k===fk?'active':''}" onclick="location.hash='${cityHash(k)}'">${esc(lab)}</button>`).join('')}
       </div>
     </div>
     <div class="card" style="margin-top:12px">
-      <h3>Live feed <span class="badge warn">${events.length}</span></h3>
+      <h3>Feed <span class="badge warn">${events.length}</span></h3>
       <div class="mlist" id="cityFeed">
-        ${events.length?events.map(cityEventRow).join(''):'<div class="mrow"><div class="muted">Quiet city — mine a block, post a howl, or open a pot.</div></div>'}
-      </div>
-    </div>
-    <div class="card detail" style="margin-top:12px">
-      <h3 style="margin-top:0">Get in the city</h3>
-      <p class="muted" style="margin:0 0 10px">Claim an @name, howl, join a pot, mint culture — all on Howlcoin L1.</p>
-      <div class="quick-row">
-        <a class="chipbtn" href="/app" style="text-decoration:none;color:var(--green)">Open wallet</a>
-        <a class="chipbtn" href="/app?howl=1" style="text-decoration:none;color:var(--cyan)">Post a howl</a>
-        <button class="chipbtn" onclick="location.hash='#/play'">Play board</button>
-        <button class="chipbtn" onclick="location.hash='#/run'">Run a node</button>
-        <button class="chipbtn" onclick="copyText('https://howlscan.org/#/city', this)">Copy city link</button>
+        ${events.length?events.map(cityEventRow).join(''):'<div class="mrow"><div class="muted">Quiet city — mine, howl, or open a pot.</div></div>'}
       </div>
     </div>
   </div>`;
@@ -4040,15 +3983,14 @@ async function showPlayBoard(){
   setHeroVisible(false);
   setBottomTab('play');
   await loadNetworks();
-  let pots=[], howls=[], tips=[], names=[], st={}, city=[];
+  let pots=[], howls=[], tips=[], names=[], st={};
   try{
-    [pots, howls, tips, names, st, city] = await Promise.all([
+    [pots, howls, tips, names, st] = await Promise.all([
       api(`/api/${net}/contracts?kind=packpot&limit=30`).then(j=>j.contracts||[]).catch(()=>[]),
       api(`/api/${net}/howls?limit=25`).then(j=>j.howls||[]).catch(()=>[]),
       api(`/api/${net}/contracts?kind=tipjar&limit=20`).then(j=>j.contracts||[]).catch(()=>[]),
       api(`/api/${net}/names?limit=20`).then(j=>j.names||[]).catch(()=>[]),
       api('/api/public/status?window=12').catch(()=>({})),
-      api(`/api/${net}/city?limit=12`).then(j=>j.events||[]).catch(()=>[]),
     ]);
   }catch(e){}
   const cul = st.culture || {};
@@ -4063,27 +4005,13 @@ async function showPlayBoard(){
     ${crumbs([{label:'Home',href:'#/'+net},{label:'Play'}])}
     <div class="page-actions">
       <button class="back" onclick="location.hash='#/${net}'">← Home</button>
-      <button class="chipbtn" style="border-color:var(--green);color:var(--green)" onclick="location.hash='#/city'">Howl City ●</button>
-      <button class="chipbtn" onclick="location.hash='#/culture'">Culture</button>
-      <button class="chipbtn" onclick="location.hash='#/app'">Open wallet to act</button>
-      <button class="chipbtn" onclick="showPlayBoard()">↻ Refresh</button>
-      <span class="muted" style="font-size:.72rem;align-self:center" id="liveHint">Live · on new blocks</span>
+      <button class="chipbtn" onclick="location.hash='#/city'">City feed</button>
+      <a class="chipbtn" href="/app" style="text-decoration:none;color:var(--green)">Act in wallet</a>
+      <button class="chipbtn" onclick="showPlayBoard()">↻</button>
     </div>
-    ${city.length?`<div class="card" style="margin-bottom:12px;border-color:rgba(61,255,154,.3)">
-      <h3 style="margin:0;padding:12px 14px;border-bottom:1px solid var(--border)">City pulse <a class="more" href="#/city">full feed →</a></h3>
-      <div class="mlist">${city.slice(0,8).map(cityEventRow).join('')}</div>
-    </div>`:''}
-    <div class="card detail">
-      <div class="badge ok">PLAY</div>
-      <span class="badge ok" style="margin-left:6px" id="playLiveDot">● live</span>
-      <h2 style="margin:8px 0 6px">Howlcoin Play board</h2>
-      <p class="muted" style="margin:0 0 10px">Public view of on-chain pots, howls, tip jars, and names. Auto-refreshes. To join, howl, or tip — use the <a href="/app">wallet</a>.</p>
-      <div class="stats" style="margin:0">
-        <div class="stat"><div class="k">Open pots</div><div class="v">${cul.packpots_open??openPots.length}</div><div class="s">of ${cul.packpots??pots.length}</div></div>
-        <div class="stat"><div class="k">Howls</div><div class="v">${cul.howls??howls.length}</div><div class="s">posts</div></div>
-        <div class="stat"><div class="k">Names</div><div class="v">${cul.names??names.length}</div><div class="s">@handles</div></div>
-        <div class="stat"><div class="k">Tip jars</div><div class="v">${cul.tipjars??tips.length}</div><div class="s">active</div></div>
-      </div>
+    <div class="card detail" style="padding:12px 14px">
+      <h2 style="margin:0 0 6px;font-size:1.15rem">Play</h2>
+      <p class="muted" style="margin:0;font-size:.88rem">${cul.packpots_open??openPots.length} open pots · ${cul.howls??howls.length} howls · ${cul.names??names.length} names · ${cul.tipjars??tips.length} tip jars · join in the <a href="/app">wallet</a></p>
     </div>
     <div class="main cols" style="padding:12px 0 0;margin:0">
       <div class="card">
