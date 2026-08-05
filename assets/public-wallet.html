@@ -10906,59 +10906,134 @@ async function disableTotp(){
 function tokenFormPrefix(scope){
   return scope === "assets" ? "at" : "rt";
 }
-function renderCustomTokenFormInto(containerId, scope, defaultChain){
+/** True when focus is inside a custom-token form (do not wipe inputs / kill keyboard). */
+function customTokenFormIsEditing(containerId){
+  const el = $(containerId);
+  if(!el) return false;
+  const a = document.activeElement;
+  if(!a || !el.contains(a)) return false;
+  const tag = (a.tagName || "").toUpperCase();
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || a.isContentEditable;
+}
+function readCustomTokenFormValues(scope){
+  const p = tokenFormPrefix(scope);
+  return {
+    chain: $(p + "Chain")?.value || "",
+    addr: $(p + "Addr")?.value || "",
+    issuer: $(p + "Issuer")?.value || "",
+    tokenId: $(p + "TokenId")?.value || "",
+    symbol: $(p + "Symbol")?.value || "",
+    decimals: $(p + "Decimals")?.value || "",
+  };
+}
+/**
+ * Build or update custom-token form.
+ * @param force  true = rebuild even if present (chain change). Never force while typing.
+ */
+function renderCustomTokenFormInto(containerId, scope, defaultChain, force){
   const el = $(containerId);
   if(!el) return;
+  const p = tokenFormPrefix(scope);
   const chains = Object.keys(TOKEN_SYSTEMS);
+
+  // Never destroy form while keyboard/focus is in an input — fixes mobile glitch
+  if(customTokenFormIsEditing(containerId) && !force){
+    return;
+  }
+
   let chain = defaultChain || selectedChain;
   if(!TOKEN_SYSTEMS[chain]) chain = "ethereum";
+
+  // Soft refresh: form already built for this chain → keep values, skip innerHTML
+  const existingChainEl = $(p + "Chain");
+  if(!force && existingChainEl && el.dataset.formReady === "1"){
+    // If user already picked a chain in the form, don't reset it on balance refresh
+    const cur = existingChainEl.value;
+    if(cur && TOKEN_SYSTEMS[cur]){
+      // keep as-is; only re-bind button if needed
+      const btn = el.querySelector("button[data-scope]");
+      if(btn && !btn.onclick) btn.onclick = ()=> addCustomTokenFromForm(scope);
+      return;
+    }
+  }
+
+  // Preserve typed values across rebuilds (chain switch / first paint)
+  const prev = readCustomTokenFormValues(scope);
+  // On forced chain change from select, use the new chain; else prefer previous form chain
+  if(!force && prev.chain && TOKEN_SYSTEMS[prev.chain]){
+    chain = prev.chain;
+  } else if(force && defaultChain && TOKEN_SYSTEMS[defaultChain]){
+    chain = defaultChain;
+  }
+
   const ts = TOKEN_SYSTEMS[chain];
-  const p = tokenFormPrefix(scope);
   const needsIssuer = ts.kind === "xlm_asset" || ts.kind === "xrp_token";
   const needsTokenId = ts.kind === "fa";
   const isEvmOrSplOrTron = ts.kind === "erc20" || ts.kind === "spl" || ts.kind === "trc20" || ts.kind === "fa";
+  const keepVals = (force && prev.chain && prev.chain !== chain)
+    ? { addr: "", issuer: "", tokenId: "0", symbol: "", decimals: "" } // clear when switching chain
+    : prev;
+
   el.innerHTML = `
     <label>Chain / standard</label>
-    <select class="chain-select" id="${p}Chain" style="margin-bottom:8px">
+    <select class="chain-select" id="${p}Chain" style="margin-bottom:8px" autocomplete="off">
       ${chains.map(cid=>{
         const lab = (ASSET_CHAINS.find(c=>c.id===cid)?.label || cid) + " · " + TOKEN_SYSTEMS[cid].standard;
         return `<option value="${cid}" ${cid===chain?"selected":""}>${lab}</option>`;
       }).join("")}
     </select>
     <label id="${p}AddrLab">${escHtml(ts.addrLabel)}</label>
-    <input class="field" id="${p}Addr" placeholder="${escAttr(ts.placeholder)}" spellcheck="false"/>
+    <input class="field" id="${p}Addr" placeholder="${escAttr(ts.placeholder)}" spellcheck="false"
+      autocomplete="off" autocorrect="off" autocapitalize="off" inputmode="text" enterkeyhint="next"/>
     ${needsIssuer ? `
       <label>Issuer address</label>
-      <input class="field" id="${p}Issuer" placeholder="Issuer account" spellcheck="false"/>
+      <input class="field" id="${p}Issuer" placeholder="Issuer account" spellcheck="false"
+        autocomplete="off" autocorrect="off" autocapitalize="off"/>
     ` : `<input type="hidden" id="${p}Issuer" value=""/>`}
     ${needsTokenId ? `
       <label>Token ID (FA2, use 0 for FA1.2)</label>
-      <input class="field" id="${p}TokenId" placeholder="0" inputmode="numeric"/>
+      <input class="field" id="${p}TokenId" placeholder="0" inputmode="numeric" enterkeyhint="next"/>
     ` : `<input type="hidden" id="${p}TokenId" value="0"/>`}
     <label>Symbol</label>
-    <input class="field" id="${p}Symbol" placeholder="TOKEN"/>
+    <input class="field" id="${p}Symbol" placeholder="${ts.kind === "spl" ? "wHOWL" : "TOKEN"}"
+      autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="next"/>
     <label>Decimals ${isEvmOrSplOrTron ? "" : "(optional)"}</label>
-    <input class="field" id="${p}Decimals" placeholder="${defaultDecimalsForKind(ts.kind)}" inputmode="numeric"/>
-    <button class="btn sec" type="button" data-scope="${scope}">Add ${escHtml(ts.standard)} token</button>
-    <p class="hint" style="margin-top:8px">Shown under this chain’s asset list. Balances load when available.</p>
+    <input class="field" id="${p}Decimals" placeholder="${defaultDecimalsForKind(ts.kind)}" inputmode="numeric" enterkeyhint="done"/>
+    <button class="btn" type="button" data-scope="${scope}">Add ${escHtml(ts.standard)} token</button>
+    <p class="hint" style="margin-top:8px">Shown under this chain’s asset list. Balances load when available.
+      ${ts.kind === "spl" ? " · wHOWL mint: <span class=\"mono\" style=\"font-size:.7rem\">HYRKhV2Y9HEtKCCHSgH18Zfo4U9Ln9vAg2dCmBJSLWaG</span>" : ""}</p>
   `;
+  el.dataset.formReady = "1";
+  el.dataset.formChain = chain;
+
+  // restore values
+  if($(p + "Addr") && keepVals.addr) $(p + "Addr").value = keepVals.addr;
+  if($(p + "Issuer") && keepVals.issuer && needsIssuer) $(p + "Issuer").value = keepVals.issuer;
+  if($(p + "TokenId") && keepVals.tokenId && needsTokenId) $(p + "TokenId").value = keepVals.tokenId;
+  if($(p + "Symbol") && keepVals.symbol) $(p + "Symbol").value = keepVals.symbol;
+  if($(p + "Decimals") && keepVals.decimals !== "") $(p + "Decimals").value = keepVals.decimals;
+
   const sel = $(p + "Chain");
   if(sel){
-    sel.onchange = ()=> renderCustomTokenFormInto(containerId, scope, sel.value);
+    sel.onchange = ()=>{
+      // Force rebuild for new field layout; preserve only if same-ish
+      renderCustomTokenFormInto(containerId, scope, sel.value, true);
+      // Refocus address after chain switch (desktop); mobile will show keyboard on tap
+      setTimeout(()=>{ try{ $(p + "Addr")?.focus({ preventScroll: true }); }catch(_){} }, 30);
+    };
   }
   const btn = el.querySelector("button[data-scope]");
   if(btn) btn.onclick = ()=> addCustomTokenFromForm(scope);
 }
-function renderCustomTokenForms(){
+function renderCustomTokenForms(opts){
+  const forceForm = !!(opts && opts.forceForm);
   // Howl L1 generate panel
   const howlGen = $("assetsHowlGeneratePanel");
   if(howlGen){
-    const showHowl = (selectedChain === "howl" || selectedChain === "all") && (typeof assetsPageTab === "undefined" || assetsPageTab === "crypto" || assetsPageTab === "nfts");
     howlGen.classList.toggle("hidden", !(selectedChain === "howl" || selectedChain === "all"));
   }
   const homeGen = $("homeHowlGenerate");
   if(homeGen){
-    // show on home for Howl / All networks
     homeGen.classList.toggle("hidden", !(selectedChain === "howl" || selectedChain === "all"));
   }
   // Assets page: always show add-token form on crypto tab
@@ -10966,8 +11041,8 @@ function renderCustomTokenForms(){
   if(assetsPanel){
     const onCrypto = (typeof assetsPageTab === "undefined" || assetsPageTab === "crypto");
     const onAssetsPage = $("p-assets")?.classList.contains("on");
-    // Prefer selected network when it has a token standard; otherwise ethereum
-    const formChain = chainHasTokenSystem(selectedChain) ? selectedChain : "ethereum";
+    // Prefer selected network when it has a token standard; otherwise leave form's chain
+    const formChain = chainHasTokenSystem(selectedChain) ? selectedChain : null;
     if(onCrypto){
       assetsPanel.classList.remove("hidden");
       if($("assetsCustomTitle")){
@@ -10984,19 +11059,27 @@ function renderCustomTokenForms(){
           ? ("Paste the " + (TOKEN_SYSTEMS[selectedChain]?.standard || "token") + " address for " +
              (ASSET_CHAINS.find(c=>c.id===selectedChain)?.label || selectedChain) +
              ". You can switch chain in the form.")
-          : "Pick a chain below, paste the contract or mint address, then tap Add. Works with All networks filter.";
+          : "Pick Solana (SPL) for wHOWL, paste the mint, symbol wHOWL, decimals 9 (or mint default).";
       }
-      renderCustomTokenFormInto("assetsCustomTokenForm", "assets", formChain);
+      // Soft update: do not rebuild form on balance/list refresh (kills mobile keyboard)
+      const softChain = formChain || ($("atChain")?.value) || "solana";
+      renderCustomTokenFormInto("assetsCustomTokenForm", "assets", softChain, forceForm);
     } else if(onAssetsPage){
       assetsPanel.classList.add("hidden");
     }
   }
-  // Deposit page: free chain picker (default ethereum or selected)
+  // Deposit page: free chain picker — soft unless forced
   if($("recvCustomTokenForm")){
-    const def = chainHasTokenSystem(selectedChain) ? selectedChain : "ethereum";
-    renderCustomTokenFormInto("recvCustomTokenForm", "recv", def);
+    const def = chainHasTokenSystem(selectedChain) ? selectedChain : (($("rtChain")?.value) || "ethereum");
+    renderCustomTokenFormInto("recvCustomTokenForm", "recv", def, forceForm);
   }
-  renderCustomList();
+  // Always safe to refresh the saved-token list (no focus inside those rows usually)
+  if(!customTokenFormIsEditing("assetsCustomTokenForm") && !customTokenFormIsEditing("recvCustomTokenForm")){
+    renderCustomList();
+  } else {
+    // still update list; list is separate DOM
+    try{ renderCustomList(); }catch(_){}
+  }
 }
 function addCustomTokenFromForm(scope){
   const p = tokenFormPrefix(scope);
@@ -11019,8 +11102,18 @@ function addCustomTokenFromForm(scope){
       contract: addr.toLowerCase(), symbol, decimals,
     };
   } else if(ts.kind === "spl"){
-    if(addr.length < 32 || addr.length > 48){ toast("Invalid SPL mint address"); return; }
-    rec = { chain: "solana", kind: "spl", mint: addr, symbol, decimals };
+    const mint = addr.replace(/\s+/g, "");
+    if(!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint)){
+      toast("Invalid SPL mint (base58, 32–44 chars)"); return;
+    }
+    // wHOWL known mint defaults
+    let dec = decimals;
+    let sym = symbol;
+    if(mint === "HYRKhV2Y9HEtKCCHSgH18Zfo4U9Ln9vAg2dCmBJSLWaG"){
+      if(!sym || sym === "TOKEN") sym = "wHOWL";
+      if(!Number.isFinite(parseInt(String(($("atDecimals")||$("rtDecimals"))?.value||""),10))) dec = 9;
+    }
+    rec = { chain: "solana", kind: "spl", mint, symbol: sym, decimals: dec };
   } else if(ts.kind === "trc20"){
     if(!/^T[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(addr) && !/^0x[a-fA-F0-9]{40}$/.test(addr)){
       toast("Invalid TRC-20 contract (T… address)"); return;
@@ -11051,7 +11144,16 @@ function addCustomTokenFromForm(scope){
   });
   cleaned.push(rec);
   saveCustomTokens(cleaned);
-  toast(symbol + " added on " + (ASSET_CHAINS.find(c=>c.id===chain)?.label || chain));
+  // Clear form fields for next add (force rebuild)
+  try{
+    const pfx = tokenFormPrefix("assets");
+    if($(pfx+"Addr")) $(pfx+"Addr").value = "";
+    if($(pfx+"Symbol")) $(pfx+"Symbol").value = "";
+    if($(pfx+"Decimals")) $(pfx+"Decimals").value = "";
+    const wrap = $("assetsCustomTokenForm");
+    if(wrap) wrap.dataset.formReady = "";
+  }catch(_){}
+  toast((rec.symbol || symbol) + " added on " + (ASSET_CHAINS.find(c=>c.id===chain)?.label || chain));
   selectedChain = chain;
   assetsPageTab = "crypto";
   fillChainSelects();
