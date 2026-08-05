@@ -5017,30 +5017,35 @@ function assetDisplaySymbol(a){
 
 /** Local + CDN logos for assets (HOWL brand on L1 + wHOWL + majors). */
 const ASSET_LOGO = {
-  howl: "/assets/token-logos/howl.jpg",
-  whowl: "/assets/token-logos/whowl.svg",
-  sol: "/assets/token-logos/sol.svg",
-  eth: "/assets/token-logos/eth.svg",
-  btc: "/assets/token-logos/btc.svg",
-  ltc: "/assets/token-logos/ltc.svg",
-  bch: "/assets/token-logos/btc.svg",
-  doge: "/assets/token-logos/doge.svg",
-  usdc_sol: "/assets/token-logos/usdc.svg",
-  usdt_sol: "/assets/token-logos/usdt.svg",
-  usdc: "/assets/token-logos/usdc.svg",
-  usdt: "/assets/token-logos/usdt.svg",
-  bnb: "/assets/token-logos/bnb.svg",
-  avax: "/assets/token-logos/avax.svg",
-  xtz: "/assets/token-logos/xtz.svg",
-  trx: "/assets/token-logos/trx.svg",
-  xrp: "/assets/token-logos/xrp.svg",
-  xlm: "/assets/token-logos/xlm.svg",
-  link: "/assets/token-logos/link.svg",
-  // EVM ETH-like
-  op: "/assets/token-logos/eth.svg",
-  base: "/assets/token-logos/eth.svg",
-  hype: "/assets/token-logos/eth.svg",
-  wbtc: "/assets/token-logos/btc.svg",
+  // HOWL brand — professional geometric mark (also used for wHOWL)
+  howl: "/assets/token-logos/howl.png",
+  whowl: "/assets/token-logos/whowl.png",
+  // Real chain/token logos (Trust Wallet assets, self-hosted)
+  sol: "/assets/token-logos/sol.png",
+  eth: "/assets/token-logos/eth.png",
+  btc: "/assets/token-logos/btc.png",
+  ltc: "/assets/token-logos/ltc.png",
+  bch: "/assets/token-logos/bch.png",
+  doge: "/assets/token-logos/doge.png",
+  usdc_sol: "/assets/token-logos/usdc_sol.png",
+  usdt_sol: "/assets/token-logos/usdt_sol.png",
+  usdc: "/assets/token-logos/usdc.png",
+  usdt: "/assets/token-logos/usdt.png",
+  dai: "/assets/token-logos/dai.png",
+  bnb: "/assets/token-logos/bnb.png",
+  avax: "/assets/token-logos/avax.png",
+  xtz: "/assets/token-logos/xtz.png",
+  trx: "/assets/token-logos/trx.png",
+  xrp: "/assets/token-logos/xrp.png",
+  xlm: "/assets/token-logos/xlm.png",
+  link: "/assets/token-logos/link.png",
+  uni: "/assets/token-logos/uni.png",
+  shib: "/assets/token-logos/shib.png",
+  leo: "/assets/token-logos/leo.png",
+  wbtc: "/assets/token-logos/wbtc.png",
+  op: "/assets/token-logos/op.png",
+  base: "/assets/token-logos/base.png",
+  hype: "/assets/token-logos/eth.png",
 };
 // Trust Wallet CDN for well-known contract logos (optional; falls back to local)
 const TW = "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains";
@@ -5059,7 +5064,7 @@ function trustWalletLogo(a){
   return "";
 }
 function assetLogoUrl(a){
-  if(!a) return "/assets/token-logos/howl-mark.svg";
+  if(!a) return "/assets/token-logos/howl.png";
   if(isWhowlAsset(a)) return ASSET_LOGO.whowl;
   if(a.kind === "howl") return ASSET_LOGO.howl;
   if(a.logo) return a.logo;
