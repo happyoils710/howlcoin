@@ -509,7 +509,7 @@ export function xlmAddressFromMnemonic(phrase, account = 0, passphrase = "") {
 
 /** Multi-chain deposit assets (receive addresses + balances where APIs allow). */
 export const PRESET_ASSETS = [
-  { id: "howl", symbol: "HOWL", name: "Howlcoin", network: "Howlcoin", kind: "howl" },
+  { id: "howl", symbol: "HOWL", name: "Howlcoin", network: "Howlcoin", kind: "howl", logo: "/assets/token-logos/howl.jpg" },
   { id: "btc", symbol: "BTC", name: "Bitcoin", network: "Bitcoin", kind: "utxo", coinId: "btc" },
   { id: "ltc", symbol: "LTC", name: "Litecoin", network: "Litecoin", kind: "utxo", coinId: "ltc" },
   { id: "bch", symbol: "BCH", name: "Bitcoin Cash", network: "Bitcoin Cash", kind: "utxo", coinId: "bch" },
@@ -517,7 +517,7 @@ export const PRESET_ASSETS = [
   { id: "sol", symbol: "SOL", name: "Solana", network: "Solana", kind: "sol" },
   { id: "usdt_sol", symbol: "USDT", name: "Tether (Solana)", network: "Solana (SPL)", kind: "spl", mint: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", decimals: 6 },
   { id: "usdc_sol", symbol: "USDC", name: "USD Coin (Solana)", network: "Solana (SPL)", kind: "spl", mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", decimals: 6 },
-  { id: "whowl", symbol: "wHOWL", name: "Wrapped HOWL", network: "Solana (SPL)", kind: "spl", mint: "HYRKhV2Y9HEtKCCHSgH18Zfo4U9Ln9vAg2dCmBJSLWaG", decimals: 8, chartId: "howlcoin", coingeckoId: "howlcoin", note: "1 wHOWL ≈ 1 HOWL via Howl Wrap" },
+  { id: "whowl", symbol: "wHOWL", name: "Wrapped HOWL", network: "Solana (SPL)", kind: "spl", mint: "HYRKhV2Y9HEtKCCHSgH18Zfo4U9Ln9vAg2dCmBJSLWaG", decimals: 8, chartId: "howlcoin", coingeckoId: "howlcoin", note: "1 wHOWL ≈ 1 HOWL via Howl Wrap", logo: "/assets/token-logos/whowl.svg" },
   { id: "eth", symbol: "ETH", name: "Ethereum", network: "Ethereum", kind: "evm", evmId: "eth" },
   { id: "op", symbol: "ETH", name: "Ether (Optimism)", network: "Optimism", kind: "evm", evmId: "op", displaySymbol: "OP-ETH" },
   { id: "base", symbol: "ETH", name: "Ether (Base)", network: "Base", kind: "evm", evmId: "base", displaySymbol: "BASE-ETH" },

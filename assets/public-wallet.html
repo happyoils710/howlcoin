@@ -532,6 +532,22 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .net-filter-wrap label{font-size:.72rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;flex-shrink:0}
 .net-filter-wrap .chain-select{margin:0;flex:1}
 #homeAssetList,#homeNftList,#assetsList,#assetsNftList{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:4px 10px;margin-bottom:8px}
+.asset-row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px 6px;border:0;border-bottom:1px solid rgba(255,255,255,.05);
+  background:transparent;color:var(--text);font:inherit;cursor:pointer}
+.asset-row:last-child{border-bottom:0}
+.asset-row:active{background:rgba(0,255,198,.05)}
+.asset-row .ico,.asset-row .asset-logo{
+  width:40px;height:40px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  font-size:.72rem;font-weight:800;background:var(--card2);border:1px solid var(--border);overflow:hidden;object-fit:cover}
+.asset-row .asset-logo{padding:0;background:#0a0a12}
+.asset-row .asset-logo img{width:100%;height:100%;object-fit:cover;display:block}
+.asset-row .meta{flex:1;min-width:0}
+.asset-row .sym{font-weight:800;font-size:.95rem}
+.asset-row .nm{font-size:.72rem;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.asset-row .bal{text-align:right;font-weight:800;font-size:.92rem;font-variant-numeric:tabular-nums}
+.asset-row .bal small{display:block;font-size:.65rem;font-weight:600;color:var(--muted);margin-top:2px}
+.asset-row .bal.bal-loading{opacity:.55}
+.chip-net{display:inline-block;font-size:.62rem;padding:1px 6px;border-radius:6px;border:1px solid var(--border);margin-left:4px;color:var(--muted)}
 .asset-row .nm .chip-net{display:inline-block;font-size:.65rem;font-weight:700;padding:1px 6px;border-radius:999px;
   background:color-mix(in srgb,var(--green) 12%,var(--chip,#222));color:var(--muted);margin-left:4px;vertical-align:middle}
 .home-nft-card{display:flex;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid color-mix(in srgb,var(--border) 70%,transparent);cursor:pointer;text-align:left;width:100%;border-left:0;border-right:0;border-top:0;background:transparent;color:var(--text);font:inherit}
@@ -2926,10 +2942,10 @@ async function refreshSolBalances(paint = true){
     ethBalances._solSource = d.source;
     ethBalances._solErr = "";
   }catch(e){
-    ethBalances.sol = "—";
-    delete assetRaw.sol;
     ethBalances._solErr = e.message || "RPC error";
     ethBalances._solSource = "";
+    // keep last SOL balance if any
+    if(assetRaw.sol == null) ethBalances.sol = "—";
     console.warn("SOL balance failed", e);
   }
   for(const a of allAssets()){
@@ -2939,28 +2955,76 @@ async function refreshSolBalances(paint = true){
       const dec = a.decimals != null ? Number(a.decimals) : 6;
       setAssetBal(a.id, b, Math.min(8, Math.max(2, dec)));
     }catch(e){
-      ethBalances[a.id] = "—";
-      delete assetRaw[a.id];
+      // keep last SPL balance
       console.warn("SPL balance failed", a.symbol, e);
     }
   }
   if(paint) paintBalances();
 }
+let _paintBalTimer = null;
 function paintBalances(){
-  updatePortfolioTotal();
-  if($("p-recv")?.classList.contains("on")) selectAsset(selectedAsset);
-  if($("p-home")?.classList.contains("on")) renderHomeAssets(false);
-  if($("p-assets")?.classList.contains("on")) renderAssetsList(false);
-  if($("p-asset")?.classList.contains("on")) renderAssetDetail();
+  // Debounce rapid SOL/ETH/SPL updates so the list does not thrash
+  if(_paintBalTimer) clearTimeout(_paintBalTimer);
+  _paintBalTimer = setTimeout(()=> paintBalancesNow(), 80);
+}
+function paintBalancesNow(){
+  _paintBalTimer = null;
+  try{ updatePortfolioTotal(); }catch(_){}
+  // Soft-update existing rows (no full re-sort / re-mount) to stop balance flicker
+  if($("p-home")?.classList.contains("on") && homeAssetsTab === "crypto"){
+    softPatchAssetRows("homeAssetList");
+  }
+  if($("p-assets")?.classList.contains("on") && assetsPageTab === "crypto"){
+    softPatchAssetRows("assetsList");
+  }
+  if($("p-asset")?.classList.contains("on")){
+    try{ patchAssetDetailBalance(); }catch(_){}
+  }
+  if($("p-recv")?.classList.contains("on")){
+    try{ selectAsset(selectedAsset); }catch(_){}
+  }
   if(typeof updateSwapBalances === "function" && $("p-swap")?.classList.contains("on")){
     try{ updateSwapBalances(); }catch(_){}
   }
 }
+function softPatchAssetRows(containerId){
+  const el = $(containerId);
+  if(!el) return;
+  const rows = el.querySelectorAll(".asset-row[data-id]");
+  if(!rows.length){
+    // first paint — full render
+    try{ renderAssetRows(containerId, { hard: true }); }catch(_){}
+    return;
+  }
+  rows.forEach(row=>{
+    const id = row.getAttribute("data-id");
+    const a = allAssets().find(x=>x.id===id);
+    if(!a) return;
+    const bal = assetBalanceText(a);
+    const balEl = row.querySelector("[data-bal]");
+    if(balEl){
+      const was = balEl.getAttribute("data-v") || "";
+      if(was !== bal){
+        balEl.textContent = bal;
+        balEl.setAttribute("data-v", bal);
+        balEl.classList.toggle("bal-loading", bal === "…");
+      }
+    }
+  });
+}
+function patchAssetDetailBalance(){
+  const a = allAssets().find(x=>x.id===detailAssetId);
+  if(!a) return;
+  const balTxt = assetBalanceText(a);
+  if($("assetDetailBal")) $("assetDetailBal").textContent = balTxt + " " + assetDisplaySymbol(a);
+}
 
 function setAssetBal(id, num, maxFrac = 6){
   if(num == null || !Number.isFinite(Number(num))){
+    // Do not wipe last known good balance on transient RPC blips (stops list glitch)
+    if(assetRaw[id] != null && Number.isFinite(assetRaw[id])) return;
+    if(ethBalances[id] && ethBalances[id] !== "…" && ethBalances[id] !== "—") return;
     ethBalances[id] = "—";
-    delete assetRaw[id];
     return;
   }
   const n = Number(num);
@@ -2970,6 +3034,10 @@ function setAssetBal(id, num, maxFrac = 6){
   } else {
     ethBalances[id] = n.toLocaleString(undefined, { maximumFractionDigits: maxFrac });
   }
+}
+function clearAssetBal(id){
+  delete assetRaw[id];
+  ethBalances[id] = "—";
 }
 
 function howlAmount(){
@@ -4946,6 +5014,72 @@ function ensureTezosDerived(){
 function assetDisplaySymbol(a){
   return a?.displaySymbol || a?.symbol || "?";
 }
+
+/** Local + CDN logos for assets (HOWL brand on L1 + wHOWL + majors). */
+const ASSET_LOGO = {
+  howl: "/assets/token-logos/howl.jpg",
+  whowl: "/assets/token-logos/whowl.svg",
+  sol: "/assets/token-logos/sol.svg",
+  eth: "/assets/token-logos/eth.svg",
+  btc: "/assets/token-logos/btc.svg",
+  ltc: "/assets/token-logos/ltc.svg",
+  bch: "/assets/token-logos/btc.svg",
+  doge: "/assets/token-logos/doge.svg",
+  usdc_sol: "/assets/token-logos/usdc.svg",
+  usdt_sol: "/assets/token-logos/usdt.svg",
+  usdc: "/assets/token-logos/usdc.svg",
+  usdt: "/assets/token-logos/usdt.svg",
+  bnb: "/assets/token-logos/bnb.svg",
+  avax: "/assets/token-logos/avax.svg",
+  xtz: "/assets/token-logos/xtz.svg",
+  trx: "/assets/token-logos/trx.svg",
+  xrp: "/assets/token-logos/xrp.svg",
+  xlm: "/assets/token-logos/xlm.svg",
+  link: "/assets/token-logos/link.svg",
+  // EVM ETH-like
+  op: "/assets/token-logos/eth.svg",
+  base: "/assets/token-logos/eth.svg",
+  hype: "/assets/token-logos/eth.svg",
+  wbtc: "/assets/token-logos/btc.svg",
+};
+// Trust Wallet CDN for well-known contract logos (optional; falls back to local)
+const TW = "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains";
+function trustWalletLogo(a){
+  if(!a) return "";
+  try{
+    if(a.kind === "spl" && a.mint){
+      if(isWhowlAsset(a)) return "";
+      return TW + "/solana/assets/" + encodeURIComponent(a.mint) + "/logo.png";
+    }
+    if(a.kind === "erc20" && a.contract){
+      const chain = (a.evmId === "bnb") ? "smartchain" : (a.evmId === "avax") ? "avalanchec" : (a.evmId === "op") ? "optimism" : (a.evmId === "base") ? "base" : "ethereum";
+      return TW + "/" + chain + "/assets/" + encodeURIComponent(a.contract) + "/logo.png";
+    }
+  }catch(_){}
+  return "";
+}
+function assetLogoUrl(a){
+  if(!a) return "/assets/token-logos/howl-mark.svg";
+  if(isWhowlAsset(a)) return ASSET_LOGO.whowl;
+  if(a.kind === "howl") return ASSET_LOGO.howl;
+  if(a.logo) return a.logo;
+  if(ASSET_LOGO[a.id]) return ASSET_LOGO[a.id];
+  if(a.coinId && ASSET_LOGO[a.coinId]) return ASSET_LOGO[a.coinId];
+  const tw = trustWalletLogo(a);
+  if(tw) return tw;
+  // letter fallback via data uri handled in HTML
+  return "";
+}
+function assetLogoHtml(a){
+  const sym = assetDisplaySymbol(a);
+  const url = assetLogoUrl(a);
+  const letter = escHtml((sym || "?").slice(0, 2));
+  if(!url){
+    return `<span class="ico" aria-hidden="true">${letter}</span>`;
+  }
+  return `<span class="asset-logo" aria-hidden="true"><img src="${escAttr(url)}" alt="" loading="lazy" decoding="async"
+    onerror="this.onerror=null;this.parentElement.className='ico';this.parentElement.textContent='${letter.replace(/'/g,"")}';"/></span>`;
+}
 function setSelectedChain(chainId, source){
   const id = (chainId || "all").toString();
   if(id !== "all" && !ASSET_CHAINS.some(c => c.id === id)) return;
@@ -5004,15 +5138,43 @@ function renderHomeChainPills(){
     btn.onclick = ()=> setSelectedChain(btn.dataset.ch, "home");
   });
 }
-function renderAssetRows(containerId){
+function renderAssetRows(containerId, opts){
   const el = $(containerId);
   if(!el) return;
+  const hard = !!(opts && opts.hard);
   let list = assetsForChain(selectedChain);
-  // Always show balances first within current filter
-  list = list.slice().sort((a,b)=> assetBalanceRank(a) - assetBalanceRank(b) || assetDisplaySymbol(a).localeCompare(assetDisplaySymbol(b)));
+  // Stable order: howl/whowl/sol/eth first, then alpha — NOT re-rank on every balance tick
+  // (re-ranking by balance was a major UI glitch)
+  const prio = (a)=>{
+    if(a.kind === "howl") return 0;
+    if(typeof isWhowlAsset === "function" && isWhowlAsset(a)) return 1;
+    if(a.id === "sol") return 2;
+    if(a.id === "eth") return 3;
+    if(a.id === "usdc_sol" || a.id === "usdt_sol") return 4;
+    if(a.id === "btc") return 5;
+    // lightly prefer funded
+    try{
+      const r = assetBalanceRank(a);
+      return 10 + r;
+    }catch(_){ return 20; }
+  };
+  list = list.slice().sort((a,b)=>{
+    const d = prio(a) - prio(b);
+    if(d) return d;
+    return assetDisplaySymbol(a).localeCompare(assetDisplaySymbol(b));
+  });
   if(!list.length){
     el.innerHTML = `<p class="hint" style="padding:16px 8px">No assets on this chain</p>`;
     return;
+  }
+  // Soft path: if same set of ids already rendered, only patch balances
+  if(!hard){
+    const prev = [...el.querySelectorAll(".asset-row[data-id]")].map(r=>r.getAttribute("data-id"));
+    const next = list.map(a=>a.id);
+    if(prev.length && prev.length === next.length && prev.every((id,i)=> id === next[i])){
+      softPatchAssetRows(containerId);
+      return;
+    }
   }
   el.innerHTML = list.map(a=>{
     const sym = assetDisplaySymbol(a);
@@ -5021,13 +5183,14 @@ function renderAssetRows(containerId){
     const netLab = (ASSET_CHAINS.find(c=>c.id===cid)||{}).label || a.network || "";
     const netChip = (selectedChain === "all" && netLab)
       ? ` <span class="chip-net">${escHtml(netLab)}</span>` : "";
-    return `<button type="button" class="asset-row" data-id="${escHtml(a.id)}">
-      <span class="ico">${escHtml(sym.slice(0,4))}</span>
+    const sub = selectedChain==="all" ? (a.network||"") : (a.name||"");
+    return `<button type="button" class="asset-row" data-id="${escAttr(a.id)}">
+      ${assetLogoHtml(a)}
       <div class="meta">
         <div class="sym">${escHtml(sym)}</div>
         <div class="nm">${escHtml(a.name||a.network||"")}${netChip}</div>
       </div>
-      <div class="bal">${escHtml(bal)}<small>${escHtml(selectedChain==="all" ? (a.network||"") : (a.name||""))}</small></div>
+      <div class="bal"><span data-bal data-v="${escAttr(bal)}" class="${bal==="…"?"bal-loading":""}">${escHtml(bal)}</span><small>${escHtml(sub)}</small></div>
     </button>`;
   }).join("");
   el.querySelectorAll(".asset-row").forEach(btn=>{
@@ -5054,7 +5217,7 @@ function setHomeAssetsTab(tab){
   const gen = $("homeHowlGenerate");
   if(gen) gen.classList.toggle("hidden", homeAssetsTab === "nfts" ? false : (selectedChain !== "howl" && selectedChain !== "all"));
   if(homeAssetsTab === "nfts") renderHomeNfts();
-  else renderAssetRows("homeAssetList");
+  else renderAssetRows("homeAssetList", { hard: true });
   wireAssetsHubSwipe($("homeAssetsHub"), "home");
 }
 function setAssetsPageTab(tab){
@@ -5080,7 +5243,7 @@ function setAssetsPageTab(tab){
     $("assetsCustomTokenPanel").classList.toggle("hidden", !showCustom);
   }
   if(assetsPageTab === "nfts") renderAssetsPageNfts();
-  else { renderAssetRows("assetsList"); renderCustomTokenForms(); }
+  else { renderAssetRows("assetsList", { hard: true }); renderCustomTokenForms(); }
   wireAssetsHubSwipe($("p-assets"), "assets");
 }
 /** Swipe left/right between Crypto and NFTs (Base-style). */
@@ -5539,7 +5702,19 @@ function wireAssetQuickActs(a){
 
 function renderAssetDetail(){
   const a = allAssets().find(x=>x.id===detailAssetId) || PRESET_ASSETS[0];
-  if($("assetDetailTitle")) $("assetDetailTitle").textContent = a.symbol || "Asset";
+  if($("assetDetailTitle")){
+    $("assetDetailTitle").textContent = a.symbol || "Asset";
+  }
+  // show logo next to title if badge area exists
+  try{
+    const badge = $("assetNetBadge");
+    if(badge && a){
+      const url = assetLogoUrl(a);
+      if(url && !badge.dataset.logoWired){
+        /* keep text network badge */
+      }
+    }
+  }catch(_){}
   if($("assetNetBadge")) $("assetNetBadge").textContent = a.network || chainOfAsset(a);
   const balTxt = assetBalanceText(a);
   if($("assetDetailBal")) $("assetDetailBal").textContent = balTxt + " " + assetDisplaySymbol(a);
@@ -7654,7 +7829,7 @@ async function refreshEthBalances(){
       try{
         const eth = await ethBalance(ethInfo.address);
         setAssetBal("eth", eth, 6);
-      }catch{ ethBalances.eth = "—"; delete assetRaw.eth; }
+      }catch{ if(assetRaw.eth == null) ethBalances.eth = "—"; }
       const evmJobs = [];
       for(const a of allAssets()){
         if(a.kind === "evm" && a.evmId){
@@ -7670,7 +7845,7 @@ async function refreshEthBalances(){
               const b = await evmNativeBalance(rpc, ethInfo.address);
               if(b == null){ ethBalances[a.id] = "—"; delete assetRaw[a.id]; }
               else setAssetBal(a.id, b, 6);
-            }catch{ ethBalances[a.id] = "—"; delete assetRaw[a.id]; }
+            }catch{ /* keep last balance */ }
           })());
         }
         if(a.kind === "erc20"){
@@ -7681,7 +7856,7 @@ async function refreshEthBalances(){
               if(!rpc){ ethBalances[a.id] = "—"; delete assetRaw[a.id]; return; }
               const b = await erc20BalanceOnRpc(rpc, a.contract, ethInfo.address, a.decimals||18);
               setAssetBal(a.id, b, a.decimals && a.decimals <= 8 ? 8 : 6);
-            }catch{ ethBalances[a.id] = "—"; delete assetRaw[a.id]; }
+            }catch{ /* keep last balance */ }
           })());
         }
       }
@@ -7696,7 +7871,7 @@ async function refreshEthBalances(){
         try{
           const b = await trc20Balance(a.contract, multiInfo.trx.address, a.decimals||6);
           setAssetBal(a.id, b, 6);
-        }catch{ ethBalances[a.id] = "—"; delete assetRaw[a.id]; }
+        }catch{ /* keep last balance */ }
       })());
     }
     if(a.kind === "fa" && xtzInfo?.address){
@@ -7704,7 +7879,7 @@ async function refreshEthBalances(){
         try{
           const b = await faTokenBalance(a.contract, xtzInfo.address, a.tokenId, a.decimals||0);
           setAssetBal(a.id, b, Math.min(6, a.decimals||0) || 6);
-        }catch{ ethBalances[a.id] = "—"; delete assetRaw[a.id]; }
+        }catch{ /* keep last balance */ }
       })());
     }
     if(a.kind === "xlm_asset" && multiInfo.xlm?.address){
@@ -7712,7 +7887,7 @@ async function refreshEthBalances(){
         try{
           const b = await xlmAssetBalance(a.code, a.issuer, multiInfo.xlm.address);
           setAssetBal(a.id, b, 7);
-        }catch{ ethBalances[a.id] = "—"; delete assetRaw[a.id]; }
+        }catch{ /* keep last balance */ }
       })());
     }
     if(a.kind === "xrp_token" && multiInfo.xrp?.address){
@@ -7720,7 +7895,7 @@ async function refreshEthBalances(){
         try{
           const b = await xrpTokenBalance(a.code || a.currency, a.issuer, multiInfo.xrp.address);
           setAssetBal(a.id, b, 6);
-        }catch{ ethBalances[a.id] = "—"; delete assetRaw[a.id]; }
+        }catch{ /* keep last balance */ }
       })());
     }
   }
@@ -7754,7 +7929,7 @@ async function refreshEthBalances(){
         } else {
           ethBalances[a.id] = "—"; // explorer for LTC/DOGE/BCH
         }
-      }catch{ ethBalances[a.id] = "—"; delete assetRaw[a.id]; }
+      }catch{ /* keep last balance */ }
     })());
   }
 
