@@ -31,3 +31,7 @@ telegram.env
 
 node_modules/
 native/node_modules/
+
+# Pack wallet
+apps/**/node_modules/
+apps/**/dist/

@@ -2730,7 +2730,8 @@ input.field,textarea.field{border-radius:10px}
   <button class="ditem" type="button" onclick="navTo('#/'+net+'/mempool')">Mempool</button>
   <h4 style="margin-top:16px">Get started</h4>
   <button class="ditem primary" type="button" onclick="navTo('#/run')">Run a node</button>
-  <a class="ditem" href="/app">Wallet</a>
+  <a class="ditem" href="/pack/">Pack Wallet</a>
+  <a class="ditem" href="/app">Classic wallet</a>
   <a class="ditem" href="/whitepaper">White paper</a>
   <a class="ditem" href="https://github.com/happyoils710/howlcoin" target="_blank" rel="noopener">GitHub</a>
   <h4 style="margin-top:16px">Appearance</h4>
@@ -2771,6 +2772,7 @@ input.field,textarea.field{border-radius:10px}
     <a href="/app">Wallet</a> ·
     <a href="#/run">Mine</a> ·
     <a href="#/api">API</a> ·
+    <a href="/pack/">Pack Wallet</a> ·
     <a href="/whitepaper">White paper</a>
   </div>
   <div>seed <span class="mono">147.182.223.204:42069</span> ·
@@ -5298,6 +5300,42 @@ class ExplorerServer:
                     self.send_header("Pragma", "no-cache")
                     self.send_header("Access-Control-Allow-Origin", "*")
                     data = app.read_bytes()
+                    self.send_header("Content-Length", str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                    return
+
+                # Howl Pack Wallet (Base-first React SPA)
+                if path in ("/pack", "/pack/") or path.startswith("/pack/"):
+                    pack_root = ASSETS_DIR / "pack-wallet"
+                    rel = path[len("/pack"):].lstrip("/") or "index.html"
+                    # SPA fallback: unknown routes serve index.html
+                    candidate = pack_root / rel
+                    if not candidate.is_file() or rel.endswith("/"):
+                        candidate = pack_root / "index.html"
+                    # prevent path escape
+                    try:
+                        candidate.resolve().relative_to(pack_root.resolve())
+                    except Exception:
+                        return self._json(400, {"error": "bad path"})
+                    if not candidate.is_file():
+                        return self._json(404, {"error": "pack wallet not built — run apps/howl-pack-wallet npm run build"})
+                    data = candidate.read_bytes()
+                    ctype = "text/html; charset=utf-8"
+                    if candidate.suffix == ".js":
+                        ctype = "application/javascript; charset=utf-8"
+                    elif candidate.suffix == ".css":
+                        ctype = "text/css; charset=utf-8"
+                    elif candidate.suffix == ".svg":
+                        ctype = "image/svg+xml"
+                    elif candidate.suffix == ".json":
+                        ctype = "application/json"
+                    elif candidate.suffix in (".png", ".jpg", ".jpeg", ".webp"):
+                        ctype = f"image/{candidate.suffix.lstrip('.')}"
+                    self.send_response(200)
+                    self.send_header("Content-Type", ctype)
+                    self.send_header("Cache-Control", "no-cache" if candidate.name == "index.html" else "public, max-age=3600")
+                    self.send_header("Access-Control-Allow-Origin", "*")
                     self.send_header("Content-Length", str(len(data)))
                     self.end_headers()
                     self.wfile.write(data)
