@@ -1199,6 +1199,8 @@ html.embed .gate{min-height:100dvh}
           <select class="chain-select" id="assetsChainSelect" aria-label="Network filter"></select>
         </div>
         <p class="hint" style="margin:0 0 8px">Tap an asset for deposit, swap, send, and history. Filter by network or show all.</p>
+        <button type="button" class="btn sec" id="btnJumpAddToken" style="margin:0 0 10px;width:100%"
+          onclick="document.getElementById('assetsCustomTokenPanel')?.scrollIntoView({behavior:'smooth',block:'start'});document.getElementById('atAddr')?.focus()">+ Add custom token</button>
         <div id="assetsList"><p class="hint">Loading…</p></div>
         <div id="assetsNftList" class="hidden"><p class="hint">Loading NFTs…</p></div>
       </div>
@@ -1211,8 +1213,10 @@ html.embed .gate{min-height:100dvh}
         </div>
       </div>
       <div class="panel" id="assetsCustomTokenPanel">
-        <h2 id="assetsCustomTitle">Add custom token</h2>
+        <h2 id="assetsCustomTitle" style="margin:0 0 6px">Add custom token</h2>
+        <p class="hint" id="assetsCustomHint" style="margin:0 0 12px">Import an ERC-20, SPL, TRC-20, Tezos FA, Stellar, or XRP token by contract / mint. Saved on this device only.</p>
         <div id="assetsCustomTokenForm"></div>
+        <h3 style="margin:16px 0 8px;font-size:.85rem;color:var(--muted)">Your custom tokens</h3>
         <div id="assetsCustomList"></div>
       </div>
     </div>
@@ -5038,8 +5042,8 @@ function setAssetsPageTab(tab){
     nftEl.style.display = hide ? "none" : "";
   }
   if($("assetsCustomTokenPanel")){
-    // show custom tokens when crypto + chain supports tokens OR howl generate
-    const showCustom = assetsPageTab === "crypto" && (chainHasTokenSystem(selectedChain) || selectedChain === "howl" || selectedChain === "all");
+    // Always allow adding custom tokens on Crypto tab (any network filter)
+    const showCustom = assetsPageTab === "crypto";
     $("assetsCustomTokenPanel").classList.toggle("hidden", !showCustom);
   }
   if(assetsPageTab === "nfts") renderAssetsPageNfts();
@@ -10957,18 +10961,33 @@ function renderCustomTokenForms(){
     // show on home for Howl / All networks
     homeGen.classList.toggle("hidden", !(selectedChain === "howl" || selectedChain === "all"));
   }
-  // Assets page: form locked to selected chain when it has tokens
+  // Assets page: always show add-token form on crypto tab
   const assetsPanel = $("assetsCustomTokenPanel");
   if(assetsPanel){
-    if(chainHasTokenSystem(selectedChain)){
+    const onCrypto = (typeof assetsPageTab === "undefined" || assetsPageTab === "crypto");
+    const onAssetsPage = $("p-assets")?.classList.contains("on");
+    // Prefer selected network when it has a token standard; otherwise ethereum
+    const formChain = chainHasTokenSystem(selectedChain) ? selectedChain : "ethereum";
+    if(onCrypto){
       assetsPanel.classList.remove("hidden");
       if($("assetsCustomTitle")){
-        const lab = ASSET_CHAINS.find(c=>c.id===selectedChain)?.label || selectedChain;
-        const std = TOKEN_SYSTEMS[selectedChain]?.standard || "token";
-        $("assetsCustomTitle").textContent = "Add custom " + std + " · " + lab;
+        if(chainHasTokenSystem(selectedChain)){
+          const lab = ASSET_CHAINS.find(c=>c.id===selectedChain)?.label || selectedChain;
+          const std = TOKEN_SYSTEMS[selectedChain]?.standard || "token";
+          $("assetsCustomTitle").textContent = "Add custom " + std + " · " + lab;
+        } else {
+          $("assetsCustomTitle").textContent = "Add custom token";
+        }
       }
-      renderCustomTokenFormInto("assetsCustomTokenForm", "assets", selectedChain);
-    } else {
+      if($("assetsCustomHint")){
+        $("assetsCustomHint").textContent = chainHasTokenSystem(selectedChain)
+          ? ("Paste the " + (TOKEN_SYSTEMS[selectedChain]?.standard || "token") + " address for " +
+             (ASSET_CHAINS.find(c=>c.id===selectedChain)?.label || selectedChain) +
+             ". You can switch chain in the form.")
+          : "Pick a chain below, paste the contract or mint address, then tap Add. Works with All networks filter.";
+      }
+      renderCustomTokenFormInto("assetsCustomTokenForm", "assets", formChain);
+    } else if(onAssetsPage){
       assetsPanel.classList.add("hidden");
     }
   }
@@ -11033,13 +11052,18 @@ function addCustomTokenFromForm(scope){
   cleaned.push(rec);
   saveCustomTokens(cleaned);
   toast(symbol + " added on " + (ASSET_CHAINS.find(c=>c.id===chain)?.label || chain));
+  selectedChain = chain;
+  assetsPageTab = "crypto";
+  fillChainSelects();
   renderAssetSeg();
   renderCustomTokenForms();
-  renderAssetsList(false);
-  selectedChain = chain;
-  fillChainSelects();
-  selectAsset(id);
-  refreshEthBalances();
+  if($("p-assets")){
+    showPage("assets");
+    renderAssetsList(false);
+  }
+  try{ selectAsset(id); }catch(_){}
+  try{ refreshEthBalances(); }catch(_){}
+  try{ refreshSolBalances(false); }catch(_){}
 }
 /** @deprecated use addCustomTokenFromForm — kept for onclick compat */
 function addCustomToken(){
@@ -11065,23 +11089,41 @@ function renderCustomList(){
   ["customList", "assetsCustomList"].forEach(cid=>{
     const el = $(cid);
     if(!el) return;
-    // assets list: only tokens for selected chain
     if(cid === "assetsCustomList"){
-      const filtered = list.filter(t => t.chain === selectedChain);
+      // Show tokens for selected chain, or all when filter is "all" / howl
+      const filtered = (selectedChain === "all" || selectedChain === "howl" || !chainHasTokenSystem(selectedChain))
+        ? list
+        : list.filter(t => t.chain === selectedChain || (t.evmId && (
+            (selectedChain === "ethereum" && (t.evmId === "eth" || !t.evmId)) ||
+            t.evmId === selectedChain ||
+            (selectedChain === t.chain)
+          )));
       el.innerHTML = filtered.length ? filtered.map(t=>{
         const id = customTokenId(t);
-        const ref = t.contract || t.mint || t.code || "";
-        return `<div class="item">
-          <div class="mono" style="font-size:.75rem">${escHtml(t.symbol)} · ${escHtml(String(ref).slice(0,12))}…</div>
+        const chainLab = ASSET_CHAINS.find(c=>c.id===t.chain)?.label || t.chain;
+        const ref = t.contract || t.mint || (t.code + (t.issuer ? " · " + shortAddr(t.issuer) : "")) || "";
+        const short = String(ref).length > 22 ? String(ref).slice(0,10) + "…" + String(ref).slice(-4) : ref;
+        return `<div class="item" style="cursor:pointer" data-open-asset="${escAttr(id)}">
+          <div style="min-width:0;flex:1">
+            <div style="font-weight:700">${escHtml(t.symbol)} · <span style="color:var(--muted);font-weight:600">${escHtml(chainLab)}</span></div>
+            <div class="mono" style="font-size:.72rem;color:var(--muted)">${escHtml(TOKEN_SYSTEMS[t.chain]?.standard || t.kind)} · ${escHtml(short)}</div>
+          </div>
           <button class="btn sec" style="width:auto;margin:0;padding:6px 10px;min-height:0" type="button"
             data-rm="${escAttr(id)}">Remove</button>
         </div>`;
-      }).join("") : "";
+      }).join("") : `<p class="hint">No custom tokens yet — add one above</p>`;
     } else {
       el.innerHTML = html;
     }
     el.querySelectorAll("button[data-rm]").forEach(btn=>{
-      btn.onclick = ()=> removeCustom(btn.getAttribute("data-rm"));
+      btn.onclick = (ev)=>{ ev.stopPropagation(); removeCustom(btn.getAttribute("data-rm")); };
+    });
+    el.querySelectorAll("[data-open-asset]").forEach(row=>{
+      row.addEventListener("click", (ev)=>{
+        if(ev.target.closest("button")) return;
+        const id = row.getAttribute("data-open-asset");
+        if(id) selectAsset(id);
+      });
     });
   });
 }
@@ -11888,6 +11930,8 @@ window.startTotpSetup = startTotpSetup;
 window.confirmTotpSetup = confirmTotpSetup;
 window.disableTotp = disableTotp;
 window.addCustomToken = addCustomToken;
+window.addCustomTokenFromForm = addCustomTokenFromForm;
+window.renderCustomTokenForms = renderCustomTokenForms;
 window.removeCustom = removeCustom;
 window.selectAsset = selectAsset;
 window.openAssetDetail = openAssetDetail;
