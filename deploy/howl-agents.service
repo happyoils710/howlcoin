@@ -1,0 +1,24 @@
+[Unit]
+Description=Howl autonomous multi-agent runtime (monitor, consensus, settle, DePIN)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/howlcoin
+EnvironmentFile=-/var/lib/howlcoin/agents.env
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/opt/howlcoin
+Environment=HOWL_AGENTS_API=https://howlscan.org
+Environment=HOWL_AGENTS_STATE=/var/lib/howlcoin/agents
+Environment=HOWL_AGENTS_INTERVAL=90
+Environment=HOWL_AGENTS_DRY_RUN=1
+Environment=HOWL_AGENTS_SETTLE=0
+Environment=HOWL_ROOT=/opt/howlcoin
+ExecStart=/opt/howlcoin-venv/bin/python3 /opt/howlcoin/scripts/howl-agent-runtime.py
+Restart=always
+RestartSec=20
+
+[Install]
+WantedBy=multi-user.target

@@ -4811,6 +4811,8 @@ async function showApiDocs(){
     ['GET', '/api/public/coin?id=ethereum', 'Spot + sample ATH/ATL'],
     ['GET', '/api/public/fees', 'Min/default fees'],
     ['GET', '/api/public/token-info', 'Listing / token metadata'],
+    ['GET', '/api/public/agents', 'Autonomous multi-agent system status + capabilities'],
+    ['GET', '/api/public/security', 'Trust posture, wHOWL mint policy, audit status'],
     ['POST', '/api/public/broadcast', 'Broadcast signed tx JSON {tx:…}'],
   ];
   app().innerHTML = `<div class="main" style="padding-top:12px">
@@ -5736,6 +5738,61 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                         "page": "https://howlscan.org/#/security",
                         "semi_custodial": ["howl_swap", "howl_wrap"],
                     })
+
+                if path in ("/api/public/agents", "/api/agents"):
+                    # Live snapshot if agent runtime shares state with this host
+                    live = None
+                    for cand in (
+                        __import__("os").environ.get("HOWL_AGENTS_STATE"),
+                        str(Path.home() / ".howlcoin" / "agents"),
+                        "/var/lib/howlcoin/agents",
+                    ):
+                        if not cand:
+                            continue
+                        sp = Path(cand) / "status.json"
+                        if sp.is_file():
+                            try:
+                                live = json.loads(sp.read_text(encoding="utf-8"))
+                                break
+                            except Exception:
+                                pass
+                    return self._json(
+                        200,
+                        {
+                            "system": "howl-agents/v1",
+                            "docs": "https://github.com/happyoils710/howlcoin/blob/main/docs/HOWL_AGENTS.md",
+                            "roles": [
+                                "health",
+                                "security",
+                                "oracle",
+                                "opportunity",
+                                "infra",
+                                "coordinator",
+                            ],
+                            "capabilities": [
+                                "monitor_protocol_health",
+                                "monitor_security_events",
+                                "monitor_oracle_data",
+                                "scan_opportunities",
+                                "multi_agent_consensus",
+                                "on_chain_settlement",
+                                "economic_autonomy",
+                                "depin_bootstrap_nodes",
+                                "closed_loop_infra_governance",
+                            ],
+                            "depin_providers": ["local", "akash", "nosana"],
+                            "settlement": {
+                                "type": "oracle_tx",
+                                "keys": [
+                                    "howl.agent.consensus.<proposal_id>",
+                                    "howl.agent.finding.<finding_id>",
+                                ],
+                            },
+                            "run": "python3 scripts/howl-agent-runtime.py --once",
+                            "cli": "python3 -m howl agents --once",
+                            "live": live,
+                        },
+                    )
 
                 if path in (
                     "/api/public/health",

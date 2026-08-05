@@ -628,6 +628,38 @@ def cmd_explorer(args: argparse.Namespace) -> None:
     )
 
 
+def cmd_agents(args: argparse.Namespace) -> None:
+    """Autonomous multi-agent monitor / consensus / DePIN bootstrap."""
+    from .agents.runtime import AgentRuntime
+
+    wallet = (getattr(args, "wallet", None) or "").strip() or None
+    agents_data = (getattr(args, "agents_data", None) or "").strip() or None
+    rt = AgentRuntime(
+        api_base=args.api,
+        state_dir=Path(args.state_dir),
+        wallet_path=Path(wallet) if wallet else None,
+        data_dir=Path(agents_data) if agents_data else None,
+        seed=args.seed,
+        settle=bool(args.settle),
+        dry_run_infra=not bool(args.live_infra),
+        required_votes=int(args.quorum),
+        settle_min_severity=args.settle_severity,
+        interval=float(args.interval),
+    )
+    if args.budget is not None:
+        from .agents.economy import save_treasury
+
+        rt.treasury.budget_howl = float(args.budget)
+        save_treasury(rt.state_dir / "treasury.json", rt.treasury)
+    if args.status:
+        print(json.dumps(rt.status(), indent=2))
+        return
+    if args.once:
+        print(json.dumps(rt.tick(), indent=2, default=str))
+        return
+    rt.run_forever()
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="howl",
@@ -796,6 +828,36 @@ def build_parser() -> argparse.ArgumentParser:
         help="public chain data dir (default ~/.howlcoin or HOWL_PUBLIC_DATA)",
     )
     s.set_defaults(func=cmd_explorer)
+
+    s = sub.add_parser(
+        "agents",
+        help="autonomous multi-agent system (monitor, consensus, settle, DePIN nodes)",
+    )
+    s.add_argument(
+        "--api",
+        default=__import__("os").environ.get("HOWL_AGENTS_API")
+        or __import__("os").environ.get("HOWL_EXPLORER_URL")
+        or "https://howlscan.org",
+        help="explorer API base",
+    )
+    s.add_argument(
+        "--state-dir",
+        default=__import__("os").environ.get("HOWL_AGENTS_STATE")
+        or str(Path.home() / ".howlcoin" / "agents"),
+        help="agent state directory",
+    )
+    s.add_argument("--wallet", default=__import__("os").environ.get("HOWL_AGENTS_WALLET") or "", help="settlement wallet JSON")
+    s.add_argument("--agents-data", default="", help="optional local chain data for broadcast")
+    s.add_argument("--seed", default="147.182.223.204:42069", help="P2P seed for bootstrapped nodes")
+    s.add_argument("--interval", type=float, default=60.0)
+    s.add_argument("--quorum", type=int, default=2)
+    s.add_argument("--settle", action="store_true", help="post consensus on-chain as oracle txs")
+    s.add_argument("--live-infra", action="store_true", help="actually spawn local nodes")
+    s.add_argument("--settle-severity", default="high")
+    s.add_argument("--once", action="store_true", help="single tick then exit")
+    s.add_argument("--status", action="store_true", help="print agent status JSON")
+    s.add_argument("--budget", type=float, default=None, help="set treasury soft budget (HOWL)")
+    s.set_defaults(func=cmd_agents)
 
     return p
 
