@@ -2796,6 +2796,7 @@ input.field,textarea.field{border-radius:10px}
   <button class="ditem" type="button" onclick="navTo('#/culture')">Culture</button>
   <button class="ditem" type="button" onclick="navTo('#/charts')">Charts</button>
   <button class="ditem" type="button" onclick="navTo('#/health')">Network</button>
+  <button class="ditem" type="button" onclick="navTo('#/nodes')">Public nodes</button>
   <button class="ditem" type="button" onclick="navTo('#/security')">Security &amp; trust</button>
   <button class="ditem" type="button" onclick="navTo('#/'+net+'/richlist')">Richlist</button>
   <button class="ditem" type="button" onclick="navTo('#/'+net+'/mempool')">Mempool</button>
@@ -2840,6 +2841,7 @@ input.field,textarea.field{border-radius:10px}
     <a href="#/culture">Culture</a> ·
     <a href="#/charts">Charts</a> ·
     <a href="#/health">Network</a> ·
+    <a href="#/nodes">Nodes</a> ·
     <a href="/app/">Wallet</a> ·
     <a href="#/run">Mine</a> ·
     <a href="#/api">API</a> ·
@@ -3460,6 +3462,7 @@ async function loadHome(){
         <a class="rail-link" href="#/culture">Culture</a>
         <a class="rail-link" href="#/charts">Charts</a>
         <a class="rail-link" href="#/health">Network</a>
+        <a class="rail-link" href="#/nodes">Public nodes</a>
         <a class="rail-link" href="#/security">Security</a>
         <a class="rail-link" href="/app/">Wallet</a>
         <a class="rail-link" href="#/run">Mine</a>
@@ -3994,6 +3997,7 @@ async function showHealth(){
     ${crumbs([{label:'Home',href:'#/public'},{label:'Network status'}])}
     <div class="page-actions"><button class="back" onclick="location.hash='#/public'">← Home</button>
       <button class="chipbtn" onclick="showHealth()">Refresh</button>
+      <button class="chipbtn" onclick="location.hash='#/nodes'">Public nodes</button>
       <button class="chipbtn" onclick="location.hash='#/run'">Run a node</button>
       <button class="chipbtn" onclick="location.hash='#/app'">Open wallet</button>
     </div>
@@ -4044,7 +4048,122 @@ async function showHealth(){
       <p class="muted" style="margin:0">Seed self-heals: auto-mine, 90s template refresh, 2h stall relief. Monitors:
       <span class="mono">scripts/howl-health-check.sh</span> ·
       <span class="mono">scripts/howl-ops-bootstrap.sh</span> · API
-      <span class="mono">/api/public/status</span></p>
+      <span class="mono">/api/public/status</span> ·
+      <a href="#/nodes">public nodes</a> ·
+      <span class="mono">/api/public/seeds</span></p>
+    </div>
+  </div>`;
+}
+
+async function showNodes(){
+  setHeroVisible(false);
+  setBottomTab('health');
+  await loadNetworks();
+  let seedsJ = {};
+  try{
+    seedsJ = await api('/api/public/seeds');
+  }catch(e){
+    seedsJ = { error: e.message || String(e), seeds: [], count: 0, up_count: 0, primary: '147.182.223.204:42069' };
+  }
+  const seeds = seedsJ.seeds || [];
+  const primary = seedsJ.primary || '147.182.223.204:42069';
+  const active = seeds.filter(s => s.status === 'up');
+  const other = seeds.filter(s => s.status !== 'up');
+  const upN = seedsJ.up_count != null ? seedsJ.up_count : active.length;
+  const count = seedsJ.count != null ? seedsJ.count : seeds.length;
+  setPageMeta(
+    'Active nodes · Howlscan',
+    `Howlcoin public P2P: ${upN} active of ${count} listed. Primary ${primary}.`,
+    '#/nodes'
+  );
+  const statusClass = (st) => {
+    if(st === 'up') return 'ok';
+    if(st === 'down') return 'warn';
+    if(st === 'local') return 'blue';
+    return 'blue';
+  };
+  const statusLabel = (st) => {
+    if(st === 'up') return 'ACTIVE';
+    if(st === 'down') return 'DOWN';
+    if(st === 'local') return 'LOCAL';
+    return String(st || 'UNKNOWN').toUpperCase();
+  };
+  const seedRow = (s) => {
+    const ep = s.endpoint || ((s.host||'') + ':' + (s.port||''));
+    const role = s.role || 'seed';
+    const src = s.source || '—';
+    const notes = s.notes || '';
+    const connect = `python3 -m howl node --connect ${ep}`;
+    return `<tr>
+      <td style="padding:10px 8px;border-bottom:1px solid var(--border);vertical-align:top">
+        <span class="badge ${statusClass(s.status)}">${statusLabel(s.status)}</span>
+        ${role==='primary'?' <span class="badge blue">PRIMARY</span>':''}
+      </td>
+      <td style="padding:10px 8px;border-bottom:1px solid var(--border);vertical-align:top">
+        <div class="mono" style="font-weight:700;word-break:break-all">${esc(ep)}</div>
+        <div class="muted" style="font-size:.75rem;margin-top:4px">${esc(role)} · ${esc(src)}${notes?' · '+esc(String(notes).slice(0,80)):''}</div>
+      </td>
+      <td style="padding:10px 4px;border-bottom:1px solid var(--border);vertical-align:top;white-space:nowrap">
+        <button type="button" class="chipbtn" style="margin:0 0 4px;padding:6px 10px;font-size:.72rem" onclick="copyText(${JSON.stringify(ep)}, this)">Copy</button>
+        <button type="button" class="chipbtn" style="margin:0;padding:6px 10px;font-size:.72rem" onclick="copyText(${JSON.stringify(connect)}, this)">Connect</button>
+      </td>
+    </tr>`;
+  };
+  const tableBlock = (list, emptyMsg) => list.length
+    ? `<table style="width:100%;border-collapse:collapse;font-size:.88rem">
+        <thead>
+          <tr class="muted" style="text-align:left">
+            <th style="padding:8px;border-bottom:1px solid var(--border)">Status</th>
+            <th style="padding:8px;border-bottom:1px solid var(--border)">Endpoint</th>
+            <th style="padding:8px;border-bottom:1px solid var(--border)"></th>
+          </tr>
+        </thead>
+        <tbody>${list.map(seedRow).join('')}</tbody>
+      </table>`
+    : `<p class="muted" style="padding:8px 0;margin:0">${emptyMsg}</p>`;
+
+  const examples = (seedsJ.connect_examples || [
+    `python3 -m howl node --connect ${primary}`,
+    'python3 -m howl node --public --auto-mine',
+  ]).map(c => `<li style="margin:6px 0"><code class="mono" style="font-size:.8rem;word-break:break-all">${esc(c)}</code>
+    <button type="button" class="chipbtn" style="margin-left:6px;padding:4px 8px;font-size:.7rem" onclick="copyText(${JSON.stringify(c)}, this)">Copy</button></li>`).join('');
+
+  app().innerHTML = `<div class="main" style="padding-top:12px">
+    ${crumbs([{label:'Home',href:'#/public'},{label:'Active nodes'}])}
+    <div class="page-actions">
+      <button class="back" onclick="location.hash='#/public'">← Home</button>
+      <button class="chipbtn" onclick="showNodes()">Refresh</button>
+      <button class="chipbtn" onclick="location.hash='#/health'">Network status</button>
+      <button class="chipbtn" onclick="location.hash='#/run'">Run a node</button>
+      <a class="chipbtn" href="/app/">Wallet</a>
+    </div>
+    <div class="card detail">
+      <h2 style="margin:0 0 8px">Active public nodes</h2>
+      <p class="muted" style="margin:0 0 12px">Live P2P seeds peers can use to sync Howlcoin. <b>Active</b> means the P2P port responds right now.
+      Unreachable or unprobed entries appear below.</p>
+      <div class="stats">
+        <div class="stat"><div class="k">Active now</div><div class="v">${upN}</div><div class="s">TCP up</div></div>
+        <div class="stat"><div class="k">Listed</div><div class="v">${count}</div><div class="s">directory</div></div>
+        <div class="stat"><div class="k">Primary</div><div class="v" style="font-size:.85rem;word-break:break-all">${esc(primary)}</div><div class="s">default</div></div>
+        <div class="stat"><div class="k">P2P port</div><div class="v">${seedsJ.p2p_port_default||42069}</div><div class="s">default</div></div>
+      </div>
+      ${seedsJ.error?`<p class="err" style="margin-top:12px">${esc(seedsJ.error)}</p>`:''}
+    </div>
+    <div class="card detail" style="margin-top:12px;overflow-x:auto">
+      <h3 style="margin-top:0">Active now (${active.length})</h3>
+      ${tableBlock(active, 'No nodes currently reachable. Primary may still work — try again or check the seed VPS.')}
+    </div>
+    ${other.length ? `<div class="card detail" style="margin-top:12px;overflow-x:auto">
+      <h3 style="margin-top:0">Other listed (${other.length})</h3>
+      <p class="muted" style="margin:0 0 10px;font-size:.8rem">Registered but not responding to TCP probe (down, local-only, or unknown).</p>
+      ${tableBlock(other, '')}
+    </div>` : ''}
+    <div class="card detail" style="margin-top:12px">
+      <h3 style="margin-top:0">Connect</h3>
+      <ul style="margin:0;padding-left:1.1rem">${examples}</ul>
+      <p class="muted" style="margin:12px 0 0;font-size:.8rem">API: <span class="mono">GET /api/public/seeds</span>
+      · Docs: <a href="https://github.com/happyoils710/howlcoin/blob/main/SEEDS.md" target="_blank" rel="noopener">SEEDS.md</a>
+      · Second node: <a href="https://github.com/happyoils710/howlcoin/blob/main/docs/PUBLIC_NODE2.md" target="_blank" rel="noopener">PUBLIC_NODE2.md</a></p>
     </div>
   </div>`;
 }
@@ -4812,8 +4931,10 @@ async function showApiDocs(){
     ['GET', '/api/public/fees', 'Min/default fees'],
     ['GET', '/api/public/token-info', 'Listing / token metadata'],
     ['GET', '/api/public/agents', 'Autonomous multi-agent system status + capabilities'],
+    ['GET', '/api/public/seeds', 'Public P2P seed directory (primary + agent-registered)'],
     ['GET', '/api/public/security', 'Trust posture, wHOWL mint policy, audit status'],
     ['POST', '/api/public/broadcast', 'Broadcast signed tx JSON {tx:…}'],
+    ['UI', '#/nodes', 'Public nodes page (seed list + connect commands)'],
   ];
   app().innerHTML = `<div class="main" style="padding-top:12px">
     ${crumbs([{label:'Home',href:'#/'+net},{label:'API'}])}
@@ -5061,7 +5182,10 @@ async function route(){
     if(parts.length>=3 && parts[1]==='block') return await showBlock(decodeURIComponent(parts[2]));
     if(parts.length>=3 && parts[1]==='tx') return await showTx(decodeURIComponent(parts[2]));
     if(parts.length>=3 && parts[1]==='address') return await showAddr(decodeURIComponent(parts[2]));
-    if(parts.length>=1 && (parts[0]==='run' || parts[0]==='node' || parts[0]==='sync')) return await showRunNode();
+    if(parts.length>=1 && (parts[0]==='run' || parts[0]==='sync')) return await showRunNode();
+    if(parts.length>=1 && (parts[0]==='nodes' || parts[0]==='seeds' || parts[0]==='peers')) return await showNodes();
+    // #/node kept as alias of nodes (not "run a node" which is #/run)
+    if(parts.length>=1 && parts[0]==='node') return await showNodes();
     if(parts.length>=1 && parts[0]==='security') return await showSecurity();
     if(parts.length>=1 && (parts[0]==='health' || parts[0]==='status')) return await showHealth();
     if(parts.length>=2 && parts[1]==='richlist') return await showRichlist();
@@ -5089,6 +5213,7 @@ function liveRouteKind(){
   if(h[0]==='culture' || h[0]==='nfts' || h[0]==='gallery') return 'culture';
   if(h[0]==='charts' || h[0]==='markets') return 'charts';
   if(h[0]==='health' || h[0]==='status') return 'health';
+  if(h[0]==='nodes' || h[0]==='seeds' || h[0]==='peers' || h[0]==='node') return 'nodes';
   if(h[0]==='mempool' || h[1]==='mempool') return 'mempool';
   if(h[0]==='contracts') return 'contracts';
   return '';
@@ -5145,6 +5270,7 @@ function softLiveRefresh(force){
       else if(kind==='charts') await showChartsBoard();
       else if(kind==='security') await showSecurity();
       else if(kind==='health') await showHealth();
+      else if(kind==='nodes') await showNodes();
       else if(kind==='mempool') await showMempool();
       else if(kind==='contracts'){
         const hh=(location.hash||'').replace(/^#\/?/,'').split('/').filter(Boolean);
@@ -5779,6 +5905,7 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                                 "economic_autonomy",
                                 "depin_bootstrap_nodes",
                                 "closed_loop_infra_governance",
+                                "public_seed_registry",
                             ],
                             "depin_providers": ["local", "akash", "nosana"],
                             "settlement": {
@@ -5790,9 +5917,23 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                             },
                             "run": "python3 scripts/howl-agent-runtime.py --once",
                             "cli": "python3 -m howl agents --once",
+                            "seeds_api": "/api/public/seeds",
                             "live": live,
                         },
                     )
+
+                if path in ("/api/public/seeds", "/api/seeds"):
+                    try:
+                        from .seeds import list_seeds
+
+                        probe = (qs.get("probe") or ["1"])[0].lower() not in (
+                            "0",
+                            "false",
+                            "no",
+                        )
+                        return self._json(200, list_seeds(probe=probe))
+                    except Exception as e:
+                        return self._json(500, {"error": str(e)})
 
                 if path in (
                     "/api/public/health",

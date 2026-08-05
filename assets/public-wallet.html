@@ -1122,6 +1122,7 @@ html.embed .gate{min-height:100dvh}
  <span class="np" id="npH" onclick="showPage('status')">H <b id="height">—</b></span>
  <span class="np" id="npD" onclick="showPage('status')">Diff <b id="homeDiff">—</b></span>
  <span class="np" id="npM" onclick="showPage('status')">Mem <b>—</b></span>
+ <span class="np" id="npSeeds" onclick="showPage('status')" title="Public nodes">Nodes <b id="homeSeeds">—</b></span>
  <span class="np" id="npShare" onclick="openShareCard('address')">Share</span>
  </div>
  <div class="item"><div>Min fee</div><div class="r" id="minFee" style="color:var(--amber)">1 HOWL</div></div>
@@ -1222,6 +1223,15 @@ html.embed .gate{min-height:100dvh}
  <button type="button" class="btn sec" onclick="showPage('play')">Open Play</button>
  <button type="button" class="btn sec" onclick="showPage('nft');setNftDashTab('all')">NFT culture</button>
  <button type="button" class="btn sec" onclick="openExternalUrl('https://howlscan.org/#/health')">Howlscan status ↗</button>
+ </div>
+ </div>
+ <div class="panel">
+ <h2>Public nodes</h2>
+ <p class="hint" style="margin:0 0 8px">P2P seeds for the public chain. Tap to copy. Full list on Howlscan.</p>
+ <div id="statusSeedsList"><p class="hint">Loading seeds…</p></div>
+ <div class="pc-actions" style="margin-top:10px">
+ <button type="button" class="btn sec" onclick="refreshPublicSeeds(true)">↻ Seeds</button>
+ <button type="button" class="btn sec" onclick="openExternalUrl('https://howlscan.org/#/nodes')">Nodes on Howlscan ↗</button>
  </div>
  </div>
  <div class="panel">
@@ -1337,8 +1347,29 @@ html.embed .gate{min-height:100dvh}
  <h2>Snapshot</h2>
  <div class="item"><div>NFTs owned</div><div class="r" id="nftCount" style="color:var(--text)">—</div></div>
  <div class="item"><div>Oracle keys</div><div class="r" id="oracleCount" style="color:var(--text)">—</div></div>
+ <div class="item" onclick="showPage('nodes')" style="cursor:pointer" title="Active public nodes">
+  <div>Active nodes</div><div class="r" id="moreNodesCount" style="color:var(--text)">—</div>
+ </div>
  <div class="item"><div>Assets</div><div class="r" style="color:var(--text);font-size:.75rem">SOL · XTZ · ETH</div></div>
  <div class="item"><div>App build</div><div class="r" style="color:var(--muted);font-size:.75rem" id="appVerItem">—</div></div>
+ </div>
+ </div>
+
+ <!-- ACTIVE PUBLIC NODES (More → Active nodes) -->
+ <div class="page" id="p-nodes">
+ <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>Active nodes</h1></div>
+ <p class="hint" style="margin:0 0 10px">Public P2P seeds for Howlcoin. <b>Active</b> = port responds now. Tap a row to copy the endpoint.</p>
+ <div class="panel">
+ <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+ <div class="badge on" id="nodesActiveBadge">…</div>
+ <button type="button" class="chip" style="cursor:pointer" onclick="refreshPublicSeeds(true)">↻ Refresh</button>
+ </div>
+ <div id="nodesPageList"><p class="hint">Loading…</p></div>
+ <div class="pc-actions" style="margin-top:12px">
+ <button type="button" class="btn sec" onclick="openExternalUrl('https://howlscan.org/#/nodes')">Open on Howlscan ↗</button>
+ <button type="button" class="btn sec" onclick="showPage('status')">Network status</button>
+ <button type="button" class="btn sec" onclick="openExternalUrl('https://howlscan.org/#/run')">Run a node ↗</button>
+ </div>
  </div>
  </div>
 
@@ -2320,6 +2351,7 @@ const MORE_MENU = [
  { id: "city", icon: "pulse", title: "Howl City", sub: "Live L1 feed · act in app", page: "play", playTab: "city" },
  { id: "play", icon: "spark", title: "Play", sub: "City · pots · howls · names · tips", page: "play" },
  { id: "nft", icon: "nft", title: "Culture / NFTs", sub: "Gallery · mint from howl", page: "nft" },
+ { id: "nodes", icon: "globe", title: "Active nodes", sub: "Public P2P seeds · live", page: "nodes", hintId: "moreNodesHint" },
  { id: "status", icon: "pulse", title: "Network", sub: "Hashrate · tip age · culture", page: "status" },
  { id: "browser", icon: "globe", title: "Browser", sub: "Search · dApps", page: "browser" },
  { id: "discover", icon: "spark", title: "Discover", sub: "Crypto radar", page: "discover" },
@@ -3804,7 +3836,11 @@ function startNetworkBannerPoll(){
  wireNetBanner();
  if(netBannerTimer) clearInterval(netBannerTimer);
  pollNetworkBanner(true);
- netBannerTimer = setInterval(()=> pollNetworkBanner(false), 45000);
+ try{ refreshPublicSeeds(false); }catch(_){}
+ netBannerTimer = setInterval(()=>{
+ pollNetworkBanner(false);
+ try{ refreshPublicSeeds(false); }catch(_){}
+ }, 45000);
 }
 
 function updateNetPulse(sum, pendingCount){
@@ -6307,7 +6343,7 @@ function normalizeToolbar(ids){
 }
 /** Pages that live under More (for bottom-tab highlight) */
 const MORE_NESTED = new Set([
- "more","sec","toolbar","appearance","wc","oracle","contracts","play","browser","discover","asset","names",
+ "more","sec","toolbar","appearance","wc","oracle","contracts","play","browser","discover","asset","names","nodes","status",
 ]);
 
 function toolbarActiveId(activePage){
@@ -6533,9 +6569,11 @@ function showPage(name){
  }
  }
  if(name==="sec" || name==="more") updateSecUI();
+ if(name==="nodes"){ try{ refreshPublicSeeds(true); }catch(_){} }
  if(name==="more"){
  wireMoreSearch();
  renderMoreMenu($("moreSearch")?.value || "");
+ try{ refreshPublicSeeds(false); }catch(_){}
  if($("appVerLabel")) $("appVerLabel").textContent = "Howlcoin Wallet · " + WALLET_APP_VER;
  if($("appVerItem")) $("appVerItem").textContent = WALLET_APP_VER;
  }
@@ -9459,6 +9497,82 @@ function fmtAgeSec(age){
  if(a >= 60) return Math.round(a/60) + "m";
  return a + "s";
 }
+function paintSeedRows(seeds, { activeOnly } = {}){
+ let list = seeds || [];
+ if(activeOnly) list = list.filter(s => s.status === "up");
+ if(!list.length){
+ return `<p class="hint">${activeOnly ? "No active nodes right now. Try refresh or open Howlscan." : "No seeds listed."}</p>`;
+ }
+ return list.map(s => {
+ const ep = s.endpoint || ((s.host||"") + ":" + (s.port||""));
+ const st = s.status || "unknown";
+ const col = st === "up" ? "var(--green)" : (st === "down" ? "var(--danger)" : "var(--amber)");
+ const label = st === "up" ? "ACTIVE" : String(st).toUpperCase();
+ const role = s.role === "primary" ? " · primary" : "";
+ return `<button type="button" class="item" style="width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid rgba(255,255,255,.06);color:inherit;font:inherit;cursor:pointer;padding:10px 0"
+ onclick="copyText(${JSON.stringify(ep)},'node')">
+ <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+ <div style="min-width:0">
+ <div class="mono" style="font-weight:700;font-size:.85rem;word-break:break-all">${escHtml(ep)}</div>
+ <div class="m" style="font-size:.7rem">${escHtml(String(s.source||"seed"))}${role}${s.notes ? " · " + escHtml(String(s.notes).slice(0,48)) : ""}</div>
+ </div>
+ <b style="color:${col};font-size:.72rem;flex-shrink:0">${escHtml(label)}</b>
+ </div>
+ </button>`;
+ }).join("");
+}
+
+async function refreshPublicSeeds(force){
+ const el = $("statusSeedsList");
+ const pageEl = $("nodesPageList");
+ const home = $("homeSeeds");
+ const moreCount = $("moreNodesCount");
+ const badge = $("nodesActiveBadge");
+ const moreHint = $("moreNodesHint");
+ try{
+ const j = await api("/api/public/seeds" + (force ? "?_=" + Date.now() : ""));
+ const seeds = j.seeds || [];
+ const active = seeds.filter(s => s.status === "up");
+ const up = j.up_count != null ? j.up_count : active.length;
+ const n = j.count != null ? j.count : seeds.length;
+ if(home) home.textContent = up + "/" + n;
+ if(moreCount) moreCount.textContent = up + " active · " + n + " listed";
+ if(badge){
+ badge.textContent = up + " ACTIVE";
+ badge.className = "badge " + (up > 0 ? "on" : "");
+ badge.style.color = up > 0 ? "var(--green)" : "var(--amber)";
+ }
+ if(moreHint) moreHint.textContent = up + " active · " + n + " listed";
+ const other = seeds.filter(s => s.status !== "up");
+ if(pageEl){
+ pageEl.innerHTML =
+ `<p class="hint" style="margin:0 0 8px"><b>Active now</b> (${active.length})</p>` +
+ paintSeedRows(active, { activeOnly: false }) +
+ (other.length
+ ? `<p class="hint" style="margin:14px 0 8px"><b>Other listed</b> (${other.length})</p>` + paintSeedRows(other, { activeOnly: false })
+ : "") +
+ `<p class="hint" style="margin-top:10px">${up} active · ${n} listed · tap to copy</p>`;
+ }
+ if(el){
+ if(!seeds.length){
+ el.innerHTML = `<p class="hint">Primary: <span class="mono">${escHtml(j.primary || "147.182.223.204:42069")}</span></p>`;
+ }else{
+ el.innerHTML = paintSeedRows(seeds, { activeOnly: false }) +
+ `<p class="hint" style="margin-top:8px">${up} active · ${n} listed · tap to copy</p>`;
+ }
+ }
+ return j;
+ }catch(e){
+ if(el) el.innerHTML = `<p class="hint" style="color:var(--danger)">Seeds unavailable: ${escHtml(e.message||String(e))}</p>`;
+ if(pageEl) pageEl.innerHTML = `<p class="hint" style="color:var(--danger)">${escHtml(e.message||String(e))}</p>`;
+ if(home) home.textContent = "—";
+ if(moreCount) moreCount.textContent = "—";
+ if(badge) badge.textContent = "OFFLINE";
+ if(moreHint) moreHint.textContent = "Unavailable";
+ return null;
+ }
+}
+
 async function refreshNetworkStatus(force){
  const badge = $("statusBadge");
  try{
@@ -9503,10 +9617,12 @@ async function refreshNetworkStatus(force){
  if($("homeDiff") && h.difficulty_label) $("homeDiff").textContent = String(h.difficulty_label);
  // sticky banner + chip
  try{ setNetHealthFromSummary(h, {}); }catch(_){}
+ try{ await refreshPublicSeeds(force); }catch(_){}
  }catch(e){
  if(badge) badge.textContent = "OFFLINE";
  if($("statusMeta")) $("statusMeta").textContent = e.message || String(e);
  try{ setNetHealthFromSummary(null, { offline: true, err: e.message || String(e) }); }catch(_){}
+ try{ await refreshPublicSeeds(false); }catch(_){}
  }
 }
 
@@ -12636,7 +12752,7 @@ function boot(skipInstallPrompt){
  }
  }
  }catch(_){}
- if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=12").catch(()=>{});
+ if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=13").catch(()=>{});
  if(!skipInstallPrompt && !isStandalone() && !sessionStorage.getItem("howl_skip_install") && !sessionStorage.getItem("howl_saw_install")){
  sessionStorage.setItem("howl_saw_install","1");
  uiInstall();
