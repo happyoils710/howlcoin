@@ -590,9 +590,14 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .empty-cta .cta .ico{font-size:1.25rem;width:36px;text-align:center}
 .empty-cta .cta .t{font-weight:700;font-size:.95rem}
 .empty-cta .cta .s{font-size:.78rem;color:var(--muted);margin-top:2px}
-.addr-chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px}
-.addr-chips button{border:1px solid var(--border);background:var(--card2);color:var(--text);font:inherit;font-size:.72rem;
-  font-weight:700;padding:7px 10px;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.addr-chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px;position:relative;z-index:2;pointer-events:auto}
+.addr-chips button,.addr-chips .addr-chip{border:1px solid var(--border);background:var(--card2);color:var(--text);font:inherit;font-size:.72rem;
+  font-weight:700;padding:7px 10px;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  pointer-events:auto;touch-action:manipulation;-webkit-tap-highlight-color:rgba(0,255,198,.2);border-radius:999px;text-align:left}
+.addr-chips button:active,.addr-chips .addr-chip:active{border-color:var(--green);color:var(--green);background:rgba(0,255,198,.1)}
+.addr-chips .addr-chip .chip-name{display:block;font-size:.72rem}
+.addr-chips .addr-chip .chip-addr{display:block;font-size:.62rem;color:var(--muted);font-weight:600;font-family:ui-monospace,monospace;margin-top:1px}
+#sendTo.addr-flash{border-color:var(--green)!important;box-shadow:0 0 0 2px rgba(0,255,198,.25)}
 .act-filters{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
 .act-filters button{border:1px solid var(--border);background:transparent;color:var(--muted);font:inherit;font-size:.72rem;
   font-weight:700;padding:6px 10px;cursor:pointer}
@@ -891,8 +896,9 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .browser-bottombar button{flex:1;border:0;background:0;color:var(--text);font:inherit;font-size:.7rem;
   font-weight:600;padding:8px 4px;cursor:pointer;opacity:.85}
 .browser-bottombar button:active{opacity:1;color:var(--green)}
-.addr-chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:18px}
-.addr-chips button{border:1px solid var(--border);background:var(--card);color:var(--muted);
+/* Browser-page quick chips (do not override #sendAddrChips layout/pointer styles above) */
+#p-browser .addr-chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:18px}
+#p-browser .addr-chips button{border:1px solid var(--border);background:var(--card);color:var(--muted);
   border-radius:999px;padding:8px 12px;font:inherit;font-size:.72rem;font-weight:700;cursor:pointer}
 .progress{height:2px;background:transparent;overflow:hidden}
 .progress i{display:block;height:100%;width:0;background:var(--green);transition:width .2s}
@@ -1296,6 +1302,7 @@ html.embed .gate{min-height:100dvh}
         </div>
         <video id="sendQrVideo" playsinline muted style="width:100%;max-height:200px;margin:8px 0;display:none;border:1px solid var(--border);background:#000"></video>
         <p class="hint" id="sendQrHint" style="margin:4px 0 8px">HOWL address, <b>@name</b>, or name.howl · <a href="#" onclick="showPage('names');return false" style="color:var(--cyan)">claim a name</a></p>
+        <p class="hint" style="margin:0 0 4px;font-size:.72rem">Tap a name/address below to paste it into To</p>
         <div class="addr-chips" id="sendAddrChips"></div>
         <label id="sendAmtLabel">Amount (HOWL)</label>
         <input class="field" id="sendAmt" inputmode="decimal" placeholder="0"/>
@@ -3155,15 +3162,29 @@ function renderAddressBookUI(){
   }
   el.innerHTML = list.map(x => `
     <div class="item">
-      <div style="min-width:0;flex:1">
+      <div style="min-width:0;flex:1;cursor:pointer" data-pick-addr="${escAttr(x.addr)}" role="button" tabindex="0" title="Tap to fill send field">
         <div><b>${escHtml(x.name)}</b></div>
-        <div class="m mono" style="font-size:.72rem">${escHtml(x.addr)}</div>
+        <div class="m mono" style="font-size:.72rem;color:var(--cyan)">${escHtml(x.addr)}</div>
       </div>
       <div style="display:flex;gap:4px;flex-direction:column">
-        <button type="button" class="chip" style="cursor:pointer" onclick="pickSendAddress(${JSON.stringify(x.addr)})">Use</button>
-        <button type="button" class="chip" style="cursor:pointer;opacity:.7" onclick="removeAddressBookEntry(${JSON.stringify(x.addr)})">✕</button>
+        <button type="button" class="chip" style="cursor:pointer" data-pick-addr="${escAttr(x.addr)}">Use</button>
+        <button type="button" class="chip" style="cursor:pointer;opacity:.7" data-remove-addr="${escAttr(x.addr)}">✕</button>
       </div>
     </div>`).join("");
+  if(!el._bookWired){
+    el._bookWired = true;
+    el.addEventListener("click", (ev)=>{
+      const rm = ev.target.closest("[data-remove-addr]");
+      if(rm){
+        removeAddressBookEntry(rm.getAttribute("data-remove-addr") || "");
+        return;
+      }
+      const pick = ev.target.closest("[data-pick-addr]");
+      if(pick){
+        pickSendAddress(pick.getAttribute("data-pick-addr") || "");
+      }
+    });
+  }
 }
 function renderSendAddrChips(){
   const el = $("sendAddrChips");
@@ -3179,17 +3200,48 @@ function renderSendAddrChips(){
   }
   const chips = [];
   for(const x of book.slice(0, 8)){
-    chips.push(`<button type="button" title="${escAttr(x.addr)}" onclick="pickSendAddress(${JSON.stringify(x.addr)})">${escHtml(x.name)}</button>`);
+    const short = (x.addr || "").slice(0, 6) + "…" + (x.addr || "").slice(-4);
+    chips.push(
+      `<button type="button" class="addr-chip" data-pick-addr="${escAttr(x.addr)}" title="Tap to paste ${escAttr(x.addr)}">` +
+      `<span class="chip-name">${escHtml(x.name)}</span>` +
+      `<span class="chip-addr">${escHtml(short)}</span></button>`
+    );
   }
   for(const a of recent){
     if(book.some(b => b.addr === a)) continue;
-    chips.push(`<button type="button" title="${escAttr(a)}" onclick="pickSendAddress(${JSON.stringify(a)})">${escHtml(a.slice(0,6)+"…"+a.slice(-4))}</button>`);
+    const short = a.slice(0, 6) + "…" + a.slice(-4);
+    chips.push(
+      `<button type="button" class="addr-chip" data-pick-addr="${escAttr(a)}" title="Tap to paste ${escAttr(a)}">` +
+      `<span class="chip-name">${escHtml(short)}</span>` +
+      `<span class="chip-addr">recent</span></button>`
+    );
   }
-  el.innerHTML = chips.length ? chips.join("") : `<span class="hint">No recents yet</span>`;
+  el.innerHTML = chips.length
+    ? chips.join("")
+    : `<span class="hint">No recents yet · use Paste address</span>`;
+  // Event delegation — reliable on mobile (avoids broken inline onclick quotes)
+  if(!el._chipWired){
+    el._chipWired = true;
+    el.addEventListener("click", (ev)=>{
+      const btn = ev.target.closest("[data-pick-addr]");
+      if(!btn || !el.contains(btn)) return;
+      ev.preventDefault();
+      pickSendAddress(btn.getAttribute("data-pick-addr") || "");
+    });
+  }
 }
 function pickSendAddress(addr){
-  if($("sendTo")) $("sendTo").value = addr;
-  toast("Recipient set");
+  const a = String(addr || "").trim();
+  if(!a) return;
+  const inp = $("sendTo");
+  if(inp){
+    inp.value = a;
+    try{ inp.dispatchEvent(new Event("input", { bubbles: true })); }catch(_){}
+    try{ inp.focus({ preventScroll: true }); }catch(_){ try{ inp.focus(); }catch(__){} }
+    inp.classList.add("addr-flash");
+    setTimeout(()=> inp.classList.remove("addr-flash"), 600);
+  }
+  toast("Address pasted");
 }
 
 /* —— QR scan on send (BarcodeDetector when available) —— */
@@ -3369,7 +3421,7 @@ function updateNetPulse(sum, pendingCount){
   }
 }
 
-/* —— Confetti —— */
+/* —— Confetti: stars + planets —— */
 function fireConfetti(kind){
   try{
     let c = $("confettiCanvas");
@@ -3384,32 +3436,115 @@ function fireConfetti(kind){
     c.style.width = innerWidth + "px";
     c.style.height = innerHeight + "px";
     const ctx = c.getContext("2d");
-    ctx.scale(dpr, dpr);
-    const colors = ["#00ffc6","#c084fc","#ff4ecd","#ffc14d","#6ea8ff","#fff"];
-    const parts = Array.from({length: 80}, () => ({
-      x: Math.random() * innerWidth,
-      y: -20 - Math.random() * 80,
-      vx: (Math.random() - 0.5) * 6,
-      vy: 2 + Math.random() * 5,
-      s: 4 + Math.random() * 6,
-      rot: Math.random() * 6,
-      vr: (Math.random() - 0.5) * 0.3,
-      col: colors[(Math.random() * colors.length) | 0],
-    }));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const starColors = ["#fff8e7","#ffe566","#ffc14d","#ffffff","#c4f0ff","#00ffc6"];
+    const planetColors = [
+      ["#6ea8ff","#3d6fbf"], // blue
+      ["#c084fc","#7c3aed"], // purple
+      ["#ff8a65","#e65100"], // orange
+      ["#80deea","#00838f"], // teal
+      ["#f48fb1","#c2185b"], // pink
+      ["#a5d6a7","#2e7d32"], // green
+      ["#ffd54f","#f9a825"], // gold
+      ["#b0bec5","#546e7a"], // grey moon
+    ];
+    const drawStar = (ctx, r, points, inner) => {
+      ctx.beginPath();
+      for(let i = 0; i < points * 2; i++){
+        const rad = (i % 2 === 0) ? r : r * inner;
+        const a = (i * Math.PI) / points - Math.PI / 2;
+        const x = Math.cos(a) * rad, y = Math.sin(a) * rad;
+        if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fill();
+    };
+    const drawPlanet = (ctx, r, cols, ring) => {
+      const g = ctx.createRadialGradient(-r * 0.35, -r * 0.35, r * 0.1, 0, 0, r);
+      g.addColorStop(0, cols[0]);
+      g.addColorStop(1, cols[1]);
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fillStyle = g;
+      ctx.fill();
+      // soft terminator
+      ctx.beginPath();
+      ctx.arc(r * 0.15, 0, r * 0.95, -Math.PI / 2, Math.PI / 2);
+      ctx.fillStyle = "rgba(0,0,0,0.18)";
+      ctx.fill();
+      if(ring){
+        ctx.save();
+        ctx.rotate(0.4);
+        ctx.scale(1, 0.35);
+        ctx.beginPath();
+        ctx.arc(0, 0, r * 1.55, 0, Math.PI * 2);
+        ctx.strokeStyle = cols[0];
+        ctx.globalAlpha = 0.75;
+        ctx.lineWidth = Math.max(1.2, r * 0.18);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+    };
+    const parts = [];
+    for(let i = 0; i < 72; i++){
+      const isPlanet = Math.random() < 0.28;
+      if(isPlanet){
+        const cols = planetColors[(Math.random() * planetColors.length) | 0];
+        parts.push({
+          kind: "planet",
+          x: Math.random() * innerWidth,
+          y: -30 - Math.random() * 100,
+          vx: (Math.random() - 0.5) * 4,
+          vy: 1.2 + Math.random() * 3.2,
+          s: 7 + Math.random() * 11,
+          rot: Math.random() * 6,
+          vr: (Math.random() - 0.5) * 0.12,
+          cols,
+          ring: Math.random() < 0.35,
+        });
+      } else {
+        parts.push({
+          kind: "star",
+          x: Math.random() * innerWidth,
+          y: -20 - Math.random() * 90,
+          vx: (Math.random() - 0.5) * 5.5,
+          vy: 1.5 + Math.random() * 4.5,
+          s: 3.5 + Math.random() * 7,
+          rot: Math.random() * 6,
+          vr: (Math.random() - 0.5) * 0.35,
+          col: starColors[(Math.random() * starColors.length) | 0],
+          points: Math.random() < 0.35 ? 6 : 5,
+          tw: Math.random() * Math.PI * 2,
+        });
+      }
+    }
     let t = 0;
     const tick = () => {
       t++;
       ctx.clearRect(0, 0, innerWidth, innerHeight);
       for(const p of parts){
-        p.x += p.vx; p.y += p.vy; p.vy += 0.08; p.rot += p.vr;
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.06;
+        p.rot += p.vr;
         ctx.save();
         ctx.translate(p.x, p.y);
         ctx.rotate(p.rot);
-        ctx.fillStyle = p.col;
-        ctx.fillRect(-p.s/2, -p.s/2, p.s, p.s * 0.6);
+        if(p.kind === "planet"){
+          drawPlanet(ctx, p.s, p.cols, p.ring);
+        } else {
+          p.tw += 0.15;
+          const pulse = 0.85 + 0.15 * Math.sin(p.tw);
+          ctx.fillStyle = p.col;
+          ctx.shadowColor = p.col;
+          ctx.shadowBlur = 6;
+          drawStar(ctx, p.s * pulse, p.points, 0.42);
+          ctx.shadowBlur = 0;
+        }
         ctx.restore();
       }
-      if(t < 90) requestAnimationFrame(tick);
+      if(t < 100) requestAnimationFrame(tick);
       else ctx.clearRect(0, 0, innerWidth, innerHeight);
     };
     requestAnimationFrame(tick);
@@ -4153,7 +4288,7 @@ function renderNickList(){
   el.innerHTML = keys.map(a => `
     <div class="item">
       <div><b>${escHtml(m[a])}</b><div class="m mono" style="font-size:.72rem">${escHtml(a)}</div></div>
-      <button type="button" class="chip" style="cursor:pointer" onclick="pickSendAddress(${JSON.stringify(a)});showPage('send')">Send</button>
+      <button type="button" class="chip" style="cursor:pointer" data-pick-addr="${escAttr(a)}" onclick="pickSendAddress(this.getAttribute('data-pick-addr'));showPage('send')">Send</button>
     </div>`).join("");
 }
 
@@ -4194,8 +4329,8 @@ async function refreshNameDirectory(){
           <div class="m">#${escHtml(String(r.height ?? "—"))}${r.legacy ? " · legacy" : ""}</div>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button type="button" class="chip" style="cursor:pointer" onclick="openPlayNameProfile(${JSON.stringify(r.name||"")})">Profile</button>
-          <button type="button" class="chip" style="cursor:pointer" onclick="pickSendAddress(${JSON.stringify(r.address||"")});showPage('send')">Send</button>
+          <button type="button" class="chip" style="cursor:pointer" data-name="${escAttr(r.name||"")}" onclick="openPlayNameProfile(this.getAttribute('data-name'))">Profile</button>
+          <button type="button" class="chip" style="cursor:pointer" data-pick-addr="${escAttr(r.address||"")}" onclick="pickSendAddress(this.getAttribute('data-pick-addr'));showPage('send')">Send</button>
         </div>
       </div>`).join("");
     await refreshMyOnchainName();
@@ -4220,9 +4355,9 @@ async function lookupOnchainName(){
     nameCache.byAddr[a] = slug;
     if(out){
       out.innerHTML = `<b>@${escHtml(slug)}</b> → <span class="mono">${escHtml(a)}</span>
-        <button type="button" class="chip" style="cursor:pointer;margin-left:8px" onclick="openPlayNameProfile(${JSON.stringify(slug)})">Profile</button>
-        <button type="button" class="chip" style="cursor:pointer" onclick="pickSendAddress(${JSON.stringify(a)});showPage('send')">Send HOWL</button>
-        <button type="button" class="chip" style="cursor:pointer" onclick="copyText(${JSON.stringify(a)},'address')">Copy</button>`;
+        <button type="button" class="chip" style="cursor:pointer;margin-left:8px" data-name="${escAttr(slug)}" onclick="openPlayNameProfile(this.getAttribute('data-name'))">Profile</button>
+        <button type="button" class="chip" style="cursor:pointer" data-pick-addr="${escAttr(a)}" onclick="pickSendAddress(this.getAttribute('data-pick-addr'));showPage('send')">Send HOWL</button>
+        <button type="button" class="chip" style="cursor:pointer" data-copy="${escAttr(a)}" onclick="copyText(this.getAttribute('data-copy'),'address')">Copy</button>`;
     }
     openPlayNameProfile(slug);
   }catch(e){
@@ -9883,13 +10018,15 @@ function wireSlideConfirm(){
       const job = _slidePending;
       _slidePending = null;
       setX(maxX());
+      // Dismiss sheet right after swipe — confetti still fires from onConfirm
+      closeSlideConfirm();
       try{
         if(job && typeof job.onConfirm === "function") await job.onConfirm();
       }catch(e){
         if($("sendErr")) $("sendErr").textContent = e.message || String(e);
         toast(e.message || "Failed");
+        if($("sendBtn")) $("sendBtn").disabled = false;
       }
-      closeSlideConfirm();
     } else {
       // spring back
       knob.style.transition = "transform .2s ease";
@@ -10047,12 +10184,17 @@ async function pasteSendTo(){
     const t = (await navigator.clipboard.readText()).trim();
     const mHowl = t.match(/H[1-9A-HJ-NP-Za-km-z]{20,}/);
     const mSol = t.match(/[1-9A-HJ-NP-Za-km-z]{32,44}/);
-    const addr = sendAsset === "howl"
-      ? (mHowl ? mHowl[0] : t)
-      : (mSol ? mSol[0] : t);
-    if(!isValidAddress(addr)) throw new Error("Clipboard is not a HOWL address");
-    if($("sendTo")) $("sendTo").value = addr;
-    toast("Address pasted");
+    let addr;
+    if(sendAsset === "howl"){
+      addr = mHowl ? mHowl[0] : t;
+      if(!isValidAddress(addr) && !addr.startsWith("@") && !/\.howl$/i.test(addr)){
+        throw new Error("Clipboard is not a HOWL address or @name");
+      }
+    }else{
+      addr = mSol ? mSol[0] : t;
+      if(!isValidSolAddress(addr)) throw new Error("Clipboard is not a Solana address");
+    }
+    pickSendAddress(addr);
   }catch(e){ toast(e.message || "Paste failed — allow clipboard access"); }
 }
 
