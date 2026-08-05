@@ -2317,7 +2317,7 @@ EXPLORER_HTML = r"""<!DOCTYPE html>
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<meta name="theme-color" content="#0c0f14" id="themeColorMeta"/>
+<meta name="theme-color" content="#1a1524" id="themeColorMeta"/>
 <meta name="description" id="metaDesc" content="Howlscan — Howlcoin block explorer. Blocks, Play pots, culture NFTs, @names, network status."/>
 <meta property="og:site_name" content="Howlscan"/>
 <meta property="og:type" content="website" id="ogType"/>
@@ -2335,16 +2335,36 @@ EXPLORER_HTML = r"""<!DOCTYPE html>
 /* Apply theme before paint (site + wallet keys stay in sync) */
 (function(){
   try{
-    var t=localStorage.getItem('howlscan_theme_v1')||localStorage.getItem('howl_theme_v1')||'dark';
-    if(['light','dark','neo','bones'].indexOf(t)<0) t='dark';
+    var t=localStorage.getItem('howlscan_theme_v1')||localStorage.getItem('howl_theme_v1')||'pack';
+    if(['light','dark','neo','bones','pack'].indexOf(t)<0) t='pack';
     document.documentElement.setAttribute('data-theme', t);
   }catch(e){}
 })();
 </script>
 <link rel="stylesheet" href="/assets/howl-site-theme.css"/>
 <style>
-/* —— Themes (match wallet: Light · Dark · Neo · Bones) —— */
-html[data-theme="dark"], :root{
+/* —— Themes: Pack (Howl dash · soft night) · Dark · Light · Neo · Bones —— */
+/* Pack = feed-first soft layout that fits Howlcoin (mint + night purple) */
+html[data-theme="pack"], :root{
+  --bg:#1a1524; --bg2:#221c30; --panel:#2a2338; --panel2:#322b42;
+  --border:rgba(255,255,255,.08); --text:#f3eef8; --muted:#a89bb8; --link:#9b8cff;
+  --green:#5dffb0; --amber:#ffc14d; --red:#ff7a90; --chip:#352e45;
+  --row:transparent; --rowh:rgba(93,255,176,.06);
+  --top-bg:rgba(26,21,36,.92); --bottom-bg:rgba(22,18,32,.96);
+  --btn-bg:linear-gradient(135deg,#5dffb0,#3de0c0); --btn-fg:#142018;
+  --banner-bg:linear-gradient(135deg,rgba(93,255,176,.1),rgba(155,140,255,.08));
+  --banner-edge:rgba(26,21,36,.95);
+  --active-bg:rgba(93,255,176,.12); --active-border:rgba(93,255,176,.4); --active-text:#5dffb0;
+  --ok-bg:rgba(93,255,176,.14); --warn-bg:rgba(255,193,77,.14); --blue-bg:rgba(155,140,255,.14);
+  --primary-border:rgba(93,255,176,.45);
+  --post-shadow:0 8px 28px rgba(0,0,0,.22);
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --safe-t:env(safe-area-inset-top,0px);
+  --bottom-nav-h:64px;
+  --fx:1;
+  --feed-max:680px;
+}
+html[data-theme="dark"]{
   --bg:#0c0f14; --bg2:#12161e; --panel:#161b26; --panel2:#1a2130;
   --border:#252d3d; --text:#e8edf7; --muted:#8b95a8; --link:#4da3ff;
   --green:#3dff9a; --amber:#ffb020; --red:#ff6b7a; --chip:#222a3a;
@@ -2356,10 +2376,12 @@ html[data-theme="dark"], :root{
   --active-bg:rgba(77,163,255,.15); --active-border:rgba(77,163,255,.45); --active-text:#9cc9ff;
   --ok-bg:rgba(61,255,154,.12); --warn-bg:rgba(255,176,32,.12); --blue-bg:rgba(77,163,255,.12);
   --primary-border:rgba(61,255,154,.4);
+  --post-shadow:0 4px 16px rgba(0,0,0,.2);
   --safe-b:env(safe-area-inset-bottom,0px);
   --safe-t:env(safe-area-inset-top,0px);
   --bottom-nav-h:64px;
   --fx:0;
+  --feed-max:720px;
 }
 html[data-theme="light"]{
   --bg:#f4f6fa; --bg2:#eef1f6; --panel:#ffffff; --panel2:#f0f3f8;
@@ -2402,25 +2424,74 @@ html[data-theme="bones"]{
   --fx:0;
 }
 *{box-sizing:border-box}
-/* Clean explorer layout: soft cards, professional chrome (Howlscan product look) */
+/* Howl Pack dash — soft feed cards, personal-blog chrome, mint howl accents */
 html{-webkit-text-size-adjust:100%}
-body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-  background:var(--bg);color:var(--text);line-height:1.5;-webkit-tap-highlight-color:transparent}
-.card,.searchbox,.chipbtn,.stat,.mrow,.back,.btn{border-radius:10px!important}
-.badge,.theme-pill{border-radius:999px!important}
+body{margin:0;font-family:"Segoe UI",Inter,ui-sans-serif,system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg);color:var(--text);line-height:1.55;-webkit-tap-highlight-color:transparent}
+.card,.searchbox,.chipbtn,.stat,.back,.btn,.post{border-radius:16px!important}
+.badge,.theme-pill,.topbar img,.post-av{border-radius:999px!important}
 .topbar{border-radius:0!important}
+.mrow{border-radius:0!important}
 html[data-theme="bones"] .card,html[data-theme="bones"] .searchbox,html[data-theme="bones"] .chipbtn,
-html[data-theme="bones"] .stat,html[data-theme="bones"] .mrow{border-radius:0!important}
-/* Neo subtle void wash */
+html[data-theme="bones"] .stat,html[data-theme="bones"] .post{border-radius:0!important}
+/* Soft night wash (Pack + Neo) */
+html[data-theme="pack"] body::before,
 html[data-theme="neo"] body::before{
   content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:var(--fx);
+  background:
+    radial-gradient(800px 420px at 12% -8%,rgba(93,255,176,.12),transparent 55%),
+    radial-gradient(700px 400px at 100% 0%,rgba(155,140,255,.14),transparent 50%),
+    radial-gradient(500px 300px at 50% 100%,rgba(255,122,180,.06),transparent 50%),
+    linear-gradient(180deg,#1a1524 0%,#15101f 55%,#120e1c 100%);
+}
+html[data-theme="neo"] body::before{
   background:
     radial-gradient(900px 500px at 10% -10%,rgba(0,255,198,.1),transparent 55%),
     radial-gradient(700px 400px at 100% 0%,rgba(192,132,252,.12),transparent 50%),
     linear-gradient(180deg,#050214 0%,#03010a 50%,#02040f 100%);
 }
-html[data-theme="bones"] body::before{display:none!important}
+html[data-theme="bones"] body::before,html[data-theme="dark"] body::before,html[data-theme="light"] body::before{display:none!important}
 body > *{position:relative;z-index:1}
+/* Feed column */
+.dash-feed{max-width:var(--feed-max,680px);margin:0 auto;padding:0 14px 48px}
+.dash-rail{display:none}
+@media(min-width:1100px){
+  .dash-shell{display:grid;grid-template-columns:200px minmax(0,var(--feed-max,680px)) 220px;gap:18px;max-width:1120px;margin:0 auto;padding:0 16px 40px;align-items:start}
+  .dash-shell > .dash-feed{max-width:none;margin:0;padding:0}
+  .dash-rail{display:block;position:sticky;top:72px}
+  .dash-rail .rail-card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:var(--post-shadow,none)}
+  .dash-rail h4{margin:0 0 10px;font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  .dash-rail .rail-link{display:block;padding:8px 0;color:var(--text);font-weight:650;font-size:.9rem;text-decoration:none;border-bottom:1px solid var(--border)}
+  .dash-rail .rail-link:last-child{border-bottom:0}
+  .dash-rail .rail-link:hover{color:var(--green)}
+  .main.cols{grid-template-columns:1fr;gap:14px}
+}
+.post{background:var(--panel);border:1px solid var(--border);box-shadow:var(--post-shadow,none);margin:0 0 14px;overflow:hidden}
+.post-hd{display:flex;align-items:center;gap:10px;padding:12px 14px 0}
+.post-av{width:36px;height:36px;object-fit:cover;border:2px solid color-mix(in srgb,var(--green) 40%,transparent);background:var(--panel2);flex-shrink:0}
+.post-av-emoji{display:flex;align-items:center;justify-content:center;width:36px;height:36px;font-size:1.05rem;
+  border-radius:999px;border:2px solid color-mix(in srgb,var(--green) 40%,transparent);background:var(--panel2);flex-shrink:0}
+.post-who{font-weight:750;font-size:.92rem;line-height:1.2}
+.post-meta{font-size:.75rem;color:var(--muted);margin-top:2px}
+.post-body{padding:10px 14px 12px}
+.post-body h3{margin:0 0 6px;font-size:1rem;border:0;padding:0;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.post-body p{margin:0;font-size:.95rem;line-height:1.5;word-break:break-word}
+.post-body .post-quote{font-size:1.05rem;line-height:1.45}
+html[data-theme="pack"] .post-body .post-quote{font-family:Georgia,"Times New Roman",serif}
+.post-ft{display:flex;gap:12px;padding:0 14px 12px;font-size:.78rem;color:var(--muted);flex-wrap:wrap;align-items:center}
+.post-ft span,.post-ft a{font-weight:650}
+.post-ft a{color:var(--muted);text-decoration:none}
+.post-ft a:hover{color:var(--green)}
+.post.city-post{cursor:pointer;transition:border-color .15s ease,box-shadow .15s ease}
+.post.city-post:hover{border-color:color-mix(in srgb,var(--green) 32%,var(--border));box-shadow:0 10px 32px rgba(0,0,0,.2)}
+.post .mlist .mrow{border-bottom:1px solid var(--border);padding:11px 14px}
+.post .mlist .mrow:last-child{border-bottom:0}
+.post .mlist .mrow:hover{background:var(--rowh)}
+.dash-rail .rail-stat{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:.85rem}
+.dash-rail .rail-stat:last-child{border-bottom:0}
+.dash-rail .rail-stat .rk{color:var(--muted)}
+.dash-rail .rail-stat .rv{font-weight:750;color:var(--green);text-align:right}
+.feed-kicker{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700;margin:4px 0 10px;padding:0 2px}
 a{color:var(--link);text-decoration:none}
 a:hover{text-decoration:underline}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.84rem;word-break:break-all}
@@ -2489,9 +2560,13 @@ html[data-theme="light"] .ascii-track pre{text-shadow:none}
 .stat .k{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
 .stat .v{font-size:1.15rem;font-weight:750;margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .stat .s{font-size:.74rem;color:var(--muted);margin-top:3px}
-.main{max-width:1200px;margin:0 auto;padding:0 16px 40px}
-.cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.card{background:var(--panel);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.main{max-width:var(--feed-max,720px);margin:0 auto;padding:0 14px 40px}
+.cols{display:grid;grid-template-columns:1fr;gap:14px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:var(--post-shadow,none)}
+html[data-theme="pack"] .stats{max-width:var(--feed-max,680px)}
+html[data-theme="pack"] .searchwrap{max-width:var(--feed-max,680px)}
+html[data-theme="pack"] .hero{max-width:var(--feed-max,680px);text-align:left;padding-top:16px}
+html[data-theme="pack"] .hero h2{font-family:Georgia,"Times New Roman",serif;font-weight:600;letter-spacing:-.01em}
 .card h3{margin:0;padding:13px 14px;font-size:.95rem;border-bottom:1px solid var(--border);
   display:flex;justify-content:space-between;align-items:center;gap:8px}
 .card h3 .more{font-size:.8rem;font-weight:600;color:var(--link);white-space:nowrap}
@@ -2660,10 +2735,11 @@ input.field,textarea.field{border-radius:10px}
   <a class="ditem" href="https://github.com/happyoils710/howlcoin" target="_blank" rel="noopener">GitHub</a>
   <h4 style="margin-top:16px">Appearance</h4>
   <div class="theme-grid" id="themeGrid">
-    <button type="button" class="theme-pill" data-theme="dark" onclick="setTheme('dark')">Dark<small>Default</small></button>
+    <button type="button" class="theme-pill" data-theme="pack" onclick="setTheme('pack')">Pack<small>Howl feed · soft night</small></button>
+    <button type="button" class="theme-pill" data-theme="dark" onclick="setTheme('dark')">Dark<small>Classic</small></button>
     <button type="button" class="theme-pill" data-theme="light" onclick="setTheme('light')">Light<small>Daylight</small></button>
     <button type="button" class="theme-pill" data-theme="neo" onclick="setTheme('neo')">Neo<small>Cyber glow</small></button>
-    <button type="button" class="theme-pill" data-theme="bones" onclick="setTheme('bones')">Bones<small>B&amp;W · no gradient</small></button>
+    <button type="button" class="theme-pill" data-theme="bones" onclick="setTheme('bones')">Bones<small>B&amp;W</small></button>
   </div>
   <h4 style="margin-top:8px">Network</h4>
   <div id="drawer-nav"></div>
@@ -2672,9 +2748,9 @@ input.field,textarea.field{border-radius:10px}
 
 <div class="hero" id="hero-static">
   <div class="ascii-banner" aria-hidden="true" id="howl-banner-host" style="display:none"></div>
-  <h2 style="font-size:clamp(1.35rem,3vw,1.75rem);font-weight:750;letter-spacing:-.02em;margin:0 0 8px">Howlcoin Explorer</h2>
-  <p class="muted sub-desktop" style="margin:0 auto 4px;max-width:36rem">Search the public chain — blocks, transactions, addresses, and @names</p>
-  <p class="muted mobile-only" style="margin:0;font-size:.88rem">Search height, hash, tx, or address</p>
+  <h2 style="font-size:clamp(1.35rem,3vw,1.75rem);font-weight:750;letter-spacing:-.02em;margin:0 0 8px">Howlscan</h2>
+  <p class="muted sub-desktop" style="margin:0 auto 4px;max-width:36rem">Your pack feed for the public chain — blocks, howls, pots, @names, and wallets</p>
+  <p class="muted mobile-only" style="margin:0;font-size:.88rem">Search height, hash, tx, @name…</p>
 </div>
 <div class="searchwrap" id="searchwrap">
   <div class="searchbox" style="max-width:720px;margin:0 auto;box-shadow:0 8px 28px rgba(0,0,0,.18)">
@@ -2713,12 +2789,12 @@ const SEED = '147.182.223.204:42069';
 const REPO = 'https://github.com/happyoils710/howlcoin';
 const LS_THEME = 'howlscan_theme_v1';
 const LS_THEME_WALLET = 'howl_theme_v1';
-const THEMES = ['light','dark','neo','bones'];
+const THEMES = ['pack','light','dark','neo','bones'];
 const $ = s => document.querySelector(s);
 const app = () => $('#app');
 
 function setTheme(name){
-  const t = THEMES.includes(name) ? name : 'dark';
+  const t = THEMES.includes(name) ? name : 'pack';
   document.documentElement.setAttribute('data-theme', t);
   // Persist on both keys so /app wallet and every Howlscan page stay aligned
   try{
@@ -2730,6 +2806,7 @@ function setTheme(name){
     meta.content = t==='light' ? '#f4f6fa'
       : t==='neo' ? '#03010a'
       : t==='bones' ? '#000000'
+      : t==='pack' ? '#1a1524'
       : '#0c0f14';
   }
   const sel = document.getElementById('themeSelect');
@@ -2745,7 +2822,7 @@ function readStoredTheme(){
     if(THEMES.includes(a)) return a;
     if(THEMES.includes(b)) return b;
   }catch(e){}
-  return 'dark';
+  return 'pack';
 }
 function applyStoredTheme(){
   setTheme(readStoredTheme());
@@ -3296,82 +3373,143 @@ async function loadHome(){
   const liveNote = slowMining
     ? `Seed online · last block ${tipAge} · diff ${dLabel} — CPU mining can take a while. Chain is live.`
     : `Seed online · last block ${tipAge} · network live`;
-  // Compact home: one status strip · core stats · city · blocks/txs (no repeated culture/nav stacks)
+  // Pack dash: left rail · center feed (posts) · right rail (chain pulse)
   app().innerHTML = `
-  <div class="main" style="padding-top:4px;padding-bottom:8px">
-    <div class="card" style="padding:12px 14px;border-color:rgba(61,255,154,.35);background:rgba(61,255,154,.06)">
-      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
-        <span class="badge ok">LIVE</span>
-        <span style="font-weight:700;color:var(--green)">Howlcoin</span>
-        <span class="muted" style="font-size:.88rem">${esc(liveNote)}</span>
+  <div class="dash-shell">
+    <aside class="dash-rail" aria-label="Explore">
+      <div class="rail-card">
+        <h4>Explore</h4>
+        <a class="rail-link" href="#/city">🐺 City feed</a>
+        <a class="rail-link" href="#/play">🎮 Play</a>
+        <a class="rail-link" href="#/culture">🖼 Culture</a>
+        <a class="rail-link" href="#/charts">📈 Charts</a>
+        <a class="rail-link" href="#/health">💓 Network</a>
+        <a class="rail-link" href="/app">💎 Wallet</a>
+        <a class="rail-link" href="#/run">⛏ Mine</a>
       </div>
-      <div id="tipTicker" class="mono" style="margin-top:10px;padding:8px 10px;border:1px solid rgba(0,255,198,.2);background:rgba(0,0,0,.25);font-size:.78rem;overflow:hidden;white-space:nowrap;cursor:pointer"
-        onclick="location.hash='#/${net}/block/${s.height}'" title="Tip block">
-        <span style="color:var(--green)">● tip</span>
-        <span class="muted"> #${s.height}</span>
-        · <span id="tipTickerHash">${esc(short(s.tip,18))}</span>
-        <span class="muted"> · ${esc(tipAge)}</span>
-        · seed <span class="muted">${esc(SEED)}</span>
+      <div class="rail-card">
+        <h4>Account</h4>
+        <a class="rail-link" href="#/login">Log in</a>
+        <a class="rail-link" href="#/signup">Create username</a>
       </div>
-    </div>
-  </div>
-  <div class="stats">
-    <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/block/${s.height}'">
-      <div class="k">Height</div><div class="v">${s.height}</div><div class="s">last ${esc(tipAge)}</div></div>
-    <div class="stat" title="${esc(dLabel)}"><div class="k">Difficulty</div><div class="v">${esc(dShow)}</div><div class="s">~${esc(expectTxt)} H next</div></div>
-    <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/richlist'" title="${esc(String(s.circulating||''))}">
-      <div class="k">Circulating</div><div class="v">${esc(circulatingShort(s))}</div><div class="s">${esc(String(s.addresses??'—'))} addrs</div></div>
-    <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/mempool'">
-      <div class="k">Mempool</div><div class="v">${s.mempool}</div><div class="s">pending</div></div>
-  </div>
-  <div class="main" style="padding-bottom:8px;padding-top:0">
-    <div class="quick-row">
-      <button class="chipbtn" style="border-color:rgba(61,255,154,.45);color:var(--green)" onclick="location.hash='#/city'">City</button>
-      <button class="chipbtn" onclick="location.hash='#/play'">Play</button>
-      <button class="chipbtn" onclick="location.hash='#/culture'">Culture</button>
-      <button class="chipbtn" onclick="location.hash='#/charts'">Charts</button>
-      <button class="chipbtn" onclick="location.hash='#/health'">Network</button>
-      <a class="chipbtn" href="/app" style="text-decoration:none;color:var(--green)">Wallet</a>
-      <button class="chipbtn" onclick="location.hash='#/run'">Mine</button>
-    </div>
-  </div>
-  <div class="main" style="padding-top:0;padding-bottom:8px" id="homeCityPulse">
-    <div class="card" style="border-color:rgba(61,255,154,.28)">
-      <h3 style="margin:0;padding:12px 14px;border-bottom:1px solid var(--border)">Activity
-        <span class="muted" style="font-weight:500;font-size:.78rem;margin-left:6px">${cul.howls??0} howls · ${cul.names??0} names · ${cul.packpots_open??0} pots · ${cul.nfts??0} NFTs</span>
-        <a class="more" href="#/city">city →</a></h3>
-      <div class="mlist" id="homeCityList"><div class="mrow"><div class="muted">Loading…</div></div></div>
-    </div>
-  </div>
-  <div class="main cols">
-    <div class="card">
-      <h3>Blocks <a class="more" href="#/${net}/block/${s.height}">all →</a></h3>
-      <div class="mlist compact-list">
-        ${bl.slice(0,8).map(b=>`<div class="mrow" onclick="location.hash='#/${net}/block/${b.height}'">
-          <div class="ml">
-            <div class="mt">#${b.height} <span class="muted" style="font-weight:500;font-size:.8rem">· ${b.tx_count||0} tx · ${ago(b.timestamp)}</span></div>
-            <div class="ms mono">${esc(short(b.hash,14))}${b.miner?' · '+short(b.miner,10):''}</div>
+    </aside>
+
+    <div class="dash-feed" id="homeFeed">
+      <p class="feed-kicker">Pack feed · live</p>
+
+      <article class="post">
+        <div class="post-hd">
+          <img class="post-av" src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt=""/>
+          <div>
+            <div class="post-who">Howlcoin <span class="badge ok" style="margin-left:4px">LIVE</span></div>
+            <div class="post-meta">tip #${s.height} · ${esc(tipAge)}</div>
           </div>
-          <div class="mr"><div class="ma" style="font-size:.85rem">${fmtAmt(b.reward)}</div></div>
-        </div>`).join('')||'<div class="mrow"><div class="muted">No blocks</div></div>'}
-      </div>
-    </div>
-    <div class="card">
-      <h3>Transactions <a class="more" href="#/${net}/mempool">mempool →</a></h3>
-      <div class="mlist compact-list">
-        ${tl.slice(0,8).map(t=>{
-          const m = txTypeMeta(t);
-          const st = t.confirmed ? ('#'+t.block_height) : 'pending';
-          return `<div class="mrow" onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
-          <div class="ml">
-            <div class="mt">${esc(m.label)} <span class="badge ${t.confirmed?'ok':'warn'}" style="margin-left:4px">${esc(st)}</span></div>
-            <div class="ms mono">${esc(short(t.txid,12))}${t.from||t.to?' · '+(t.from?short(t.from,8):'—')+' → '+(t.to?short(t.to,8):'—'):''}</div>
+        </div>
+        <div class="post-body">
+          <p>${esc(liveNote)}</p>
+          <div id="tipTicker" class="mono" style="margin-top:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:var(--panel2);font-size:.78rem;overflow:hidden;white-space:nowrap;cursor:pointer"
+            onclick="location.hash='#/${net}/block/${s.height}'" title="Tip block">
+            <span style="color:var(--green)">● tip</span>
+            <span class="muted"> #${s.height}</span>
+            · <span id="tipTickerHash">${esc(short(s.tip,18))}</span>
+            <span class="muted"> · ${esc(tipAge)}</span>
           </div>
-          <div class="mr"><div class="ma" style="font-size:.85rem">${fmtAmt(t.amount)}</div></div>
-        </div>`;
-        }).join('')||'<div class="mrow"><div class="muted">No transactions yet</div></div>'}
+        </div>
+        <div class="post-ft">
+          <a href="#/${net}/block/${s.height}">Open tip</a>
+          <a href="#/health">Network</a>
+          <span class="mono" style="font-size:.7rem;opacity:.75">${esc(SEED)}</span>
+        </div>
+      </article>
+
+      <div class="stats" style="padding:0 0 10px;max-width:none;margin:0">
+        <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/block/${s.height}'">
+          <div class="k">Height</div><div class="v">${s.height}</div><div class="s">last ${esc(tipAge)}</div></div>
+        <div class="stat" title="${esc(dLabel)}"><div class="k">Difficulty</div><div class="v">${esc(dShow)}</div><div class="s">~${esc(expectTxt)} H next</div></div>
+        <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/richlist'" title="${esc(String(s.circulating||''))}">
+          <div class="k">Circulating</div><div class="v">${esc(circulatingShort(s))}</div><div class="s">${esc(String(s.addresses??'—'))} addrs</div></div>
+        <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/mempool'">
+          <div class="k">Mempool</div><div class="v">${s.mempool}</div><div class="s">pending</div></div>
       </div>
+
+      <div class="quick-row" style="margin-bottom:12px">
+        <button class="chipbtn" style="border-color:var(--primary-border);color:var(--green)" onclick="location.hash='#/city'">City</button>
+        <button class="chipbtn" onclick="location.hash='#/play'">Play</button>
+        <button class="chipbtn" onclick="location.hash='#/culture'">Culture</button>
+        <button class="chipbtn" onclick="location.hash='#/charts'">Charts</button>
+        <a class="chipbtn" href="/app" style="text-decoration:none;color:var(--green)">Wallet</a>
+        <button class="chipbtn" onclick="location.hash='#/run'">Mine</button>
+      </div>
+
+      <p class="feed-kicker" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <span>City · ${cul.howls??0} howls · ${cul.names??0} names · ${cul.packpots_open??0} pots</span>
+        <a href="#/city" style="text-transform:none;letter-spacing:0;font-size:.8rem">full feed →</a>
+      </p>
+      <div id="homeCityList"><div class="post"><div class="post-body"><p class="muted">Loading city…</p></div></div></div>
+
+      <article class="post">
+        <div class="post-hd">
+          <div class="post-av-emoji" aria-hidden="true">⬛</div>
+          <div>
+            <div class="post-who">Blocks</div>
+            <div class="post-meta">latest on chain</div>
+          </div>
+        </div>
+        <div class="mlist compact-list">
+          ${bl.slice(0,8).map(b=>`<div class="mrow" onclick="location.hash='#/${net}/block/${b.height}'">
+            <div class="ml">
+              <div class="mt">#${b.height} <span class="muted" style="font-weight:500;font-size:.8rem">· ${b.tx_count||0} tx · ${ago(b.timestamp)}</span></div>
+              <div class="ms mono">${esc(short(b.hash,14))}${b.miner?' · '+short(b.miner,10):''}</div>
+            </div>
+            <div class="mr"><div class="ma" style="font-size:.85rem">${fmtAmt(b.reward)}</div></div>
+          </div>`).join('')||'<div class="mrow"><div class="muted">No blocks</div></div>'}
+        </div>
+        <div class="post-ft"><a href="#/${net}/block/${s.height}">all blocks →</a></div>
+      </article>
+
+      <article class="post">
+        <div class="post-hd">
+          <div class="post-av-emoji" aria-hidden="true">⇄</div>
+          <div>
+            <div class="post-who">Transactions</div>
+            <div class="post-meta">recent · mempool + confirmed</div>
+          </div>
+        </div>
+        <div class="mlist compact-list">
+          ${tl.slice(0,8).map(t=>{
+            const m = txTypeMeta(t);
+            const st = t.confirmed ? ('#'+t.block_height) : 'pending';
+            return `<div class="mrow" onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
+            <div class="ml">
+              <div class="mt">${esc(m.label)} <span class="badge ${t.confirmed?'ok':'warn'}" style="margin-left:4px">${esc(st)}</span></div>
+              <div class="ms mono">${esc(short(t.txid,12))}${t.from||t.to?' · '+(t.from?short(t.from,8):'—')+' → '+(t.to?short(t.to,8):'—'):''}</div>
+            </div>
+            <div class="mr"><div class="ma" style="font-size:.85rem">${fmtAmt(t.amount)}</div></div>
+          </div>`;
+          }).join('')||'<div class="mrow"><div class="muted">No transactions yet</div></div>'}
+        </div>
+        <div class="post-ft"><a href="#/${net}/mempool">mempool →</a></div>
+      </article>
     </div>
+
+    <aside class="dash-rail" aria-label="Chain pulse">
+      <div class="rail-card">
+        <h4>Chain pulse</h4>
+        <div class="rail-stat"><span class="rk">Height</span><span class="rv">${s.height}</span></div>
+        <div class="rail-stat"><span class="rk">Diff</span><span class="rv">${esc(dShow)}</span></div>
+        <div class="rail-stat"><span class="rk">Mempool</span><span class="rv">${s.mempool}</span></div>
+        <div class="rail-stat"><span class="rk">Supply</span><span class="rv">${esc(circulatingShort(s))}</span></div>
+        <div class="rail-stat"><span class="rk">Addrs</span><span class="rv">${esc(String(s.addresses??'—'))}</span></div>
+      </div>
+      <div class="rail-card">
+        <h4>Culture</h4>
+        <div class="rail-stat"><span class="rk">Howls</span><span class="rv">${cul.howls??0}</span></div>
+        <div class="rail-stat"><span class="rk">Names</span><span class="rv">${cul.names??0}</span></div>
+        <div class="rail-stat"><span class="rk">Open pots</span><span class="rv">${cul.packpots_open??0}</span></div>
+        <div class="rail-stat"><span class="rk">NFTs</span><span class="rv">${cul.nfts??0}</span></div>
+        <a class="rail-link" href="#/city" style="margin-top:8px;border:0">Open City →</a>
+      </div>
+    </aside>
   </div>`;
   fillHomeCityList();
 }
@@ -3380,15 +3518,15 @@ async function fillHomeCityList(){
   const el = document.getElementById('homeCityList');
   if(!el) return;
   try{
-    const j = await api(`/api/${net}/city?limit=10`);
+    const j = await api(`/api/${net}/city?limit=8`);
     const events = j.events || [];
     if(!events.length){
-      el.innerHTML = '<div class="mrow"><div class="muted">Quiet city — <a href="#/city">open live feed</a></div></div>';
+      el.innerHTML = `<article class="post"><div class="post-body"><p class="muted">Quiet city — <a href="#/city">open live feed</a> or howl from the <a href="/app">wallet</a>.</p></div></article>`;
       return;
     }
     el.innerHTML = events.map(cityEventRow).join('');
   }catch(e){
-    el.innerHTML = '<div class="mrow"><div class="muted">City feed unavailable · <a href="#/city">retry</a></div></div>';
+    el.innerHTML = `<article class="post"><div class="post-body"><p class="muted">City feed unavailable · <a href="#/city">retry</a></p></div></article>`;
   }
 }
 
@@ -4061,27 +4199,47 @@ function cityKindEmoji(k){
   const m = {block:'⬛', howl:'🐺', name:'@', nft:'🖼', pot:'🍯', tip:'☕', bond:'🔗', mine:'⛏', transfer:'⇄', contract:'📜', oracle:'📡', other:'·'};
   return m[k] || '·';
 }
+function cityEventWho(kind){
+  const m = {block:'Block', howl:'Howl', name:'@name', nft:'NFT', pot:'Pack pot', tip:'Tip jar',
+    bond:'Bark bond', mine:'Miner', transfer:'Transfer', contract:'Contract', oracle:'Oracle', other:'Event'};
+  return m[kind] || 'Event';
+}
 function cityEventRow(ev){
   const pending = ev.pending ? ' <span class="badge warn">waiting</span>' : '';
   const h = ev.pending ? 'mempool' : ('#' + (ev.height ?? '—'));
   const when = ev.timestamp ? ago(ev.timestamp) : (ev.pending ? 'now' : '—');
   let body = esc(ev.label || ev.kind || 'event');
-  if(ev.kind === 'howl' && ev.message) body = '🐺 “' + esc(String(ev.message).slice(0,60)) + (String(ev.message).length>60?'…':'') + '”';
+  let quote = false;
+  if(ev.kind === 'howl' && ev.message){
+    body = '“' + esc(String(ev.message).slice(0,160)) + (String(ev.message).length>160?'…':'') + '”';
+    quote = true;
+  }
   if(ev.kind === 'name' && ev.message) body = 'claimed ' + linkName(ev.message);
   if(ev.kind === 'block') body = 'Block #' + esc(String(ev.height??'—')) + (ev.to ? ' · miner ' + linkAddr(ev.to) : '');
-  if(ev.kind === 'pot' && ev.meta && ev.meta.contract_id) body = esc(ev.label) + ' · ' + linkContract(ev.meta.contract_id);
-  if(ev.kind === 'tip' && ev.meta && ev.meta.contract_id) body = esc(ev.label) + ' · ' + linkContract(ev.meta.contract_id);
-  if(ev.kind === 'nft' && ev.message) body = esc(ev.label) + ' · ' + esc(String(ev.message).slice(0,40));
-  const who = ev.from ? linkAddr(ev.from) : (ev.to && ev.kind==='mine' ? linkAddr(ev.to) : '');
+  if(ev.kind === 'pot' && ev.meta && ev.meta.contract_id) body = esc(ev.label || 'Pack pot') + ' · ' + linkContract(ev.meta.contract_id);
+  if(ev.kind === 'tip' && ev.meta && ev.meta.contract_id) body = esc(ev.label || 'Tip jar') + ' · ' + linkContract(ev.meta.contract_id);
+  if(ev.kind === 'nft' && ev.message) body = esc(ev.label || 'NFT') + ' · ' + esc(String(ev.message).slice(0,48));
+  const who = ev.from ? linkAddr(ev.from) : (ev.to && (ev.kind==='mine'||ev.kind==='block') ? linkAddr(ev.to) : '');
   const amt = (ev.amount!=null && Number(ev.amount)>0) ? fmtAmt(ev.amount) : '';
   const click = ev.txid ? `location.hash='#/${net}/tx/${encodeURIComponent(ev.txid)}'` :
     (ev.kind==='block' && ev.height!=null ? `location.hash='#/${net}/block/${ev.height}'` : '');
-  return `<div class="mrow"${click?` onclick="${click}" style="cursor:pointer"`:''}>
-    <div class="ml">
-      <div class="mt">${cityKindEmoji(ev.kind)} ${body}${pending}</div>
-      <div class="ms">${who?who+' · ':''}${esc(h)} · ${esc(when)}${amt?' · <span class="amount">'+amt+'</span>':''}</div>
+  return `<article class="post city-post"${click?` onclick="${click}"`:''}>
+    <div class="post-hd">
+      <div class="post-av-emoji" aria-hidden="true">${cityKindEmoji(ev.kind)}</div>
+      <div>
+        <div class="post-who">${esc(cityEventWho(ev.kind))}${pending}</div>
+        <div class="post-meta">${who?who+' · ':''}${esc(h)} · ${esc(when)}</div>
+      </div>
     </div>
-  </div>`;
+    <div class="post-body">
+      <p class="${quote?'post-quote':''}">${body}</p>
+      ${amt?`<div class="amount" style="margin-top:8px">${amt}</div>`:''}
+    </div>
+    <div class="post-ft">
+      <span>${cityKindEmoji(ev.kind)} ${esc(ev.kind||'event')}</span>
+      ${ev.txid?`<span class="mono" style="font-size:.72rem">${esc(short(ev.txid,12))}</span>`:''}
+    </div>
+  </article>`;
 }
 
 async function showHowlCity(filterKind){
@@ -4112,7 +4270,7 @@ async function showHowlCity(filterKind){
     ['tip', 'Tips'],
   ];
   const cityHash = (k)=> k ? `#/city/${k}` : '#/city';
-  app().innerHTML = `<div class="main" style="padding-top:12px">
+  app().innerHTML = `<div class="dash-feed" style="padding-top:12px">
     ${crumbs([{label:'Home',href:'#/'+net},{label:'City'}])}
     <div class="page-actions">
       <button class="back" onclick="location.hash='#/${net}'">← Home</button>
@@ -4120,18 +4278,23 @@ async function showHowlCity(filterKind){
       <a class="chipbtn" href="/app" style="text-decoration:none;color:var(--green)">Wallet</a>
       <button class="chipbtn" onclick="showHowlCity(${JSON.stringify(fk)})">↻</button>
     </div>
-    <div class="card detail" style="border-color:rgba(61,255,154,.35);padding-bottom:12px">
-      <h2 style="margin:0 0 6px;font-size:1.15rem">Howl City <span class="badge ok">#${esc(String(height))}</span></h2>
-      <p class="muted" style="margin:0 0 10px;font-size:.88rem">Live chain feed · ${cul.packpots_open??0} open pots · ${cul.howls??0} howls · ${cul.names??0} names · ${cul.nfts??0} NFTs</p>
-      <div class="quick-row" style="margin:0">
-        ${filters.map(([k,lab])=>`<button class="chipbtn ${k===fk?'active':''}" onclick="location.hash='${cityHash(k)}'">${esc(lab)}</button>`).join('')}
+    <article class="post">
+      <div class="post-hd">
+        <img class="post-av" src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt=""/>
+        <div>
+          <div class="post-who">Howl City <span class="badge ok">#${esc(String(height))}</span></div>
+          <div class="post-meta">live pack feed · ${events.length} posts</div>
+        </div>
       </div>
-    </div>
-    <div class="card" style="margin-top:12px">
-      <h3>Feed <span class="badge warn">${events.length}</span></h3>
-      <div class="mlist" id="cityFeed">
-        ${events.length?events.map(cityEventRow).join(''):'<div class="mrow"><div class="muted">Quiet city — mine, howl, or open a pot.</div></div>'}
+      <div class="post-body">
+        <p class="muted" style="margin:0 0 10px;font-size:.88rem">${cul.packpots_open??0} open pots · ${cul.howls??0} howls · ${cul.names??0} names · ${cul.nfts??0} NFTs</p>
+        <div class="quick-row" style="margin:0">
+          ${filters.map(([k,lab])=>`<button class="chipbtn ${k===fk?'active':''}" onclick="location.hash='${cityHash(k)}'">${esc(lab)}</button>`).join('')}
+        </div>
       </div>
+    </article>
+    <div id="cityFeed">
+      ${events.length?events.map(cityEventRow).join(''):`<article class="post"><div class="post-body"><p class="muted">Quiet city — mine, howl, or open a pot in the <a href="/app">wallet</a>.</p></div></article>`}
     </div>
   </div>`;
 }
@@ -5175,14 +5338,14 @@ class ExplorerServer:
                     page = f"""<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="theme-color" content="#0c0f14" id="themeColorMeta"/>
+<meta name="theme-color" content="#1a1524" id="themeColorMeta"/>
 <title>HOWL Token Info — Howlcoin</title>
 <link rel="icon" href="/assets/howlcoin-logo-meme-pup-coin.jpg"/>
 <script>
 (function(){{
   try{{
-    var t=localStorage.getItem('howlscan_theme_v1')||localStorage.getItem('howl_theme_v1')||'dark';
-    if(['light','dark','neo','bones'].indexOf(t)<0) t='dark';
+    var t=localStorage.getItem('howlscan_theme_v1')||localStorage.getItem('howl_theme_v1')||'pack';
+    if(['pack','light','dark','neo','bones'].indexOf(t)<0) t='pack';
     document.documentElement.setAttribute('data-theme', t);
   }}catch(e){{}}
 }})();
@@ -5194,15 +5357,15 @@ body{{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);ma
 a{{color:var(--green)}} .mono{{font-family:ui-monospace,Menlo,monospace;font-size:.85rem;word-break:break-all}}
 .topbar{{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 auto 16px;max-width:720px}}
 .topbar a{{color:var(--text);text-decoration:none;border:1px solid var(--border);background:var(--chip);
-  padding:8px 12px;font-weight:600;font-size:.85rem}}
-.card{{max-width:720px;margin:0 auto;background:var(--panel);border:1px solid var(--border);padding:20px}}
+  padding:8px 12px;font-weight:600;font-size:.85rem;border-radius:12px}}
+.card{{max-width:720px;margin:0 auto;background:var(--panel);border:1px solid var(--border);padding:20px;border-radius:16px}}
 h1{{margin:0 0 8px;font-size:1.4rem}} h1 span{{color:var(--green)}}
 .muted{{color:var(--muted);font-size:.9rem}}
 table{{width:100%;border-collapse:collapse;margin:16px 0}}
 th,td{{text-align:left;padding:10px 8px;border-bottom:1px solid var(--border);vertical-align:top}}
 th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;width:34%}}
-.badge{{display:inline-block;padding:4px 10px;background:var(--ok-bg);color:var(--green);font-size:.75rem;font-weight:700}}
-.note{{margin-top:16px;padding:12px;background:var(--note-bg);border:1px solid var(--note-border);font-size:.88rem;color:var(--note-text)}}
+.badge{{display:inline-block;padding:4px 10px;background:var(--ok-bg);color:var(--green);font-size:.75rem;font-weight:700;border-radius:999px}}
+.note{{margin-top:16px;padding:12px;background:var(--note-bg);border:1px solid var(--note-border);font-size:.88rem;color:var(--note-text);border-radius:12px}}
 </style></head><body>
 <div class="topbar">
   <a href="/">Explorer</a>
@@ -5210,6 +5373,7 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
   <a href="/wallet">Wallet</a>
   <div style="flex:1"></div>
   <select class="howl-theme-select" id="themeSelect" title="Appearance" aria-label="Appearance" onchange="HowlTheme.set(this.value)">
+    <option value="pack">Pack</option>
     <option value="dark">Dark</option>
     <option value="light">Light</option>
     <option value="neo">Neo</option>

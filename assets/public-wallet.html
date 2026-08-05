@@ -14,8 +14,8 @@
 /* Keep appearance across Howlscan ↔ /app */
 (function(){
   try{
-    var t=localStorage.getItem('howl_theme_v1')||localStorage.getItem('howlscan_theme_v1')||'neo';
-    if(['light','dark','neo','bones'].indexOf(t)<0) t='neo';
+    var t=localStorage.getItem('howl_theme_v1')||localStorage.getItem('howlscan_theme_v1')||'pack';
+    if(['light','dark','neo','bones','pack'].indexOf(t)<0) t='pack';
     document.documentElement.setAttribute('data-theme', t);
     var c=localStorage.getItem('howl_corners_v1')||'soft';
     document.documentElement.setAttribute('data-corners', c==='sharp'?'sharp':'soft');
@@ -27,7 +27,22 @@
 <script src="/assets/howl-native-bridge.js"></script>
 <style>
 /* —— Themes —— */
-html[data-theme="neo"], :root{
+/* Pack = soft night purple + mint (matches Howlscan dash feed) */
+html[data-theme="pack"], :root{
+  --bg:#1a1524; --void:#15101f; --card:#2a2338; --card2:#322b42;
+  --border:rgba(255,255,255,.1); --border2:rgba(155,140,255,.35);
+  --text:#f3eef8; --muted:#a89bb8;
+  --green:#5dffb0; --cyan:#9b8cff; --mag:#c4b5fd; --pink:#ff7ab8;
+  --amber:#ffc14d; --danger:#ff7a90; --blue:#9b8cff;
+  --glow:0 8px 28px rgba(0,0,0,.22);
+  --top-bg:rgba(26,21,36,.92); --bottom-bg:rgba(22,18,32,.96);
+  --btn-fg:#142018; --field-bg:#221c30;
+  --safe-b:env(safe-area-inset-bottom,0px); --safe-t:env(safe-area-inset-top,0px); --nav-h:68px;
+  --font-ui:Inter,system-ui,sans-serif;
+  --font-display:Georgia,"Times New Roman",serif;
+  --grid-opacity:0; --fx:1;
+}
+html[data-theme="neo"]{
   --bg:#03010a; --void:#050214; --card:rgba(12,8,32,.72); --card2:rgba(8,6,24,.9);
   --border:rgba(0,255,200,.18); --border2:rgba(168,85,255,.35);
   --text:#eef6ff; --muted:#8b9bbf;
@@ -104,6 +119,21 @@ html,body{margin:0;min-height:100%;font-family:var(--font-ui);
   overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch}
 body::before{
   content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:var(--fx);
+  background:
+    radial-gradient(900px 500px at 10% -10%,rgba(0,255,198,.14),transparent 55%),
+    radial-gradient(700px 400px at 100% 0%,rgba(192,132,252,.16),transparent 50%),
+    radial-gradient(600px 500px at 50% 110%,rgba(255,78,205,.08),transparent 55%),
+    linear-gradient(180deg,#050214 0%,#03010a 40%,#02040f 100%);
+}
+html[data-theme="pack"] body::before{
+  opacity:1;
+  background:
+    radial-gradient(800px 420px at 12% -8%,rgba(93,255,176,.12),transparent 55%),
+    radial-gradient(700px 400px at 100% 0%,rgba(155,140,255,.14),transparent 50%),
+    radial-gradient(500px 300px at 50% 100%,rgba(255,122,180,.06),transparent 50%),
+    linear-gradient(180deg,#1a1524 0%,#15101f 55%,#120e1c 100%);
+}
+html[data-theme="neo"] body::before{
   background:
     radial-gradient(900px 500px at 10% -10%,rgba(0,255,198,.14),transparent 55%),
     radial-gradient(700px 400px at 100% 0%,rgba(192,132,252,.16),transparent 50%),
@@ -1397,6 +1427,7 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
         <h2>Theme</h2>
         <p class="hint">Choose how the wallet looks. <b>Bones</b> is pure black &amp; white — no color, no gradients.</p>
         <div class="theme-row">
+          <button type="button" class="theme-pill" data-theme="pack" onclick="setTheme('pack')">Pack<small>Howl feed · soft night</small></button>
           <button type="button" class="theme-pill" data-theme="light" onclick="setTheme('light')">Light<small>Clean daylight</small></button>
           <button type="button" class="theme-pill" data-theme="dark" onclick="setTheme('dark')">Dark<small>Low glare</small></button>
           <button type="button" class="theme-pill" data-theme="neo" onclick="setTheme('neo')">Neo<small>Cyber glow</small></button>
@@ -5319,7 +5350,7 @@ function showPage(name){
   if(name==="contracts"){ renderHcDeployFields(); refreshHowlContracts(); }
   if(name==="toolbar") renderToolbarEditor();
   if(name==="appearance"){
-    setTheme(localStorage.getItem(LS_THEME)||"neo");
+    setTheme(localStorage.getItem(LS_THEME)||"pack");
   }
   try{ window.scrollTo({ top:0, behavior:"instant" in window? "instant":"auto" }); }catch(_){ window.scrollTo(0,0); }
 }
@@ -5446,7 +5477,7 @@ async function refreshCurrentPage(){
     } else if(page === "toolbar"){
       renderToolbarEditor();
     } else if(page === "appearance"){
-      setTheme(localStorage.getItem(LS_THEME)||"neo");
+      setTheme(localStorage.getItem(LS_THEME)||"pack");
     } else {
       await refresh();
     }
@@ -5902,7 +5933,7 @@ async function loadBridgeOrders(){
 }
 
 function setTheme(name){
-  const t = ["light","dark","neo","bones"].includes(name) ? name : "neo";
+  const t = ["pack","light","dark","neo","bones"].includes(name) ? name : "pack";
   document.documentElement.setAttribute("data-theme", t);
   // Keep Howlscan website theme in sync (explorer / whitepaper / token)
   try{
@@ -5914,6 +5945,7 @@ function setTheme(name){
     meta.content = t==="light" ? "#f4f6fa"
       : t==="dark" ? "#0c0e12"
       : t==="bones" ? "#000000"
+      : t==="pack" ? "#1a1524"
       : "#03010a";
   }
   document.querySelectorAll(".theme-pill").forEach(p=>{
@@ -5922,19 +5954,20 @@ function setTheme(name){
   const hint = $("themeHint");
   if(hint){
     const corner = (document.documentElement.getAttribute("data-corners") === "soft") ? " · soft corners" : " · sharp";
-    hint.textContent = (t==="neo" ? "Neo cyber glow"
+    hint.textContent = (t==="pack" ? "Pack · soft night"
+      : t==="neo" ? "Neo cyber glow"
       : t==="dark" ? "Dark"
       : t==="bones" ? "Bones · B&W"
       : "Light") + corner;
   }
 }
 function applyStoredTheme(){
-  let t = "neo";
+  let t = "pack";
   try{
     const a = localStorage.getItem(LS_THEME);
     const b = localStorage.getItem("howlscan_theme_v1");
-    if(["light","dark","neo","bones"].includes(a)) t = a;
-    else if(["light","dark","neo","bones"].includes(b)) t = b;
+    if(["pack","light","dark","neo","bones"].includes(a)) t = a;
+    else if(["pack","light","dark","neo","bones"].includes(b)) t = b;
   }catch(_){}
   setTheme(t);
 }

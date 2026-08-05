@@ -1,8 +1,39 @@
 /**
- * Howlscan site-wide appearance (Light · Dark · Neo · Bones)
+ * Howlscan site-wide appearance (Pack · Light · Dark · Neo · Bones)
  * Shared by explorer, whitepaper, token, wallet guide.
  */
-html[data-theme="dark"], :root {
+/* Pack = soft night purple + mint (default Howl dash) */
+html[data-theme="pack"], :root {
+  --bg: #1a1524;
+  --bg2: #221c30;
+  --panel: #2a2338;
+  --panel2: #322b42;
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #f3eef8;
+  --muted: #a89bb8;
+  --link: #9b8cff;
+  --green: #5dffb0;
+  --amber: #ffc14d;
+  --red: #ff7a90;
+  --chip: #352e45;
+  --row: transparent;
+  --rowh: rgba(93, 255, 176, 0.06);
+  --top-bg: rgba(26, 21, 36, 0.92);
+  --bottom-bg: rgba(22, 18, 32, 0.96);
+  --btn-bg: linear-gradient(135deg, #5dffb0, #3de0c0);
+  --btn-fg: #142018;
+  --active-bg: rgba(93, 255, 176, 0.12);
+  --active-border: rgba(93, 255, 176, 0.4);
+  --active-text: #5dffb0;
+  --ok-bg: rgba(93, 255, 176, 0.14);
+  --warn-bg: rgba(255, 193, 77, 0.14);
+  --primary-border: rgba(93, 255, 176, 0.45);
+  --note-bg: rgba(155, 140, 255, 0.1);
+  --note-border: rgba(155, 140, 255, 0.28);
+  --note-text: #d4c8ff;
+  --fx: 1;
+}
+html[data-theme="dark"] {
   --bg: #0c0f14;
   --bg2: #12161e;
   --panel: #161b26;

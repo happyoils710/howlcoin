@@ -1,14 +1,16 @@
 /**
  * Howlscan site-wide theme — persists across explorer, whitepaper, token, wallet guide, /app.
  * Keys: howlscan_theme_v1 (site) + howl_theme_v1 (wallet) kept in sync.
+ * Default: pack (soft night purple + mint Howl feed).
  */
 (function (global) {
   "use strict";
 
   var KEY_SITE = "howlscan_theme_v1";
   var KEY_WALLET = "howl_theme_v1";
-  var THEMES = ["light", "dark", "neo", "bones"];
+  var THEMES = ["pack", "light", "dark", "neo", "bones"];
   var COLORS = {
+    pack: "#1a1524",
     light: "#f4f6fa",
     dark: "#0c0f14",
     neo: "#03010a",
@@ -16,7 +18,7 @@
   };
 
   function normalize(name) {
-    return THEMES.indexOf(name) >= 0 ? name : "dark";
+    return THEMES.indexOf(name) >= 0 ? name : "pack";
   }
 
   function readStored() {
@@ -26,7 +28,7 @@
       if (a && THEMES.indexOf(a) >= 0) return a;
       if (b && THEMES.indexOf(b) >= 0) return b;
     } catch (e) {}
-    return "dark";
+    return "pack";
   }
 
   function writeStored(t) {
@@ -44,7 +46,7 @@
     writeStored(t);
 
     var meta = document.getElementById("themeColorMeta");
-    if (meta) meta.content = COLORS[t] || COLORS.dark;
+    if (meta) meta.content = COLORS[t] || COLORS.pack;
 
     document.querySelectorAll("#themeSelect, .howl-theme-select, select[data-howl-theme]").forEach(function (sel) {
       if (sel && sel.value !== t) sel.value = t;
