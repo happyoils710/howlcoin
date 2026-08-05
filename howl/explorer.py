@@ -2402,10 +2402,15 @@ html[data-theme="bones"]{
   --fx:0;
 }
 *{box-sizing:border-box}
-*,*::before,*::after{border-radius:0!important} /* sharp edges */
+/* Clean explorer layout: soft cards, professional chrome (Howlscan product look) */
 html{-webkit-text-size-adjust:100%}
 body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-  background:var(--bg);color:var(--text);line-height:1.45;-webkit-tap-highlight-color:transparent}
+  background:var(--bg);color:var(--text);line-height:1.5;-webkit-tap-highlight-color:transparent}
+.card,.searchbox,.chipbtn,.stat,.mrow,.back,.btn{border-radius:10px!important}
+.badge,.theme-pill{border-radius:999px!important}
+.topbar{border-radius:0!important}
+html[data-theme="bones"] .card,html[data-theme="bones"] .searchbox,html[data-theme="bones"] .chipbtn,
+html[data-theme="bones"] .stat,html[data-theme="bones"] .mrow{border-radius:0!important}
 /* Neo subtle void wash */
 html[data-theme="neo"] body::before{
   content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:var(--fx);
@@ -2513,6 +2518,9 @@ tbody tr:hover{background:var(--rowh)}
 .amount{font-weight:700;color:var(--green)}
 .neg{color:var(--red)}
 .skeleton{opacity:.55}
+.hidden{display:none!important}
+/* Auth-friendly form fields on explorer */
+input.field,textarea.field{border-radius:10px}
 .quick-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 .desktop-only{display:block}
 .mobile-only{display:none}
@@ -2603,28 +2611,20 @@ tbody tr:hover{background:var(--rowh)}
 <body>
 <div class="topbar">
   <img src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt="HOWL" onclick="goHome()" style="cursor:pointer"/>
-  <div class="brand" onclick="goHome()">Howl<span>scan</span><small>Howlcoin block explorer</small></div>
-  <div class="nav" id="nav"></div>
+  <div class="brand" onclick="goHome()">Howl<span>scan</span><small>Explorer</small></div>
+  <div class="nav desktop-nav" style="display:flex;gap:4px;margin-left:12px;align-items:center">
+    <button class="chipbtn" type="button" onclick="goHome()">Explorer</button>
+    <button class="chipbtn" type="button" onclick="location.hash='#/city'">City</button>
+    <button class="chipbtn" type="button" onclick="location.hash='#/play'">Play</button>
+    <button class="chipbtn" type="button" onclick="location.hash='#/charts'">Charts</button>
+    <a class="chipbtn" href="/app" style="text-decoration:none;color:var(--green)">Wallet</a>
+  </div>
   <div class="grow"></div>
-  <div class="top-actions desktop-nav">
-    <label class="muted" for="themeSelect" style="font-size:.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin:0 2px 0 0">Look</label>
-    <select class="theme-select" id="themeSelect" title="Appearance" aria-label="Appearance theme" onchange="setTheme(this.value)">
-      <option value="dark">Dark</option>
-      <option value="light">Light</option>
-      <option value="neo">Neo</option>
-      <option value="bones">Bones</option>
-    </select>
-    <button class="chipbtn" onclick="location.hash='#/play'">Play</button>
-    <button class="chipbtn" onclick="location.hash='#/culture'">Culture</button>
-    <button class="chipbtn" onclick="location.hash='#/contracts'">Contracts</button>
-    <button class="chipbtn" onclick="location.hash='#/charts'">Charts</button>
-    <button class="chipbtn" onclick="location.hash='#/health'">Network</button>
-    <button class="chipbtn" onclick="location.hash='#/api'">API</button>
-    <button class="chipbtn" onclick="location.hash='#/'+net+'/richlist'">Richlist</button>
-    <button class="chipbtn" onclick="location.hash='#/'+net+'/mempool'">Mempool</button>
-    <a class="chipbtn" href="/app" style="text-decoration:none;display:inline-flex;align-items:center;color:var(--green)">Wallet</a>
-    <button class="chipbtn" style="border-color:var(--primary-border);color:var(--green)" onclick="location.hash='#/run'">Run a node</button>
-    <button class="chipbtn" onclick="refreshData()">Refresh</button>
+  <div class="top-actions desktop-nav" id="authTopActions">
+    <button class="chipbtn" type="button" id="btnLogin" onclick="location.hash='#/login'">Log in</button>
+    <button class="chipbtn" type="button" id="btnSignup" style="border-color:var(--primary-border);color:var(--green)" onclick="location.hash='#/signup'">Sign up</button>
+    <button class="chipbtn hidden" type="button" id="btnAccount" onclick="location.hash='#/account'">Account</button>
+    <button class="chipbtn" type="button" onclick="refreshData()" title="Refresh">↻</button>
   </div>
   <button class="iconbtn" id="menu-btn" type="button" aria-label="Menu" onclick="toggleDrawer(true)">☰</button>
 </div>
@@ -2635,23 +2635,25 @@ tbody tr:hover{background:var(--rowh)}
     <strong style="font-size:1rem">Menu</strong>
     <button class="iconbtn" type="button" style="display:inline-flex" aria-label="Close" onclick="toggleDrawer(false)">✕</button>
   </div>
-  <h4>Explore</h4>
-  <button class="ditem" type="button" onclick="navTo('#/'+net)">🏠 Home</button>
-  <button class="ditem primary" type="button" onclick="navTo('#/play')">🎮 Play</button>
-  <button class="ditem" type="button" onclick="navTo('#/culture')">🖼 Culture</button>
-  <button class="ditem" type="button" onclick="navTo('#/contracts')">📜 Contracts</button>
-  <button class="ditem" type="button" onclick="navTo('#/charts')">📈 Charts</button>
-  <button class="ditem" type="button" onclick="navTo('#/health')">💓 Network</button>
-  <button class="ditem" type="button" onclick="navTo('#/api')">🔌 API docs</button>
-  <button class="ditem" type="button" onclick="navTo('#/'+net+'/richlist')">🏆 Richlist</button>
-  <button class="ditem" type="button" onclick="navTo('#/'+net+'/mempool')">⏳ Mempool</button>
-  <button class="ditem" type="button" onclick="navTo('#/'+net+'/block/0')">🌱 Genesis</button>
+  <h4>Account</h4>
+  <button class="ditem primary" type="button" id="drawerLogin" onclick="navTo('#/login')">Log in</button>
+  <button class="ditem" type="button" id="drawerSignup" onclick="navTo('#/signup')">Create username</button>
+  <button class="ditem hidden" type="button" id="drawerAccount" onclick="navTo('#/account')">My account</button>
+  <button class="ditem hidden" type="button" id="drawerLogout" onclick="authLogout()">Log out</button>
+  <h4 style="margin-top:16px">Explore</h4>
+  <button class="ditem" type="button" onclick="navTo('#/'+net)">Home</button>
+  <button class="ditem" type="button" onclick="navTo('#/city')">City</button>
+  <button class="ditem" type="button" onclick="navTo('#/play')">Play</button>
+  <button class="ditem" type="button" onclick="navTo('#/culture')">Culture</button>
+  <button class="ditem" type="button" onclick="navTo('#/charts')">Charts</button>
+  <button class="ditem" type="button" onclick="navTo('#/health')">Network</button>
+  <button class="ditem" type="button" onclick="navTo('#/'+net+'/richlist')">Richlist</button>
+  <button class="ditem" type="button" onclick="navTo('#/'+net+'/mempool')">Mempool</button>
   <h4 style="margin-top:16px">Get started</h4>
-  <button class="ditem primary" type="button" onclick="navTo('#/run')">🐺 Run a node</button>
-  <a class="ditem" href="/app">👛 Wallet</a>
-  <a class="ditem" href="/token">🏷 Token / contract info</a>
-  <a class="ditem" href="/whitepaper">📄 White paper</a>
-  <a class="ditem" href="https://github.com/happyoils710/howlcoin" target="_blank" rel="noopener">⌥ GitHub</a>
+  <button class="ditem primary" type="button" onclick="navTo('#/run')">Run a node</button>
+  <a class="ditem" href="/app">Wallet</a>
+  <a class="ditem" href="/whitepaper">White paper</a>
+  <a class="ditem" href="https://github.com/happyoils710/howlcoin" target="_blank" rel="noopener">GitHub</a>
   <h4 style="margin-top:16px">Appearance</h4>
   <div class="theme-grid" id="themeGrid">
     <button type="button" class="theme-pill" data-theme="dark" onclick="setTheme('dark')">Dark<small>Default</small></button>
@@ -2665,14 +2667,14 @@ tbody tr:hover{background:var(--rowh)}
 </aside>
 
 <div class="hero" id="hero-static">
-  <div class="ascii-banner" aria-hidden="true" id="howl-banner-host"></div>
-  <h2>Blockchain explorer for <span style="color:var(--green)">Howlcoin</span></h2>
-  <p class="muted sub-desktop">Search blocks, transactions, and addresses across the public network</p>
+  <div class="ascii-banner" aria-hidden="true" id="howl-banner-host" style="display:none"></div>
+  <h2 style="font-size:clamp(1.35rem,3vw,1.75rem);font-weight:750;letter-spacing:-.02em;margin:0 0 8px">Howlcoin Explorer</h2>
+  <p class="muted sub-desktop" style="margin:0 auto 4px;max-width:36rem">Search the public chain — blocks, transactions, addresses, and @names</p>
   <p class="muted mobile-only" style="margin:0;font-size:.88rem">Search height, hash, tx, or address</p>
 </div>
 <div class="searchwrap" id="searchwrap">
-  <div class="searchbox">
-    <input id="q" placeholder="Height, hash, tx, H…, @name, contract id" enterkeyhint="search" autocomplete="off"
+  <div class="searchbox" style="max-width:720px;margin:0 auto;box-shadow:0 8px 28px rgba(0,0,0,.18)">
+    <input id="q" placeholder="Search block, tx, address, @name…" enterkeyhint="search" autocomplete="off"
       onkeydown="if(event.key==='Enter')doSearch()"/>
     <button type="button" onclick="doSearch()">Search</button>
   </div>
@@ -2751,7 +2753,201 @@ window.addEventListener('pageshow', applyStoredTheme);
 document.addEventListener('visibilitychange', ()=>{
   if(document.visibilityState === 'visible') applyStoredTheme();
 });
-async function api(p){const r=await fetch(p); const j=await r.json(); if(!r.ok) throw new Error(j.error||r.statusText); return j}
+const LS_SESSION = 'howlscan_session_v1';
+let authUser = null;
+function getSessionToken(){
+  try{ return localStorage.getItem(LS_SESSION) || ''; }catch(e){ return ''; }
+}
+function setSessionToken(t){
+  try{
+    if(t) localStorage.setItem(LS_SESSION, t);
+    else localStorage.removeItem(LS_SESSION);
+  }catch(e){}
+}
+async function api(p, opts){
+  opts = opts || {};
+  const headers = Object.assign({}, opts.headers || {});
+  if(!headers['Content-Type'] && opts.body) headers['Content-Type'] = 'application/json';
+  const tok = getSessionToken();
+  if(tok) headers['X-Howl-Session'] = tok;
+  const r = await fetch(p, Object.assign({}, opts, { headers }));
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error || r.statusText || 'Request failed');
+  return j;
+}
+function paintAuthChrome(){
+  const logged = !!(authUser && authUser.username);
+  const show = (id, on)=>{ const el=document.getElementById(id); if(el) el.classList.toggle('hidden', !on); };
+  show('btnLogin', !logged);
+  show('btnSignup', !logged);
+  show('btnAccount', logged);
+  show('drawerLogin', !logged);
+  show('drawerSignup', !logged);
+  show('drawerAccount', logged);
+  show('drawerLogout', logged);
+  const ba = document.getElementById('btnAccount');
+  if(ba && logged) ba.textContent = '@' + authUser.username;
+}
+async function authRefreshMe(){
+  try{
+    if(!getSessionToken()){ authUser = null; paintAuthChrome(); return; }
+    const j = await api('/api/public/auth/me');
+    authUser = j.user || null;
+  }catch(e){
+    authUser = null;
+    setSessionToken('');
+  }
+  paintAuthChrome();
+}
+async function authLogout(){
+  try{ await api('/api/public/auth/logout', { method:'POST', body:'{}' }); }catch(e){}
+  setSessionToken('');
+  authUser = null;
+  paintAuthChrome();
+  location.hash = '#/login';
+}
+function authFormCard(title, bodyHtml){
+  return `<div class="main" style="padding-top:20px;max-width:440px;margin:0 auto">
+    ${crumbs([{label:'Home',href:'#/'+net},{label:title}])}
+    <div class="card detail" style="padding:20px">
+      <h2 style="margin:0 0 6px;font-size:1.25rem">${esc(title)}</h2>
+      <p class="muted" style="margin:0 0 16px;font-size:.88rem">Howlscan account only — usernames are free. <b>This does not hold HOWL</b>; use the <a href="/app">wallet</a> for funds.</p>
+      ${bodyHtml}
+    </div>
+  </div>`;
+}
+async function showLogin(){
+  setHeroVisible(false);
+  setBottomTab('more');
+  setPageMeta('Log in · Howlscan', 'Log in to your Howlscan username.', '#/login');
+  app().innerHTML = authFormCard('Log in', `
+    <label class="muted" style="font-size:.78rem;font-weight:700">Username</label>
+    <input class="field" id="authUser" autocomplete="username" placeholder="yourname" style="width:100%;margin:6px 0 12px;padding:12px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font:inherit"/>
+    <label class="muted" style="font-size:.78rem;font-weight:700">Password</label>
+    <input class="field" id="authPass" type="password" autocomplete="current-password" placeholder="••••••••" style="width:100%;margin:6px 0 12px;padding:12px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font:inherit"/>
+    <p class="err" id="authErr" style="color:var(--amber);font-size:.88rem;min-height:1.2em"></p>
+    <button type="button" class="chipbtn" style="width:100%;justify-content:center;padding:12px;border-color:var(--primary-border);color:var(--green);font-weight:700" onclick="doLogin()">Log in</button>
+    <p class="muted" style="margin:14px 0 0;font-size:.85rem;text-align:center">No account? <a href="#/signup">Create a username</a></p>
+  `);
+}
+async function showSignup(){
+  setHeroVisible(false);
+  setBottomTab('more');
+  setPageMeta('Sign up · Howlscan', 'Create a free Howlscan username.', '#/signup');
+  app().innerHTML = authFormCard('Create username', `
+    <label class="muted" style="font-size:.78rem;font-weight:700">Username</label>
+    <input class="field" id="authUser" autocomplete="username" placeholder="howler" style="width:100%;margin:6px 0 12px;padding:12px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font:inherit"/>
+    <label class="muted" style="font-size:.78rem;font-weight:700">Password (8+ characters)</label>
+    <input class="field" id="authPass" type="password" autocomplete="new-password" placeholder="••••••••" style="width:100%;margin:6px 0 12px;padding:12px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font:inherit"/>
+    <label class="muted" style="font-size:.78rem;font-weight:700">HOWL address (optional)</label>
+    <input class="field" id="authAddr" autocomplete="off" placeholder="H…" style="width:100%;margin:6px 0 12px;padding:12px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font:inherit;font-family:ui-monospace,monospace;font-size:.85rem"/>
+    <p class="err" id="authErr" style="color:var(--amber);font-size:.88rem;min-height:1.2em"></p>
+    <button type="button" class="chipbtn" style="width:100%;justify-content:center;padding:12px;border-color:var(--primary-border);color:var(--green);font-weight:700" onclick="doSignup()">Create account</button>
+    <p class="muted" style="margin:14px 0 0;font-size:.85rem;text-align:center">Already have one? <a href="#/login">Log in</a></p>
+  `);
+}
+async function doLogin(){
+  const err = document.getElementById('authErr');
+  try{
+    const username = (document.getElementById('authUser')||{}).value || '';
+    const password = (document.getElementById('authPass')||{}).value || '';
+    const j = await api('/api/public/auth/login', { method:'POST', body: JSON.stringify({ username, password }) });
+    setSessionToken(j.token || '');
+    authUser = j.user;
+    paintAuthChrome();
+    location.hash = '#/account';
+  }catch(e){ if(err) err.textContent = e.message || String(e); }
+}
+async function doSignup(){
+  const err = document.getElementById('authErr');
+  try{
+    const username = (document.getElementById('authUser')||{}).value || '';
+    const password = (document.getElementById('authPass')||{}).value || '';
+    const howl_address = (document.getElementById('authAddr')||{}).value || '';
+    const j = await api('/api/public/auth/register', { method:'POST', body: JSON.stringify({ username, password, howl_address }) });
+    setSessionToken(j.token || '');
+    authUser = j.user;
+    paintAuthChrome();
+    location.hash = '#/account';
+  }catch(e){ if(err) err.textContent = e.message || String(e); }
+}
+async function showAccount(){
+  setHeroVisible(false);
+  setBottomTab('more');
+  await authRefreshMe();
+  if(!authUser){ location.hash = '#/login'; return; }
+  setPageMeta('@'+authUser.username+' · Howlscan', 'Your Howlscan account.', '#/account');
+  const u = authUser;
+  app().innerHTML = `<div class="main" style="padding-top:16px;max-width:560px;margin:0 auto">
+    ${crumbs([{label:'Home',href:'#/'+net},{label:'Account'}])}
+    <div class="card detail">
+      <div class="badge ok">@${esc(u.username)}</div>
+      <h2 style="margin:8px 0 4px">${esc(u.display_name||u.username)}</h2>
+      <p class="muted" style="margin:0 0 12px;font-size:.88rem">Site profile only — funds stay in your <a href="/app">wallet</a>.</p>
+      <div class="kv">
+        <div class="k">Username</div><div>@${esc(u.username)}</div>
+        <div class="k">HOWL address</div><div class="mono">${u.howl_address?esc(u.howl_address):'<span class="muted">Not linked</span>'}${u.howl_address?copyBtn(u.howl_address):''}</div>
+        <div class="k">Public profile</div><div><a href="#/u/${encodeURIComponent(u.username)}">howlscan.org/#/u/${esc(u.username)}</a></div>
+      </div>
+      <label class="muted" style="font-size:.78rem;font-weight:700;display:block;margin-top:14px">Display name</label>
+      <input id="accDisplay" value="${esc(u.display_name||'')}" style="width:100%;margin:6px 0;padding:10px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font:inherit"/>
+      <label class="muted" style="font-size:.78rem;font-weight:700;display:block">Bio</label>
+      <textarea id="accBio" rows="3" style="width:100%;margin:6px 0;padding:10px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font:inherit;resize:vertical">${esc(u.bio||'')}</textarea>
+      <label class="muted" style="font-size:.78rem;font-weight:700;display:block">Link HOWL address</label>
+      <input id="accAddr" value="${esc(u.howl_address||'')}" placeholder="H…" style="width:100%;margin:6px 0 12px;padding:10px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font:inherit;font-family:ui-monospace,monospace;font-size:.85rem"/>
+      <p class="err" id="accErr" style="color:var(--amber);font-size:.88rem;min-height:1.2em"></p>
+      <div class="quick-row" style="display:flex!important">
+        <button type="button" class="chipbtn" style="border-color:var(--primary-border);color:var(--green)" onclick="saveAccount()">Save profile</button>
+        <button type="button" class="chipbtn" onclick="authLogout()">Log out</button>
+        <a class="chipbtn" href="/app" style="text-decoration:none">Open wallet</a>
+      </div>
+    </div>
+  </div>`;
+}
+async function saveAccount(){
+  const err = document.getElementById('accErr');
+  try{
+    const j = await api('/api/public/auth/profile', {
+      method:'POST',
+      body: JSON.stringify({
+        display_name: (document.getElementById('accDisplay')||{}).value || '',
+        bio: (document.getElementById('accBio')||{}).value || '',
+        howl_address: (document.getElementById('accAddr')||{}).value || '',
+      }),
+    });
+    authUser = j.user;
+    paintAuthChrome();
+    if(err) err.textContent = 'Saved.';
+    setTimeout(()=>{ if(err) err.textContent=''; }, 1500);
+  }catch(e){ if(err) err.textContent = e.message || String(e); }
+}
+async function showUserProfile(username){
+  setHeroVisible(false);
+  setBottomTab('more');
+  let u = null;
+  try{ const j = await api('/api/public/user/'+encodeURIComponent(username)); u = j.user; }catch(e){
+    app().innerHTML = `<div class="main" style="padding-top:16px"><div class="card detail err">User not found. <a href="#/signup">Create username</a></div></div>`;
+    return;
+  }
+  setPageMeta('@'+u.username+' · Howlscan', (u.bio||'Howlscan profile for @'+u.username), '#/u/'+u.username);
+  app().innerHTML = `<div class="main" style="padding-top:16px;max-width:640px;margin:0 auto">
+    ${crumbs([{label:'Home',href:'#/'+net},{label:'@'+u.username}])}
+    <div class="card detail">
+      <div class="badge ok">@${esc(u.username)}</div>
+      <h2 style="margin:8px 0 4px">${esc(u.display_name||u.username)}</h2>
+      ${u.bio?`<p style="margin:0 0 12px">${esc(u.bio)}</p>`:'<p class="muted" style="margin:0 0 12px">No bio yet.</p>'}
+      <div class="kv">
+        ${u.howl_address?`<div class="k">Address</div><div class="mono">${linkAddr(u.howl_address)} ${copyBtn(u.howl_address)}</div>`:''}
+        ${u.balance_fmt?`<div class="k">Balance</div><div class="amount">${esc(u.balance_fmt)}</div>`:''}
+        ${u.onchain_name?`<div class="k">On-chain name</div><div>${linkName(u.onchain_name)}</div>`:''}
+      </div>
+      <div class="quick-row" style="display:flex!important;margin-top:12px">
+        ${u.howl_address?`<a class="chipbtn" href="/app?to=${encodeURIComponent(u.howl_address)}" style="text-decoration:none;color:var(--green)">Send HOWL</a>`:''}
+        <button class="chipbtn" onclick="location.hash='#/city'">City</button>
+      </div>
+    </div>
+  </div>`;
+}
 function short(h,n=12){if(!h)return '—'; h=String(h); return h.length<=n?h:h.slice(0,n)+'…'}
 function fmtAmt(a){if(a==null||a==='')return '—'; const n=Number(a)/1e8; return n.toLocaleString(undefined,{maximumFractionDigits:8})+' HOWL'}
 function fmtCompact(n){
@@ -4563,6 +4759,11 @@ function doSearch(){
     if(p === '/play'){ location.replace('/#/play'); return; }
     if(p === '/culture' || p === '/nfts'){ location.replace('/#/culture'); return; }
     if(p === '/charts'){ location.replace('/#/charts'); return; }
+    if(p === '/login'){ location.replace('/#/login'); return; }
+    if(p === '/signup' || p === '/register'){ location.replace('/#/signup'); return; }
+    if(p === '/account'){ location.replace('/#/account'); return; }
+    const up = p.match(/^\/u\/([a-zA-Z0-9_]{2,20})$/);
+    if(up){ location.replace('/#/u/' + encodeURIComponent(up[1].toLowerCase())); return; }
   }catch(e){}
 })();
 
@@ -4579,6 +4780,10 @@ async function route(){
   try{ window.scrollTo({top:0, behavior:'instant' in window ? 'instant' : 'auto'}); }catch(e){ window.scrollTo(0,0); }
   try{
     // Global product routes (network-agnostic → public chain)
+    if(parts[0]==='login') return await showLogin();
+    if(parts[0]==='signup' || parts[0]==='register') return await showSignup();
+    if(parts[0]==='account' || parts[0]==='me') return await showAccount();
+    if((parts[0]==='u' || parts[0]==='user') && parts[1]) return await showUserProfile(decodeURIComponent(parts[1]));
     if(parts[0]==='city') return await showHowlCity(parts[1] || '');
     if(parts[0]==='play') return await showPlayBoard();
     if(parts[0]==='culture' || parts[0]==='nfts' || parts[0]==='gallery') return await showCultureGallery();
@@ -4695,7 +4900,12 @@ document.addEventListener('visibilitychange', ()=>{
   if(!document.hidden) softLiveRefresh(false);
 });
 ensureBanner();
-loadNetworks().then(route);
+authRefreshMe().finally(()=> loadNetworks().then(route));
+// expose auth handlers
+window.doLogin = doLogin;
+window.doSignup = doSignup;
+window.authLogout = authLogout;
+window.saveAccount = saveAccount;
 // Poll chain every 30s — only re-renders when height/tip/mempool change
 setInterval(()=>{ softLiveRefresh(false); }, 30000);
 // Tip ticker: update hash text only (no full page redraw) · home only
@@ -4745,14 +4955,49 @@ class ExplorerServer:
             def log_message(self, fmt, *args):
                 return
 
-            def _json(self, code: int, obj: Any):
+            def _json(
+                self,
+                code: int,
+                obj: Any,
+                *,
+                set_session: Optional[str] = None,
+                clear_session: bool = False,
+            ):
                 body = json.dumps(obj, default=str).encode()
                 self.send_response(code)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(body)))
                 self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header(
+                    "Access-Control-Allow-Headers",
+                    "Content-Type, Authorization, X-Howl-Session",
+                )
+                if set_session:
+                    self.send_header(
+                        "Set-Cookie",
+                        f"howl_session={set_session}; Path=/; HttpOnly; SameSite=Lax; Max-Age={30*86400}",
+                    )
+                if clear_session:
+                    self.send_header(
+                        "Set-Cookie",
+                        "howl_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0",
+                    )
                 self.end_headers()
                 self.wfile.write(body)
+
+            def _auth_token(self) -> str:
+                try:
+                    from .accounts import extract_token
+
+                    cookies = {}
+                    raw = self.headers.get("Cookie") or ""
+                    for part in raw.split(";"):
+                        if "=" in part:
+                            k, v = part.split("=", 1)
+                            cookies[k.strip()] = v.strip()
+                    return extract_token(dict(self.headers), cookies)
+                except Exception:
+                    return ""
 
             def _bytes(self, code: int, data: bytes, ctype: str):
                 self.send_response(code)
@@ -4811,10 +5056,73 @@ class ExplorerServer:
                     "/charts/",
                     "/nfts",
                     "/nfts/",
+                    "/login",
+                    "/login/",
+                    "/signup",
+                    "/signup/",
+                    "/account",
+                    "/account/",
                 ):
                     return self._bytes(
                         200, EXPLORER_HTML.encode(), "text/html; charset=utf-8"
                     )
+                if path.startswith("/u/") or path.startswith("/user/"):
+                    return self._bytes(
+                        200, EXPLORER_HTML.encode(), "text/html; charset=utf-8"
+                    )
+
+                # —— Site accounts (username login; non-custodial) ——
+                if path in ("/api/public/auth/me", "/api/auth/me"):
+                    try:
+                        from .accounts import session_user
+
+                        user = session_user(self._auth_token())
+                        if not user:
+                            return self._json(401, {"error": "not logged in"})
+                        return self._json(200, {"user": user})
+                    except Exception as e:
+                        return self._json(500, {"error": str(e)})
+
+                if path in ("/api/public/users", "/api/users"):
+                    try:
+                        from .accounts import list_users
+
+                        limit = int((qs.get("limit") or ["50"])[0])
+                        rows = list_users(limit=limit)
+                        return self._json(200, {"users": rows, "count": len(rows)})
+                    except Exception as e:
+                        return self._json(500, {"error": str(e)})
+
+                if path.startswith("/api/public/user/") or path.startswith("/api/user/"):
+                    try:
+                        from .accounts import get_user
+
+                        slug = path.rstrip("/").split("/")[-1]
+                        row = get_user(urllib.parse.unquote(slug))
+                        if not row:
+                            return self._json(404, {"error": "user not found"})
+                        # enrich with on-chain name/balance if linked
+                        chain = hub.get("public")
+                        extra: Dict[str, Any] = {}
+                        addr = row.get("howl_address") or ""
+                        if chain and addr:
+                            try:
+                                from .config import COIN
+
+                                bal = int(chain.balance(addr) or 0)
+                                extra["balance"] = bal
+                                extra["balance_fmt"] = f"{bal / COIN:.8f} HOWL"
+                            except Exception:
+                                pass
+                            try:
+                                nm = chain.name_for_address(addr)
+                                if nm:
+                                    extra["onchain_name"] = nm
+                            except Exception:
+                                pass
+                        return self._json(200, {"user": {**row, **extra}})
+                    except Exception as e:
+                        return self._json(500, {"error": str(e)})
                 # howlscan.org/@slug — public name share links
                 if path.startswith("/@"):
                     slug = path[2:].strip("/").split("/")[0]
@@ -5631,7 +5939,10 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                 self.send_response(204)
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-                self.send_header("Access-Control-Allow-Headers", "Content-Type")
+                self.send_header(
+                    "Access-Control-Allow-Headers",
+                    "Content-Type, Authorization, X-Howl-Session",
+                )
                 self.end_headers()
 
             def do_POST(self):
@@ -5643,6 +5954,94 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                     body = json.loads(raw.decode() or "{}")
                 except json.JSONDecodeError:
                     return self._json(400, {"error": "invalid json"})
+
+                # —— Auth: register / login / logout / profile ——
+                if path in ("/api/public/auth/register", "/api/auth/register"):
+                    try:
+                        from .accounts import login, register
+
+                        user = register(
+                            str(body.get("username") or ""),
+                            str(body.get("password") or ""),
+                            howl_address=str(
+                                body.get("howl_address") or body.get("address") or ""
+                            ),
+                            display_name=str(body.get("display_name") or ""),
+                        )
+                        sess = login(
+                            user["username"], str(body.get("password") or "")
+                        )
+                        return self._json(
+                            200,
+                            {
+                                "ok": True,
+                                "user": sess["user"],
+                                "token": sess["token"],
+                                "expires_at": sess["expires_at"],
+                                "note": "Account is for Howlscan only — it does not hold funds.",
+                            },
+                            set_session=sess["token"],
+                        )
+                    except ValueError as e:
+                        return self._json(400, {"error": str(e)})
+                    except Exception as e:
+                        return self._json(500, {"error": str(e)})
+
+                if path in ("/api/public/auth/login", "/api/auth/login"):
+                    try:
+                        from .accounts import login
+
+                        sess = login(
+                            str(body.get("username") or ""),
+                            str(body.get("password") or ""),
+                        )
+                        return self._json(
+                            200,
+                            {
+                                "ok": True,
+                                "user": sess["user"],
+                                "token": sess["token"],
+                                "expires_at": sess["expires_at"],
+                            },
+                            set_session=sess["token"],
+                        )
+                    except ValueError as e:
+                        return self._json(401, {"error": str(e)})
+                    except Exception as e:
+                        return self._json(500, {"error": str(e)})
+
+                if path in ("/api/public/auth/logout", "/api/auth/logout"):
+                    try:
+                        from .accounts import logout
+
+                        logout(self._auth_token() or str(body.get("token") or ""))
+                        return self._json(
+                            200, {"ok": True}, clear_session=True
+                        )
+                    except Exception as e:
+                        return self._json(500, {"error": str(e)})
+
+                if path in ("/api/public/auth/profile", "/api/auth/profile"):
+                    try:
+                        from .accounts import update_profile
+
+                        addr_arg = None
+                        if "howl_address" in body:
+                            addr_arg = body.get("howl_address")
+                        elif "address" in body:
+                            addr_arg = body.get("address")
+                        user = update_profile(
+                            self._auth_token(),
+                            display_name=body.get("display_name"),
+                            bio=body.get("bio"),
+                            howl_address=addr_arg,
+                            onchain_name=body.get("onchain_name"),
+                        )
+                        return self._json(200, {"ok": True, "user": user})
+                    except ValueError as e:
+                        return self._json(400, {"error": str(e)})
+                    except Exception as e:
+                        return self._json(500, {"error": str(e)})
 
                 # Howl Swap bridge POST
                 if path in ("/api/public/bridge/order", "/api/bridge/order"):
