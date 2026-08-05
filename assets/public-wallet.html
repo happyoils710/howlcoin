@@ -541,6 +541,15 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .home-nft-card .t{font-weight:700;font-size:.92rem}
 .home-nft-card .s{font-size:.72rem;color:var(--muted);margin-top:2px}
 .assets-hub{touch-action:pan-y}
+.browser-web3-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px;
+  border-bottom:1px solid var(--border);background:var(--card2);font-size:.78rem}
+.browser-web3-bar.hidden{display:none!important}
+#assetChartWrap{width:100%;border-radius:12px;overflow:hidden;background:color-mix(in srgb,var(--panel2) 80%,transparent);
+  border:1px solid var(--border);padding:8px 4px 4px}
+#assetChart{display:block;width:100%;height:168px}
+#assetChartMeta{font-size:.78rem;min-height:1.2em}
+#assetDetailPx{font-weight:700;color:var(--green);font-size:.95rem}
+
 .assets-tabs button{transition:background .15s,color .15s}
 
 
@@ -1423,7 +1432,7 @@ html.embed .gate{min-height:100dvh}
 
     
     <!-- WRAP HOWL ↔ wHOWL SPL -->
-    <section class="screen hidden" id="page-wrap">
+    <div class="page" id="p-wrap">
       <div class="page-head"><button type="button" class="back" onclick="showPage('swap')">‹ Swap</button><h1>Wrap HOWL</h1></div>
       <div class="card" id="wrapPanel">
         <h2>wHOWL · Solana SPL</h2>
@@ -1450,7 +1459,7 @@ html.embed .gate{min-height:100dvh}
         </div>
         <p class="hint" style="margin-top:12px">Mint: <span class="mono" id="wrapMint">—</span> · <a id="wrapMintLink" href="#" target="_blank" rel="noopener">Solscan</a></p>
       </div>
-    </section>
+    </div>
 <!-- HOWL SEARCH BROWSER -->
     <div class="page" id="p-browser">
       <div class="browser-page" id="browserPage">
@@ -1469,6 +1478,7 @@ html.embed .gate{min-height:100dvh}
         </div>
         <div class="tabs-strip" id="tabsStrip"></div>
         <div class="progress" id="browserProgress"><i></i></div>
+        <div class="browser-web3-bar hidden" id="browserWeb3Bar"></div>
 
         <!-- New-tab / search home -->
         <div class="browser-home" id="browserHome">
@@ -1487,7 +1497,7 @@ html.embed .gate{min-height:100dvh}
             </div>
           </div>
           <div class="bookmarks" id="bookmarks"></div>
-          <p class="browser-hint" id="browserHint">Type a search or site (e.g. <b>jup.ag</b>). Results open here; if a site blocks the frame, use <b>Open outside</b> or <b>Read in Howl</b>.</p>
+          <p class="browser-hint" id="browserHint">Search the web or open dApps (e.g. <b>jup.ag</b>, <b>uniswap.org</b>). Web3 is ready — use <b>WalletConnect</b> or the Howl provider. Frame-blocked sites open outside.</p>
           <div class="addr-chips">
             <button type="button" onclick="copyText(keypair&&keypair.address,'HOWL address')">Copy HOWL</button>
             <button type="button" onclick="copyText(solInfo&&solInfo.address,'SOL address')">Copy SOL</button>
@@ -5151,57 +5161,159 @@ function chartIdForAsset(a){
   if(a.kind === "utxo") return map[a.coinId] || map[a.id] || "bitcoin";
   return "howlcoin";
 }
-async function loadAssetChart(a){
+
+let assetChartLiveTimer = null;
+let assetChartLiveId = null;
+let assetChartPoints = [];
+
+function stopAssetChartLive(){
+  if(assetChartLiveTimer){ clearInterval(assetChartLiveTimer); assetChartLiveTimer = null; }
+  assetChartLiveId = null;
+}
+
+async function loadAssetChart(a, opts){
+  const force = !!(opts && opts.force);
   const meta = $("assetChartMeta");
   const canvas = $("assetChart");
-  if(!canvas) return;
+  const wrap = $("assetChartWrap");
+  if(!canvas || !a) return;
   const cid = chartIdForAsset(a);
-  if(meta) meta.textContent = "Loading lifetime chart…";
+  assetChartLiveId = a.id || cid;
+  if(meta && !force) meta.textContent = "Loading chart…";
   try{
-    const j = await api(`/api/public/chart?id=${encodeURIComponent(cid)}&days=max&force=0`);
-    const pts = j.points || [];
+    const j = await api(`/api/public/chart?id=${encodeURIComponent(cid)}&days=max${force?"&force=1":""}`);
+    let pts = (j.points || []).filter(p => p && p.p != null && Number(p.p) > 0);
     if(!pts.length) throw new Error(j.error || "No history yet");
-    drawAssetChart(canvas, pts);
+    // Keep chart readable
+    if(pts.length > 400){
+      const step = Math.ceil(pts.length / 400);
+      pts = pts.filter((_,i)=> i % step === 0 || i === pts.length-1);
+    }
+    assetChartPoints = pts;
+    // Wait for layout so canvas has width
+    await new Promise(r => requestAnimationFrame(()=> requestAnimationFrame(r)));
+    drawAssetChart(canvas, pts, { live: j.live != null ? Number(j.live) : Number(pts[pts.length-1].p) });
     const first = pts[0], last = pts[pts.length-1];
     const chg = first.p ? ((last.p - first.p) / first.p * 100) : 0;
-    const from = first.t ? new Date(first.t*1000).toLocaleDateString() : "—";
-    if(meta) meta.textContent = `${j.name||cid} · from ${from} · ${pts.length} pts · ${chg>=0?"+":""}${chg.toFixed(1)}% · ${j.source||"Howl Charts"}`;
-    if($("assetDetailPx") && last.p != null){
-      $("assetDetailPx").textContent = `$${Number(last.p).toLocaleString(undefined,{maximumFractionDigits: last.p<1?6:2})} · lifetime`;
+    const from = first.t ? new Date(first.t*1000).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}) : "—";
+    const live = j.live != null ? Number(j.live) : Number(last.p);
+    if(meta){
+      meta.innerHTML = `<span style="color:var(--green);font-weight:800">● LIVE</span> · since ${from} · ${chg>=0?"+":""}${chg.toFixed(1)}% lifetime`;
     }
+    if($("assetDetailPx") && Number.isFinite(live)){
+      const dig = live < 1 ? 6 : (live < 100 ? 4 : 2);
+      $("assetDetailPx").textContent = `$${live.toLocaleString(undefined,{maximumFractionDigits:dig})} USD`;
+    }
+    startAssetChartLive(a);
   }catch(e){
-    if(meta) meta.textContent = e.message || "Chart unavailable";
-    const ctx = canvas.getContext("2d");
-    if(ctx){ ctx.clearRect(0,0,canvas.width,canvas.height); }
+    if(meta) meta.textContent = (e && e.message) ? e.message : "Chart unavailable";
+    const ctx = canvas.getContext && canvas.getContext("2d");
+    if(ctx){
+      const w = (wrap && wrap.clientWidth) || 360;
+      canvas.width = w; canvas.height = 160;
+      ctx.clearRect(0,0,w,160);
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--muted").trim() || "#888";
+      ctx.font = "13px system-ui,sans-serif";
+      ctx.fillText("No chart data", 16, 80);
+    }
   }
 }
-function drawAssetChart(canvas, points){
+
+function startAssetChartLive(a){
+  stopAssetChartLive();
+  if(!a) return;
+  assetChartLiveTimer = setInterval(()=>{
+    if(currentPage !== "asset"){ stopAssetChartLive(); return; }
+    loadAssetChart(a, { force: true });
+  }, 30000);
+}
+
+function drawAssetChart(canvas, points, opts){
   const ctx = canvas.getContext("2d");
   if(!ctx || !points.length) return;
-  const dpr = window.devicePixelRatio || 1;
-  const w = canvas.clientWidth || 360;
-  const h = 180;
-  canvas.width = w * dpr; canvas.height = h * dpr;
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-  ctx.clearRect(0,0,w,h);
-  const pad = 12;
-  const prices = points.map(p=>Number(p.p));
-  const min = Math.min(...prices), max = Math.max(...prices);
-  const span = (max - min) || 1;
-  ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--green").trim() || "#3dff9a";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  points.forEach((pt,i)=>{
-    const x = pad + (i / Math.max(1, points.length-1)) * (w - pad*2);
-    const y = h - pad - ((Number(pt.p) - min) / span) * (h - pad*2);
-    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  const wrap = $("assetChartWrap");
+  const cssW = Math.max(280, (wrap && wrap.clientWidth) || canvas.parentElement?.clientWidth || 340);
+  const cssH = 168;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.style.width = cssW + "px";
+  canvas.style.height = cssH + "px";
+  canvas.width = Math.floor(cssW * dpr);
+  canvas.height = Math.floor(cssH * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  const padL = 8, padR = 8, padT = 14, padB = 18;
+  const prices = points.map(p => Number(p.p));
+  let min = Math.min(...prices), max = Math.max(...prices);
+  if(min === max){ min *= 0.99; max *= 1.01; }
+  const span = max - min || 1;
+  const green = (getComputedStyle(document.documentElement).getPropertyValue("--green").trim()) || "#5dffb0";
+  const muted = (getComputedStyle(document.documentElement).getPropertyValue("--muted").trim()) || "#888";
+  const up = prices[prices.length-1] >= prices[0];
+  const stroke = up ? green : (getComputedStyle(document.documentElement).getPropertyValue("--red").trim() || "#ff7a90");
+
+  // grid
+  ctx.strokeStyle = "rgba(128,128,128,0.12)";
+  ctx.lineWidth = 1;
+  for(let g=0;g<4;g++){
+    const y = padT + (g/3) * (cssH - padT - padB);
+    ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(cssW-padR,y); ctx.stroke();
+  }
+
+  // path
+  const xy = points.map((pt,i)=>{
+    const x = padL + (i / Math.max(1, points.length-1)) * (cssW - padL - padR);
+    const y = padT + (1 - (Number(pt.p) - min) / span) * (cssH - padT - padB);
+    return [x,y];
   });
+  // fill under curve
+  ctx.beginPath();
+  xy.forEach(([x,y],i)=>{ if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+  ctx.lineTo(xy[xy.length-1][0], cssH - padB);
+  ctx.lineTo(xy[0][0], cssH - padB);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, padT, 0, cssH - padB);
+  grad.addColorStop(0, stroke + "44");
+  grad.addColorStop(1, stroke + "00");
+  // hex alpha may fail if stroke is named - use rgba fallback
+  try {
+    ctx.fillStyle = grad;
+    ctx.fill();
+  } catch(_) {
+    ctx.fillStyle = "rgba(93,255,176,0.12)";
+    ctx.fill();
+  }
+
+  ctx.beginPath();
+  xy.forEach(([x,y],i)=>{ if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 2.25;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
   ctx.stroke();
-  // fill
-  ctx.lineTo(w-pad, h-pad); ctx.lineTo(pad, h-pad); ctx.closePath();
-  ctx.fillStyle = "color-mix(in srgb, " + (ctx.strokeStyle||"#3dff9a") + " 18%, transparent)";
-  try{ ctx.fill(); }catch(_){}
+
+  // live tip dot
+  const [lx, ly] = xy[xy.length-1];
+  ctx.beginPath();
+  ctx.arc(lx, ly, 4, 0, Math.PI*2);
+  ctx.fillStyle = stroke;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(lx, ly, 7, 0, Math.PI*2);
+  ctx.strokeStyle = stroke;
+  ctx.globalAlpha = 0.35;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // min/max labels
+  ctx.fillStyle = muted;
+  ctx.font = "600 10px system-ui,sans-serif";
+  const fmt = (v)=> v >= 1000 ? v.toLocaleString(undefined,{maximumFractionDigits:0}) : (v < 1 ? v.toPrecision(3) : v.toFixed(2));
+  ctx.fillText("$" + fmt(max), padL, 11);
+  ctx.fillText("$" + fmt(min), padL, cssH - 4);
 }
+
 function wireAssetQuickActs(a){
   const host = $("assetQuickActs");
   if(!host) return;
@@ -5709,7 +5821,12 @@ function showPage(name){
     selectAsset(selectedAsset);
     renderCustomTokenForms();
   }
-  if(name==="home"){ renderHomeAssets(); }
+  if(name==="home"){ renderHomeAssets(); stopAssetChartLive(); }
+  if(name==="wrap"){ try{ initWrapUI(); }catch(_){ } stopAssetChartLive(); }
+  if(name==="swap"){ try{ if(typeof initBridgeUI==="function") initBridgeUI(); }catch(_){} try{ if(typeof initSwapUI==="function") initSwapUI(); }catch(_){} stopAssetChartLive(); }
+  if(name==="browser"){ try{ prepareBrowserWeb3(); }catch(_){} stopAssetChartLive(); }
+  if(name==="asset"){ /* chart started in renderAssetDetail */ }
+  if(name!=="asset"){ stopAssetChartLive(); }
   if(name==="assets"){
     renderAssetsList();
     // SOL first so deposits appear immediately, then full multi-chain
@@ -6662,6 +6779,7 @@ function resolveNavigation(input){
 async function openDapp(url, opts){
   showPage("browser");
   ensureActiveTab();
+  try{ prepareBrowserWeb3(); }catch(_){}
   if(/^search:/i.test(url)){
     const q = url.replace(/^search:/i, "").trim();
     if($("dappSearch")) $("dappSearch").value = q;
@@ -7043,10 +7161,19 @@ async function openUrlInApp(url, display, externalUrl, opts){
     return;
   }
   // Optional: open system browser tab immediately
-  if(preferOutside){
-    window.open(url, "_blank", "noopener,noreferrer");
-    toast("Opened outside");
-    return;
+  if(preferOutside || (typeof DAPP_HOSTS !== "undefined" && DAPP_HOSTS.test(url))){
+    try{ prepareBrowserWeb3(); }catch(_){}
+    // dApps usually block iframes — open full browser + ready WC/provider
+    const opened = openExternalUrl(url);
+    if(opened){
+      toast("dApp opened · connect with WalletConnect / Howlcoin");
+      return;
+    }
+    if(preferOutside){
+      window.open(url, "_blank", "noopener,noreferrer");
+      toast("Opened outside");
+      return;
+    }
   }
   const nav = {
     kind: "url",
@@ -8723,6 +8850,32 @@ function wcGetRpc(chainId){
   const evmId = map[id];
   return (evmId && EVM_CHAINS[evmId]?.rpc) || ETH_RPC;
 }
+
+
+/** Enable EIP-1193 provider + WC for Howl Search / dApps */
+function prepareBrowserWeb3(){
+  try{
+    // Prefer injected provider for same-document tools; dApps outside use WC
+    if(localStorage.getItem("howl_wc_inject") == null){
+      localStorage.setItem("howl_wc_inject", "1");
+      wcInjectEnabled = true;
+    }
+    installHowlProvider();
+    ensureWalletConnect(false).catch(()=>{});
+    const bar = $("browserWeb3Bar");
+    if(bar){
+      const eth = ethInfo?.address ? (ethInfo.address.slice(0,6)+"…"+ethInfo.address.slice(-4)) : "—";
+      bar.innerHTML = `<span class="badge on">Web3 ready</span>
+        <span class="hint mono" style="margin:0">${escHtml(eth)}</span>
+        <button type="button" class="chip" onclick="copyText(ethInfo&&ethInfo.address,'ETH address')">Copy ETH</button>
+        <button type="button" class="chip" onclick="showPage('wc')">WalletConnect</button>`;
+      bar.classList.remove("hidden");
+    }
+  }catch(e){ console.warn("prepareBrowserWeb3", e); }
+}
+
+const DAPP_HOSTS = /(jup\.ag|raydium|uniswap|opensea|blur\.io|aerodrome|basescan|etherscan|phantom|magiceden|tensor|drift|mango|app\.|swap\.|defi|dex|walletconnect)/i;
+
 
 function installHowlProvider(){
   if(!ethInfo?.address || !ethInfo?.privateKeyHex) return null;
@@ -11619,6 +11772,9 @@ window.browserHome = browserHome;
 window.browserExitOrMore = browserExitOrMore;
 window.syncSearchToOmni = syncSearchToOmni;
 window.openDapp = openDapp;
+window.prepareBrowserWeb3 = prepareBrowserWeb3;
+window.stopAssetChartLive = stopAssetChartLive;
+
 window.openCurrentExternal = openCurrentExternal;
 window.showLastSearchResults = showLastSearchResults;
 window.newBrowserTab = newBrowserTab;
@@ -11652,6 +11808,14 @@ window.pickSendAddress = pickSendAddress;
 window.addAddressBookEntry = addAddressBookEntry;
 window.removeAddressBookEntry = removeAddressBookEntry;
 window.openBuyFlow = openBuyFlow;
+window.createWrapOrder = createWrapOrder;
+window.getWrapQuote = getWrapQuote;
+window.setWrapDir = setWrapDir;
+window.initWrapUI = initWrapUI;
+window.submitWrapTx = submitWrapTx;
+window.copyWrapDeposit = copyWrapDeposit;
+window.showPage = window.showPage || showPage;
+
 window.openBridgeFlow = openBridgeFlow;
 window.chartIdForAsset = chartIdForAsset;
 window.loadAssetChart = loadAssetChart;
