@@ -129,8 +129,7 @@ def mint_whowl(to_sol: str, amount: float, mint: str) -> str:
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError((r.stderr or r.stdout or "mint failed")[:400])
-    out = (r.stdout or "") + "
-" + (r.stderr or "")
+    out = (r.stdout or "") + "\n" + (r.stderr or "")
     for line in out.splitlines():
         if "Signature" in line or "signature" in line:
             parts = line.split()
