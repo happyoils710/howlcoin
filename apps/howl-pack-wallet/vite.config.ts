@@ -10,6 +10,13 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
-  server: { port: 5174 },
+  server: {
+    port: 5174,
+    proxy: {
+      '/api': { target: 'https://howlscan.org', changeOrigin: true },
+      '/classic': { target: 'https://howlscan.org', changeOrigin: true },
+      '/assets': { target: 'https://howlscan.org', changeOrigin: true },
+    },
+  },
   build: { outDir: 'dist', sourcemap: false },
 })

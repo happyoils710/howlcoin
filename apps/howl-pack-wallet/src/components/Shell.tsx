@@ -1,15 +1,16 @@
-import { NavLink, Outlet } from 'react-router-dom'
-import { Home, History, Compass, ArrowLeftRight, MoreHorizontal } from 'lucide-react'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Home, Sparkles, LineChart, Compass, MoreHorizontal } from 'lucide-react'
 import clsx from 'clsx'
 import { useEffect } from 'react'
 import { useWallet } from '@/stores/wallet'
 import { useSettings } from '@/stores/settings'
 
+/** Bottom tabs mirror classic: Home · Play · Charts · Discover · More */
 const tabs = [
   { to: '/', icon: Home, label: 'Home', end: true },
-  { to: '/activity', icon: History, label: 'Activity' },
+  { to: '/play', icon: Sparkles, label: 'Play' },
+  { to: '/charts', icon: LineChart, label: 'Charts' },
   { to: '/discover', icon: Compass, label: 'Discover' },
-  { to: '/swap', icon: ArrowLeftRight, label: 'Swap' },
   { to: '/more', icon: MoreHorizontal, label: 'More' },
 ]
 
@@ -19,6 +20,7 @@ export function Shell() {
   const unlocked = useWallet((s) => s.unlocked)
   const lastActivity = useWallet((s) => s.lastActivity)
   const autoLockMin = useSettings((s) => s.autoLockMin)
+  const location = useLocation()
 
   useEffect(() => {
     const on = () => touch()
@@ -38,9 +40,17 @@ export function Shell() {
     return () => clearInterval(id)
   }, [unlocked, autoLockMin, lock, lastActivity])
 
+  // Full-bleed for classic host (no side padding)
+  const fullBleed = !location.pathname.includes('/settings')
+
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col">
-      <main className="flex-1 overflow-y-auto px-4 pb-28 pt-[max(12px,var(--safe-t))]">
+      <main
+        className={clsx(
+          'flex-1 overflow-hidden pb-[calc(4.25rem+var(--safe-b))] pt-[max(0px,var(--safe-t))]',
+          fullBleed ? 'px-0' : 'overflow-y-auto px-4',
+        )}
+      >
         <Outlet />
       </main>
       <nav

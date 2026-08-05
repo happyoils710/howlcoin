@@ -1,121 +1,115 @@
 import { create } from 'zustand'
+import { createMnemonic, isValidMnemonic, normalizeMnemonic } from '@/lib/crypto/derive'
 import {
-  createMnemonic, deriveEthAccount, isValidMnemonic, normalizeMnemonic, type DerivedAccount,
-} from '@/lib/crypto/derive'
-import {
-  clearVaultStorage, decryptVault, encryptVault, hasVault, loadVaultBlob,
-  type VaultAccountMeta, type VaultPlain,
-} from '@/lib/crypto/vault'
+  clearSessionPin,
+  createClassicVault,
+  hasClassicVault,
+  loadClassicVault,
+  loadWalletIndex,
+  setSessionPin,
+  tryMigratePackVault,
+  wipeClassicVault,
+  type ClassicMultiVault,
+} from '@/lib/crypto/classicVault'
 
 interface WalletState {
   hasVault: boolean
   unlocked: boolean
-  mnemonic: string | null
-  accounts: VaultAccountMeta[]
-  activeIndex: number
-  derived: DerivedAccount | null
+  multi: ClassicMultiVault | null
+  sessionPin: string | null
   lastActivity: number
-  sessionPassword: string | null
   bootstrap: () => void
-  createWallet: (password: string, strength?: 128 | 256) => Promise<string>
+  createWallet: (password: string) => Promise<string>
   importWallet: (mnemonic: string, password: string) => Promise<void>
   unlock: (password: string) => Promise<void>
   lock: () => void
   touch: () => void
-  setActiveIndex: (index: number) => void
-  addAccount: (label?: string) => Promise<void>
-  exportMnemonic: () => string | null
-  exportPrivateKey: () => string | null
   wipeWallet: () => void
-}
-
-async function reencrypt(mnemonic: string, accounts: VaultAccountMeta[], password: string) {
-  const plain: VaultPlain = {
-    version: 1, mnemonic, accounts, createdAt: loadVaultBlob()?.createdAt ?? Date.now(),
-  }
-  await encryptVault(plain, password)
+  /** Prepare classic iframe auto-unlock */
+  armClassicUnlock: () => void
 }
 
 export const useWallet = create<WalletState>((set, get) => ({
   hasVault: false,
   unlocked: false,
-  mnemonic: null,
-  accounts: [],
-  activeIndex: 0,
-  derived: null,
+  multi: null,
+  sessionPin: null,
   lastActivity: Date.now(),
-  sessionPassword: null,
 
   bootstrap: () => {
-    const blob = loadVaultBlob()
+    const idx = loadWalletIndex()
     set({
-      hasVault: hasVault(), accounts: blob?.accounts ?? [], unlocked: false,
-      mnemonic: null, derived: null, sessionPassword: null,
+      hasVault: hasClassicVault(),
+      unlocked: false,
+      multi: null,
+      sessionPin: null,
+      // surface address list from index if present
     })
+    void idx
   },
 
-  createWallet: async (password, strength = 128) => {
-    if (password.length < 6) throw new Error('Password must be at least 6 characters')
-    const mnemonic = createMnemonic(strength)
-    const d0 = deriveEthAccount(mnemonic, 0)
-    const accounts: VaultAccountMeta[] = [{ index: 0, label: 'Account 1', address: d0.address }]
-    await encryptVault({ version: 1, mnemonic, accounts, createdAt: Date.now() }, password)
+  createWallet: async (password) => {
+    if (password.length < 4) throw new Error('Password must be at least 4 characters')
+    const mnemonic = createMnemonic(128)
+    const multi = await createClassicVault(mnemonic, password)
+    setSessionPin(password)
     set({
-      hasVault: true, unlocked: true, mnemonic, accounts, activeIndex: 0,
-      derived: d0, sessionPassword: password, lastActivity: Date.now(),
+      hasVault: true,
+      unlocked: true,
+      multi,
+      sessionPin: password,
+      lastActivity: Date.now(),
     })
     return mnemonic
   },
 
   importWallet: async (phrase, password) => {
-    if (password.length < 6) throw new Error('Password must be at least 6 characters')
+    if (password.length < 4) throw new Error('Password must be at least 4 characters')
     const mnemonic = normalizeMnemonic(phrase)
     if (!isValidMnemonic(mnemonic)) throw new Error('Invalid recovery phrase')
-    const d0 = deriveEthAccount(mnemonic, 0)
-    const accounts: VaultAccountMeta[] = [{ index: 0, label: 'Account 1', address: d0.address }]
-    await encryptVault({ version: 1, mnemonic, accounts, createdAt: Date.now() }, password)
+    const multi = await createClassicVault(mnemonic, password)
+    setSessionPin(password)
     set({
-      hasVault: true, unlocked: true, mnemonic, accounts, activeIndex: 0,
-      derived: d0, sessionPassword: password, lastActivity: Date.now(),
+      hasVault: true,
+      unlocked: true,
+      multi,
+      sessionPin: password,
+      lastActivity: Date.now(),
     })
   },
 
   unlock: async (password) => {
-    const plain = await decryptVault(password)
-    const d = deriveEthAccount(plain.mnemonic, get().activeIndex)
+    let multi: ClassicMultiVault
+    try {
+      multi = await loadClassicVault(password)
+    } catch (e) {
+      const migrated = await tryMigratePackVault(password)
+      if (!migrated) throw e
+      multi = migrated
+    }
+    setSessionPin(password)
     set({
-      unlocked: true, mnemonic: plain.mnemonic, accounts: plain.accounts,
-      derived: d, sessionPassword: password, lastActivity: Date.now(),
+      unlocked: true,
+      multi,
+      sessionPin: password,
+      lastActivity: Date.now(),
     })
   },
 
-  lock: () => set({ unlocked: false, mnemonic: null, derived: null, sessionPassword: null }),
+  lock: () => {
+    clearSessionPin()
+    set({ unlocked: false, multi: null, sessionPin: null })
+  },
+
   touch: () => set({ lastActivity: Date.now() }),
 
-  setActiveIndex: (index) => {
-    const { mnemonic, accounts } = get()
-    if (!mnemonic || !accounts.find((a) => a.index === index)) return
-    set({ activeIndex: index, derived: deriveEthAccount(mnemonic, index), lastActivity: Date.now() })
-  },
-
-  addAccount: async (label) => {
-    const { mnemonic, accounts, sessionPassword } = get()
-    if (!mnemonic || !sessionPassword) throw new Error('Unlock wallet first')
-    const nextIndex = accounts.reduce((m, a) => Math.max(m, a.index), -1) + 1
-    const d = deriveEthAccount(mnemonic, nextIndex)
-    const next = [...accounts, { index: nextIndex, label: label || `Account ${nextIndex + 1}`, address: d.address }]
-    await reencrypt(mnemonic, next, sessionPassword)
-    set({ accounts: next, activeIndex: nextIndex, derived: d })
-  },
-
-  exportMnemonic: () => get().mnemonic,
-  exportPrivateKey: () => get().derived?.privateKey ?? null,
-
   wipeWallet: () => {
-    clearVaultStorage()
-    set({
-      hasVault: false, unlocked: false, mnemonic: null, accounts: [],
-      activeIndex: 0, derived: null, sessionPassword: null,
-    })
+    wipeClassicVault()
+    set({ hasVault: false, unlocked: false, multi: null, sessionPin: null })
+  },
+
+  armClassicUnlock: () => {
+    const pin = get().sessionPin
+    if (pin) setSessionPin(pin)
   },
 }))

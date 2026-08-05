@@ -22,6 +22,21 @@
   }catch(e){}
 })();
 </script>
+
+<script>
+/* howl-embed-mode: when hosted inside Pack shell */
+(function(){
+  try{
+    var q = new URLSearchParams(location.search);
+    var emb = q.get('embed') === '1' || q.get('embed') === 'true' || window.self !== window.top;
+    if(emb){
+      document.documentElement.classList.add('embed');
+      document.documentElement.setAttribute('data-embed','1');
+    }
+  }catch(e){}
+})();
+</script>
+
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Rajdhani:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <script src="/assets/howl-native-bridge.js"></script>
@@ -883,6 +898,19 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .sec-block{padding:12px 0;border-bottom:1px solid rgba(255,255,255,.06)}
 .sec-block:last-child{border-bottom:0}
 .sec-block h3{margin:0 0 8px;font-size:.85rem;font-weight:700;color:var(--text);letter-spacing:.03em}
+
+/* howl-embed-mode */
+html.embed .top,
+html.embed .bottom,
+html.embed .bottom-nav,
+html.embed nav.bottom{display:none!important}
+html.embed body{padding-top:0!important;padding-bottom:0!important}
+html.embed .shell,
+html.embed #app,
+html.embed .screens{min-height:100dvh}
+html.embed .screen{padding-bottom:20px}
+html.embed .gate{min-height:100dvh}
+
 </style>
 </head>
 <body>
@@ -11282,5 +11310,88 @@ window.openPlayNameProfile = openPlayNameProfile;
 
 boot();
 </script>
+
+<script>
+/* howl-embed-mode runtime */
+(function(){
+  function isEmbed(){
+    return document.documentElement.classList.contains('embed')
+      || document.documentElement.getAttribute('data-embed')==='1';
+  }
+  window.addEventListener('message', function(ev){
+    if(!ev || !ev.data || ev.data.source !== 'howl-pack') return;
+    var d = ev.data;
+    try{
+      if(d.type === 'nav' && typeof showPage === 'function'){
+        showPage(d.page || 'home');
+        if(d.playTab && typeof setPlayTab === 'function') setPlayTab(d.playTab);
+        if(d.actFilter && typeof setActFilter === 'function') setActFilter(d.actFilter);
+        if(d.theme && typeof setTheme === 'function') setTheme(d.theme);
+      }
+      if(d.type === 'lock' && typeof lockWallet === 'function') lockWallet();
+      if(d.type === 'refresh' && typeof refresh === 'function') refresh();
+      if(d.type === 'theme' && typeof setTheme === 'function') setTheme(d.theme);
+    }catch(e){ console.warn('embed msg', e); }
+  });
+  // notify parent of page changes
+  var _sp = window.showPage;
+  function wrapShowPage(){
+    if(typeof window.showPage !== 'function') return;
+    if(window.showPage.__packWrapped) return;
+    var orig = window.showPage;
+    window.showPage = function(page){
+      var r = orig.apply(this, arguments);
+      try{
+        if(window.parent && window.parent !== window){
+          window.parent.postMessage({ source:'howl-classic', type:'page', page: page }, '*');
+        }
+      }catch(e){}
+      return r;
+    };
+    window.showPage.__packWrapped = true;
+  }
+  // Auto-unlock from Pack session (same-origin sessionStorage)
+  async function tryEmbedUnlock(){
+    if(!isEmbed()) return;
+    wrapShowPage();
+    var pin = null;
+    try{ pin = sessionStorage.getItem('howl_pack_session_pin'); }catch(e){}
+    if(!pin) return;
+    try{
+      // Wait for classic unlock functions
+      var tries = 0;
+      while(tries < 40 && typeof loadVault !== 'function'){
+        await new Promise(r=>setTimeout(r,50));
+        tries++;
+      }
+      if(typeof loadVault === 'function' && typeof applyVault === 'function'){
+        var v = await loadVault(pin);
+        applyVault(v, pin);
+      } else if(typeof unlockWallet === 'function'){
+        await unlockWallet(pin);
+      }
+      try{ sessionStorage.removeItem('howl_pack_session_pin'); }catch(e){}
+      try{
+        if(window.parent && window.parent !== window){
+          window.parent.postMessage({ source:'howl-classic', type:'unlocked' }, '*');
+        }
+      }catch(e){}
+    }catch(e){
+      console.warn('embed unlock', e);
+    }
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(tryEmbedUnlock, 100); setTimeout(wrapShowPage, 500); });
+  } else {
+    setTimeout(tryEmbedUnlock, 100);
+    setTimeout(wrapShowPage, 500);
+  }
+  // Hide unlock/create chrome slightly in embed if still locked - Pack handles that
+  if(isEmbed()){
+    document.documentElement.classList.add('embed');
+  }
+})();
+</script>
+
 </body>
 </html>
