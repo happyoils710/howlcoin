@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { isAddress, type Address } from 'viem'
 import { Button, Card, Field, PageTitle } from '@/components/ui'
@@ -13,6 +13,7 @@ export function Send() {
   const chainKey = useSettings((s) => s.chainKey)
   const customRpc = useSettings((s) => s.customRpcs[chainKey])
   const touch = useWallet((s) => s.touch)
+  const self = useWallet((s) => s.derived?.address)
   const { data } = useBalances()
   const tokens = data?.rows || []
   const [tokenIdx, setTokenIdx] = useState(0)
@@ -21,22 +22,50 @@ export function Send() {
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [hash, setHash] = useState('')
+  const inFlight = useRef(false)
+  const lastFp = useRef('')
+  const lastAt = useRef(0)
   const token = tokens[tokenIdx]?.token
+  const balRow = tokens[tokenIdx]
   const explorer = PACK_CHAINS[chainKey].explorer
-  const canSend = useMemo(() => token && isAddress(to) && Number(amount) > 0 && !busy, [token, to, amount, busy])
+  const canSend = useMemo(
+    () => token && isAddress(to) && Number(amount) > 0 && !busy,
+    [token, to, amount, busy],
+  )
 
   async function onSend() {
-    if (!token) return
+    if (!token || inFlight.current) return
     setErr('')
     setBusy(true)
+    inFlight.current = true
     touch()
     try {
       if (!isAddress(to)) throw new Error('Invalid address')
-      setHash(await sendToken({ token, to: to as Address, amount, chainKey, customRpc }))
+      if (self && to.toLowerCase() === self.toLowerCase()) {
+        throw new Error('Cannot send to your own address')
+      }
+      const amt = Number(amount)
+      if (!Number.isFinite(amt) || amt <= 0) throw new Error('Amount must be greater than 0')
+      if (balRow && balRow.raw > 0n) {
+        // light client-side check against last known balance
+        const human = Number(balRow.amount.replace(/,/g, ''))
+        if (Number.isFinite(human) && amt > human * 1.0001) {
+          throw new Error('Insufficient balance')
+        }
+      }
+      const fp = `${chainKey}|${token.address}|${to}|${amount}`
+      if (fp === lastFp.current && Date.now() - lastAt.current < 12_000) {
+        throw new Error('Duplicate send blocked — wait or change amount')
+      }
+      const h = await sendToken({ token, to: to as Address, amount, chainKey, customRpc })
+      lastFp.current = fp
+      lastAt.current = Date.now()
+      setHash(h)
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Send failed')
     } finally {
       setBusy(false)
+      inFlight.current = false
     }
   }
 
@@ -61,7 +90,11 @@ export function Send() {
       <Card className="mb-3">
         <label className="muted mb-1 block text-xs font-bold uppercase">Asset</label>
         <select className="field" value={tokenIdx} onChange={(e) => setTokenIdx(Number(e.target.value))}>
-          {tokens.map((r, i) => <option key={i} value={i}>{r.token.symbol} · bal {r.amount}</option>)}
+          {tokens.map((r, i) => (
+            <option key={i} value={i}>
+              {r.token.symbol} · bal {r.amount}{r.stale ? ' (cached)' : ''}
+            </option>
+          ))}
         </select>
       </Card>
       <Card className="mb-3">

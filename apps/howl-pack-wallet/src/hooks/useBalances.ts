@@ -13,6 +13,7 @@ export interface TokenBalanceRow {
   usd: number
   usdLabel: string
   price: number
+  stale?: boolean
 }
 
 async function readBalance(token: TokenDef, owner: Address, rpc?: string | null): Promise<bigint> {
@@ -21,6 +22,13 @@ async function readBalance(token: TokenDef, owner: Address, rpc?: string | null)
   return client.readContract({
     address: token.address, abi: ERC20_ABI, functionName: 'balanceOf', args: [owner],
   }) as Promise<bigint>
+}
+
+/** Keep last good balances when an RPC blip would flash zeros. */
+const lastGood = new Map<string, { raw: bigint; at: number }>()
+
+function cacheKey(owner: string, chainKey: string, tokenId: string) {
+  return `${owner}:${chainKey}:${tokenId}`
 }
 
 export function useBalances() {
@@ -32,6 +40,8 @@ export function useBalances() {
     queryKey: ['balances', address, chainKey, customRpcs[chainKey]],
     enabled: !!address,
     refetchInterval: 30_000,
+    // Keep previous total visible while refetching
+    placeholderData: (prev) => prev,
     queryFn: async (): Promise<{ rows: TokenBalanceRow[]; totalUsd: number }> => {
       if (!address) return { rows: [], totalUsd: 0 }
       const tokens = CURATED_TOKENS.filter((t) => t.chainKey === chainKey)
@@ -39,8 +49,11 @@ export function useBalances() {
       const rows: TokenBalanceRow[] = []
       let totalUsd = 0
       for (const token of tokens) {
+        const id = token.address === 'native' ? 'native' : token.address
+        const key = cacheKey(address, token.chainKey, id)
         try {
           const raw = await readBalance(token, address, customRpcs[token.chainKey])
+          lastGood.set(key, { raw, at: Date.now() })
           const price = token.coingeckoId ? prices[token.coingeckoId] || 0 : 0
           const human = Number(formatUnits(raw, token.decimals))
           const usd = human * price
@@ -50,10 +63,23 @@ export function useBalances() {
             usd, usdLabel: formatUsd(usd), price,
           })
         } catch {
-          rows.push({
-            token, raw: 0n, amount: '0', usd: 0, usdLabel: formatUsd(0),
-            price: token.coingeckoId ? prices[token.coingeckoId] || 0 : 0,
-          })
+          const cached = lastGood.get(key)
+          if (cached) {
+            const price = token.coingeckoId ? prices[token.coingeckoId] || 0 : 0
+            const human = Number(formatUnits(cached.raw, token.decimals))
+            const usd = human * price
+            totalUsd += usd
+            rows.push({
+              token, raw: cached.raw, amount: formatTokenAmount(cached.raw, token.decimals),
+              usd, usdLabel: formatUsd(usd), price, stale: true,
+            })
+          } else {
+            rows.push({
+              token, raw: 0n, amount: '—', usd: 0, usdLabel: formatUsd(0),
+              price: token.coingeckoId ? prices[token.coingeckoId] || 0 : 0,
+              stale: true,
+            })
+          }
         }
       }
       rows.sort((a, b) => b.usd - a.usd)
