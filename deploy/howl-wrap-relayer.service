@@ -1,0 +1,19 @@
+[Unit]
+Description=Howl Wrap relayer (HOWL L1 ↔ wHOWL SPL)
+After=network-online.target howlcoin.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/howlcoin
+EnvironmentFile=-/var/lib/howlcoin/bridge.env
+Environment=PYTHONUNBUFFERED=1
+Environment=SOLANA_RPC=https://api.mainnet-beta.solana.com
+Environment=PATH=/root/.local/share/solana/install/active_release/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+ExecStart=/opt/howlcoin-venv/bin/python3 /opt/howlcoin/scripts/howl-wrap-relayer.py --interval 30
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target

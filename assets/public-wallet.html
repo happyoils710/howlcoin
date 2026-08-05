@@ -1325,6 +1325,7 @@ html.embed .gate{min-height:100dvh}
       <div id="swapHowlPanel" class="hidden">
       <div class="panel">
         <h2>Howl Swap · get native HOWL</h2>
+        <button class="btn sec" type="button" style="margin-bottom:10px" onclick="showPage('wrap')">Wrap HOWL ↔ wHOWL (SPL)</button>
         <p class="hint">Phase A bridge: send <b>SOL</b> or <b>USDC</b> on Solana to the treasury, then a relayer credits <b>HOWL</b> to this wallet. Semi-custodial — not a trustless bridge.</p>
         <div id="bridgeOffline" class="warnbox hidden">Bridge offline on the server. Operator must set deposit treasury + enable Howl Swap.</div>
         <label>You pay (Solana)</label>
@@ -1364,7 +1365,37 @@ html.embed .gate{min-height:100dvh}
       </div>
     </div>
 
-    <!-- HOWL SEARCH BROWSER -->
+    
+    <!-- WRAP HOWL ↔ wHOWL SPL -->
+    <section class="screen hidden" id="page-wrap">
+      <div class="page-head"><button type="button" class="back" onclick="showPage('swap')">‹ Swap</button><h1>Wrap HOWL</h1></div>
+      <div class="card" id="wrapPanel">
+        <h2>wHOWL · Solana SPL</h2>
+        <p class="hint">Wrap native <b>HOWL</b> into <b>wHOWL</b> (SPL) for Solana DEXs, or unwrap back. Semi-custodial 1:1 (minus fee).</p>
+        <div id="wrapStatus" class="hint">Loading wrap config…</div>
+        <div class="seg" style="margin:10px 0">
+          <button type="button" class="on" id="wrapDirWrap" onclick="setWrapDir('wrap')">Wrap → Solana</button>
+          <button type="button" id="wrapDirUnwrap" onclick="setWrapDir('unwrap')">Unwrap → L1</button>
+        </div>
+        <label>Amount (HOWL / wHOWL)</label>
+        <input class="field" id="wrapAmt" type="number" min="0" step="any" placeholder="100"/>
+        <label id="wrapSolLab">Your Solana address (receive wHOWL)</label>
+        <input class="field mono" id="wrapSol" placeholder="Sol address"/>
+        <p class="hint" id="wrapQuote" style="margin:8px 0">Quote —</p>
+        <button class="btn" type="button" onclick="getWrapQuote()">Quote</button>
+        <button class="btn sec" type="button" id="wrapGoBtn" onclick="createWrapOrder()">Open wrap order</button>
+        <div id="wrapOrderBox" class="card" style="margin-top:12px;display:none">
+          <p class="hint" id="wrapOrderInfo"></p>
+          <p class="mono" id="wrapDeposit" style="word-break:break-all"></p>
+          <button class="btn sec" type="button" onclick="copyWrapDeposit()">Copy deposit</button>
+          <label>Deposit tx id / signature</label>
+          <input class="field mono" id="wrapTxid" placeholder="txid or sol sig"/>
+          <button class="btn" type="button" onclick="submitWrapTx()">I sent it</button>
+        </div>
+        <p class="hint" style="margin-top:12px">Mint: <span class="mono" id="wrapMint">—</span> · <a id="wrapMintLink" href="#" target="_blank" rel="noopener">Solscan</a></p>
+      </div>
+    </section>
+<!-- HOWL SEARCH BROWSER -->
     <div class="page" id="p-browser">
       <div class="browser-page" id="browserPage">
         <!-- Top address bar while browsing -->
@@ -11393,5 +11424,108 @@ boot();
 })();
 </script>
 
+<script>
+
+/* —— Howl Wrap (wHOWL SPL) —— */
+let wrapDir = "wrap";
+let wrapCfg = null;
+let activeWrapOrder = null;
+function setWrapDir(d){
+  wrapDir = d === "unwrap" ? "unwrap" : "wrap";
+  const a = document.getElementById("wrapDirWrap");
+  const b = document.getElementById("wrapDirUnwrap");
+  if(a) a.classList.toggle("on", wrapDir==="wrap");
+  if(b) b.classList.toggle("on", wrapDir==="unwrap");
+  const lab = document.getElementById("wrapSolLab");
+  if(lab) lab.textContent = wrapDir==="wrap" ? "Your Solana address (receive wHOWL)" : "Your Solana address (send wHOWL from)";
+}
+async function initWrapUI(){
+  try{
+    wrapCfg = await api("/api/public/wrap");
+    const st = document.getElementById("wrapStatus");
+    if(st) st.textContent = wrapCfg.enabled
+      ? (`Online · fee ${wrapCfg.fee_bps||0} bps · min ${wrapCfg.min_howl} HOWL`)
+      : (wrapCfg.note || "Wrap offline");
+    const m = document.getElementById("wrapMint");
+    if(m) m.textContent = wrapCfg.mint || "not deployed";
+    const a = document.getElementById("wrapMintLink");
+    if(a && wrapCfg.mint_explorer){ a.href = wrapCfg.mint_explorer; a.textContent = "Solscan"; }
+    if($("wrapSol") && typeof solAddress !== "undefined" && solAddress) $("wrapSol").value = solAddress;
+    else if($("wrapSol") && typeof keypair !== "undefined"){
+      try{
+        const { solAddressFromMnemonic } = await import("/assets/howl-crypto.mjs");
+        /* sol filled if available from wallet state */
+      }catch(_){}
+    }
+  }catch(e){
+    const st = document.getElementById("wrapStatus");
+    if(st) st.textContent = "Wrap config unavailable";
+  }
+}
+async function getWrapQuote(){
+  const amt = parseFloat($("wrapAmt")?.value||"0");
+  if(!amt){ toast("Enter amount"); return; }
+  try{
+    const q = await api(`/api/public/wrap/quote?amount=${encodeURIComponent(amt)}&direction=${wrapDir}`);
+    const el = $("wrapQuote");
+    if(el) el.textContent = `You send ${q.amount_in} ${q.in_asset} → receive ~${q.amount_out} ${q.out_asset} (fee ${q.fee_howl} HOWL)`;
+  }catch(e){ toast(e.message||"Quote failed"); }
+}
+async function createWrapOrder(){
+  if(!keypair){ toast("Unlock wallet"); return; }
+  const amt = parseFloat($("wrapAmt")?.value||"0");
+  const sol = ($("wrapSol")?.value||"").trim();
+  if(!amt || !sol){ toast("Amount + Solana address required"); return; }
+  try{
+    const o = await api("/api/public/wrap/order", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        direction: wrapDir,
+        amount: amt,
+        howl_address: keypair.address,
+        sol_address: sol,
+      }),
+    });
+    activeWrapOrder = o;
+    const box = $("wrapOrderBox");
+    if(box) box.style.display = "block";
+    const info = $("wrapOrderInfo");
+    if(wrapDir === "wrap"){
+      if(info) info.textContent = `Order ${o.id}: send ${o.amount_in} HOWL to the deposit address (memo ${o.memo||o.id}). Then paste the Howl txid.`;
+      if($("wrapDeposit")) $("wrapDeposit").textContent = o.deposit_howl_address || "(deposit not configured)";
+    } else {
+      if(info) info.textContent = `Order ${o.id}: send ${o.amount_in} wHOWL SPL to treasury, then paste the Solana signature.`;
+      if($("wrapDeposit")) $("wrapDeposit").textContent = o.deposit_sol_treasury || "(treasury not configured)";
+    }
+    toast("Wrap order opened");
+  }catch(e){ toast(e.message||"Order failed"); }
+}
+function copyWrapDeposit(){
+  const t = $("wrapDeposit")?.textContent || "";
+  copyText(t, "deposit address");
+}
+async function submitWrapTx(){
+  if(!activeWrapOrder){ toast("No order"); return; }
+  const txid = ($("wrapTxid")?.value||"").trim();
+  if(!txid){ toast("Paste deposit tx"); return; }
+  try{
+    const o = await api(`/api/public/wrap/order/${encodeURIComponent(activeWrapOrder.id)}/tx`, {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ txid }),
+    });
+    activeWrapOrder = o;
+    toast("Deposit attached · relayer will complete");
+  }catch(e){ toast(e.message||"Failed"); }
+}
+const _showPageWrap = typeof showPage === "function" ? showPage : null;
+// hook showPage for wrap init — via page paint
+document.addEventListener("click", (e)=>{
+  const t = e.target;
+  if(t && t.getAttribute && t.getAttribute("onclick") && String(t.getAttribute("onclick")).includes("wrap")){
+    setTimeout(initWrapUI, 50);
+  }
+});
+
+</script>
 </body>
 </html>

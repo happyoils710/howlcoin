@@ -5865,6 +5865,46 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                     except Exception as e:
                         return self._json(500, {"error": str(e)})
 
+                # Wrapped HOWL (wHOWL SPL)
+                if path in ("/api/public/wrap", "/api/public/wrap/config", "/api/wrap"):
+                    try:
+                        from .wrap import wrap_config
+
+                        return self._json(200, wrap_config())
+                    except Exception as e:
+                        return self._json(500, {"error": str(e)})
+                if path in ("/api/public/wrap/quote", "/api/wrap/quote"):
+                    try:
+                        from .wrap import quote_wrap
+
+                        qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                        amount = float((qs.get("amount") or ["0"])[0])
+                        direction = (qs.get("direction") or ["wrap"])[0]
+                        return self._json(200, quote_wrap(amount, direction))
+                    except Exception as e:
+                        return self._json(400, {"error": str(e)})
+                if path in ("/api/public/wrap/orders", "/api/wrap/orders"):
+                    try:
+                        from .wrap import list_orders
+
+                        qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                        howl = (qs.get("howl") or [""])[0]
+                        sol = (qs.get("sol") or [""])[0]
+                        return self._json(200, {"orders": list_orders(howl=howl, sol=sol)})
+                    except Exception as e:
+                        return self._json(500, {"error": str(e)})
+                if path.startswith("/api/public/wrap/order/") or path.startswith("/api/wrap/order/"):
+                    try:
+                        from .wrap import get_order
+
+                        oid = path.rstrip("/").split("/")[-1]
+                        o = get_order(oid)
+                        if not o:
+                            return self._json(404, {"error": "order not found"})
+                        return self._json(200, o)
+                    except Exception as e:
+                        return self._json(500, {"error": str(e)})
+
                 if path in ("/api/public/bridge/quote", "/api/bridge/quote"):
                     try:
                         from .bridge import quote_howl
@@ -6248,6 +6288,33 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                         return self._json(500, {"error": str(e)})
 
                 # Howl Swap bridge POST
+                
+                # Howl Wrap POST
+                if path in ("/api/public/wrap/order", "/api/wrap/order"):
+                    try:
+                        from .wrap import create_order
+
+                        body = self._read_json()
+                        o = create_order(
+                            direction=str(body.get("direction") or "wrap"),
+                            amount_howl=float(body.get("amount") or body.get("amount_howl") or 0),
+                            howl_address=str(body.get("howl_address") or ""),
+                            sol_address=str(body.get("sol_address") or body.get("sol") or ""),
+                        )
+                        return self._json(200, o)
+                    except Exception as e:
+                        return self._json(400, {"error": str(e)})
+                if path.startswith("/api/public/wrap/order/") and path.endswith("/tx"):
+                    try:
+                        from .wrap import attach_deposit_tx
+
+                        oid = path.rstrip("/").split("/")[-2]
+                        body = self._read_json()
+                        o = attach_deposit_tx(oid, str(body.get("txid") or body.get("signature") or ""))
+                        return self._json(200, o)
+                    except Exception as e:
+                        return self._json(400, {"error": str(e)})
+
                 if path in ("/api/public/bridge/order", "/api/bridge/order"):
                     try:
                         from .bridge import create_order
