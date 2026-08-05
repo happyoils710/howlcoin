@@ -37,6 +37,17 @@ This is a **real local Scrypt chain** you can mine, send, and explore — not an
 
 ---
 
+
+## Security & trust
+
+- [Security policy / disclosure](SECURITY.md)
+- [Trust overview](docs/TRUST_AND_SECURITY.md)
+- [Threat model](docs/security/THREAT_MODEL.md)
+- [Audit scope for firms](docs/security/SECURITY_AUDIT_SCOPE.md)
+- Public page: https://howlscan.org/#/security
+
+**No formal third-party audit is published yet.** Freeze authority on wHOWL is disabled; mint authority remains operator-controlled until multi-sig.
+
 ## Public mining (share with anyone)
 
 Two pieces make Howlcoin “public”:

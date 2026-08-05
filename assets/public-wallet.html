@@ -1491,7 +1491,7 @@ html.embed .gate{min-height:100dvh}
  <div class="page-head"><button type="button" class="back" onclick="showPage('swap')">‹ Swap</button><h1>Wrap HOWL</h1></div>
  <div class="card" id="wrapPanel">
  <h2>wHOWL · Solana SPL</h2>
- <p class="hint">Wrap native <b>HOWL</b> into <b>wHOWL</b> (SPL) for Solana DEXs, or unwrap back. Semi-custodial 1:1 (minus fee).</p>
+ <p class="hint">Wrap native <b>HOWL</b> into <b>wHOWL</b> (SPL) for Solana DEXs, or unwrap back. Semi-custodial 1:1 (minus fee). Mint authority is operator-controlled until multi-sig / audit — verify the mint on Solscan.</p>
  <div class="warnbox" style="margin:8px 0 12px">
  <b>Do not send HOWL to the deposit address without an open order.</b>
  Flow: enter amount + your Solana address → <b>Open wrap order</b> → send exact amount → paste txid → relayer mints wHOWL.
@@ -2095,6 +2095,12 @@ html.embed .gate{min-height:100dvh}
  <div class="page" id="p-sec">
  <div class="page-head"><button type="button" class="back" onclick="showPage('more')">‹ More</button><h1>Security</h1></div>
  <div class="panel">
+        <h2 style="margin-top:0">Security &amp; trust</h2>
+        <p class="hint">Keys stay on this device (encrypted). Bridges and wHOWL mint are semi-custodial until multi-sig and published audits.</p>
+        <a class="btn sec" href="https://howlscan.org/#/security" target="_blank" rel="noopener">Open trust page</a>
+        <a class="btn sec" href="https://github.com/happyoils710/howlcoin/blob/main/SECURITY.md" target="_blank" rel="noopener">Report a vulnerability</a>
+        <a class="btn sec" href="https://solscan.io/token/HYRKhV2Y9HEtKCCHSgH18Zfo4U9Ln9vAg2dCmBJSLWaG" target="_blank" rel="noopener">Verify wHOWL mint</a>
+
  <div class="sec-block">
  <h3>Face ID / Touch ID</h3>
  <p class="hint">Unlock with biometrics only — PIN is backup if Face ID fails.</p>

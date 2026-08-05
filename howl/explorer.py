@@ -2796,6 +2796,7 @@ input.field,textarea.field{border-radius:10px}
   <button class="ditem" type="button" onclick="navTo('#/culture')">Culture</button>
   <button class="ditem" type="button" onclick="navTo('#/charts')">Charts</button>
   <button class="ditem" type="button" onclick="navTo('#/health')">Network</button>
+  <button class="ditem" type="button" onclick="navTo('#/security')">Security &amp; trust</button>
   <button class="ditem" type="button" onclick="navTo('#/'+net+'/richlist')">Richlist</button>
   <button class="ditem" type="button" onclick="navTo('#/'+net+'/mempool')">Mempool</button>
   <h4 style="margin-top:16px">Get started</h4>
@@ -3376,6 +3377,7 @@ function activeTabFromRoute(parts){
   if(!parts.length || (parts.length===1 && networks.find(n=>n.id===parts[0]))) return 'home';
   if(parts[0]==='play' || parts[0]==='city') return 'play';
   if(parts[0]==='culture' || parts[0]==='nfts' || parts[0]==='gallery') return 'culture';
+  if(parts[0]==='security') return 'health';
   if(parts[0]==='health' || parts[0]==='status' || parts[0]==='charts') return 'health';
   if(parts[0]==='api' || parts[0]==='docs') return 'more';
   if(parts[0]==='run' || parts[0]==='node' || parts[0]==='sync') return 'more';
@@ -3458,6 +3460,7 @@ async function loadHome(){
         <a class="rail-link" href="#/culture">Culture</a>
         <a class="rail-link" href="#/charts">Charts</a>
         <a class="rail-link" href="#/health">Network</a>
+        <a class="rail-link" href="#/security">Security</a>
         <a class="rail-link" href="/app/">Wallet</a>
         <a class="rail-link" href="#/run">Mine</a>
         <a class="rail-link" href="/whitepaper">White paper</a>
@@ -3912,6 +3915,50 @@ function sparkline(values, {w=280,h=56,stroke='var(--green)',fill='rgba(61,255,1
     <polyline fill="${fill}" stroke="none" points="${area}"/>
     <polyline fill="none" stroke="${stroke}" stroke-width="2" points="${pts}"/>
   </svg>`;
+}
+
+
+async function showSecurity(){
+  document.title = 'Security & trust · Howlscan';
+  app().innerHTML = `
+  <div class="panel" style="max-width:820px;margin:0 auto">
+    <h1 style="margin-top:0;font-size:1.35rem">Security &amp; trust</h1>
+    <p class="muted">Howlcoin is open-source. Trust is built with transparency, operational discipline, and independent review — not slogans.</p>
+    <div class="warnbox" style="margin:12px 0">
+      <b>Status:</b> No formal third-party audit report is published yet.
+      Freeze authority on wHOWL is <b>disabled</b>. Mint authority is operator-controlled until multi-sig / renounce.
+      Wrap and Howl Swap are <b>semi-custodial</b>.
+    </div>
+    <h3>Verify yourself</h3>
+    <ul style="line-height:1.55;color:var(--muted)">
+      <li>wHOWL mint: <span class="mono">HYRKhV2Y9HEtKCCHSgH18Zfo4U9Ln9vAg2dCmBJSLWaG</span></li>
+      <li>Solscan: <a href="https://solscan.io/token/HYRKhV2Y9HEtKCCHSgH18Zfo4U9Ln9vAg2dCmBJSLWaG" target="_blank" rel="noopener">token page</a></li>
+      <li>Code: <a href="https://github.com/happyoils710/howlcoin" target="_blank" rel="noopener">github.com/happyoils710/howlcoin</a></li>
+      <li>Policy: <a href="https://github.com/happyoils710/howlcoin/blob/main/SECURITY.md" target="_blank" rel="noopener">SECURITY.md</a></li>
+      <li>Trust doc: <a href="https://github.com/happyoils710/howlcoin/blob/main/docs/TRUST_AND_SECURITY.md" target="_blank" rel="noopener">TRUST_AND_SECURITY.md</a></li>
+    </ul>
+    <h3>What we do today</h3>
+    <ul style="line-height:1.55;color:var(--muted)">
+      <li>Public vulnerability disclosure process</li>
+      <li>Documented threat model and audit scope for firms</li>
+      <li>Browser security headers (CSP, nosniff, frame controls)</li>
+      <li>Wallet keys encrypted on-device (PIN / AES-GCM); never sent to the server</li>
+      <li>Clear semi-custodial warnings on wrap / swap</li>
+    </ul>
+    <h3>Roadmap to higher assurance</h3>
+    <ol style="line-height:1.55;color:var(--muted)">
+      <li>Multi-sig mint authority (e.g. Squads 2-of-3)</li>
+      <li>DEX liquidity so users need not trust the mint desk for every swap</li>
+      <li>Independent wallet + bridge review (published PDF)</li>
+      <li>Full consensus / crypto review</li>
+      <li>Public bug bounty with a funded pool</li>
+    </ol>
+    <h3>Report a vulnerability</h3>
+    <p class="muted">Use <a href="https://github.com/happyoils710/howlcoin/security/advisories/new" target="_blank" rel="noopener">GitHub private security advisories</a>. Do not post exploit details publicly.</p>
+    <p style="margin-top:18px"><a class="chipbtn" href="#/health">Network status</a>
+    <a class="chipbtn" href="/app/">Open wallet</a>
+    <a class="chipbtn" href="#/run">Run a node</a></p>
+  </div>`;
 }
 
 async function showHealth(){
@@ -5013,6 +5060,7 @@ async function route(){
     if(parts.length>=3 && parts[1]==='tx') return await showTx(decodeURIComponent(parts[2]));
     if(parts.length>=3 && parts[1]==='address') return await showAddr(decodeURIComponent(parts[2]));
     if(parts.length>=1 && (parts[0]==='run' || parts[0]==='node' || parts[0]==='sync')) return await showRunNode();
+    if(parts.length>=1 && parts[0]==='security') return await showSecurity();
     if(parts.length>=1 && (parts[0]==='health' || parts[0]==='status')) return await showHealth();
     if(parts.length>=2 && parts[1]==='richlist') return await showRichlist();
     if(parts.length>=2 && parts[1]==='mempool') return await showMempool();
@@ -5093,6 +5141,7 @@ function softLiveRefresh(force){
       else if(kind==='play') await showPlayBoard();
       else if(kind==='culture') await showCultureGallery();
       else if(kind==='charts') await showChartsBoard();
+      else if(kind==='security') await showSecurity();
       else if(kind==='health') await showHealth();
       else if(kind==='mempool') await showMempool();
       else if(kind==='contracts'){
@@ -5170,6 +5219,31 @@ class ExplorerServer:
             def log_message(self, fmt, *args):
                 return
 
+
+            def _security_headers(self, html: bool = False):
+                """Baseline browser security headers for howlscan.org."""
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("X-Frame-Options", "SAMEORIGIN")
+                self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
+                self.send_header(
+                    "Permissions-Policy",
+                    "camera=(), microphone=(), geolocation=(), payment=()",
+                )
+                # Conservative CSP: allow self, inline for SPA, QR API, fonts
+                if html:
+                    self.send_header(
+                        "Content-Security-Policy",
+                        "default-src 'self'; "
+                        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://esm.sh https://cdn.jsdelivr.net; "
+                        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                        "font-src 'self' https://fonts.gstatic.com data:; "
+                        "img-src 'self' data: blob: https:; "
+                        "connect-src 'self' https: wss: http://127.0.0.1:* http://localhost:*; "
+                        "frame-src 'self' https:; "
+                        "object-src 'none'; "
+                        "base-uri 'self'; "
+                        "form-action 'self'",
+                    )
             def _json(
                 self,
                 code: int,
@@ -5187,6 +5261,7 @@ class ExplorerServer:
                     "Access-Control-Allow-Headers",
                     "Content-Type, Authorization, X-Howl-Session",
                 )
+                self._security_headers(html=False)
                 if set_session:
                     self.send_header(
                         "Set-Cookie",
@@ -5222,6 +5297,7 @@ class ExplorerServer:
                 # ES modules need correct CORS; allow caching of static wallet assets
                 if "javascript" in ctype or "manifest" in ctype:
                     self.send_header("Cache-Control", "public, max-age=300")
+                self._security_headers(html="html" in ctype)
                 self.end_headers()
                 self.wfile.write(data)
 
@@ -5369,6 +5445,7 @@ class ExplorerServer:
                     self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
                     self.send_header("Pragma", "no-cache")
                     self.send_header("Access-Control-Allow-Origin", "*")
+                    self._security_headers(html=True)
                     data = app.read_bytes()
                     self.send_header("Content-Length", str(len(data)))
                     self.end_headers()
@@ -5393,6 +5470,7 @@ class ExplorerServer:
                     self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
                     self.send_header("Pragma", "no-cache")
                     self.send_header("Access-Control-Allow-Origin", "*")
+                    self._security_headers(html=True)
                     data = app.read_bytes()
                     self.send_header("Content-Length", str(len(data)))
                     self.end_headers()
@@ -5633,6 +5711,31 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
 
                 if path == "/api/networks":
                     return self._json(200, {"networks": hub.list_networks()})
+
+                if path in ("/api/public/security", "/api/security"):
+                    mint = __import__("os").environ.get("HOWL_SPL_MINT", "HYRKhV2Y9HEtKCCHSgH18Zfo4U9Ln9vAg2dCmBJSLWaG")
+                    return self._json(200, {
+                        "project": "Howlcoin",
+                        "audit_status": "none_published",
+                        "audit_reports": [],
+                        "whowl": {
+                            "mint": mint,
+                            "decimals": 8,
+                            "freeze_authority": None,
+                            "mint_authority_note": "operator-controlled until multi-sig",
+                            "explorer": f"https://solscan.io/token/{mint}",
+                            "metadata": "https://howlscan.org/assets/whowl-token.json",
+                        },
+                        "trust_docs": {
+                            "security_policy": "https://github.com/happyoils710/howlcoin/blob/main/SECURITY.md",
+                            "trust_overview": "https://github.com/happyoils710/howlcoin/blob/main/docs/TRUST_AND_SECURITY.md",
+                            "threat_model": "https://github.com/happyoils710/howlcoin/blob/main/docs/security/THREAT_MODEL.md",
+                            "audit_scope": "https://github.com/happyoils710/howlcoin/blob/main/docs/security/SECURITY_AUDIT_SCOPE.md",
+                        },
+                        "disclosure": "https://github.com/happyoils710/howlcoin/security/advisories/new",
+                        "page": "https://howlscan.org/#/security",
+                        "semi_custodial": ["howl_swap", "howl_wrap"],
+                    })
 
                 if path in (
                     "/api/public/health",
