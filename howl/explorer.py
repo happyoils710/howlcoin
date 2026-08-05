@@ -183,7 +183,12 @@ def _markets_allowed_ids() -> set:
 
 
 def _charts_allowed_ids() -> set:
-    return set(_CHAINLINK_FEEDS.keys()) | {_HOWL_CHART_ID, "howl"}
+    extra = {
+        "usd-coin", "tether", "wrapped-bitcoin", "dogecoin", "litecoin",
+        "bitcoin-cash", "ripple", "stellar", "tezos", "tron", "weth",
+        "binance-usd", "dai", "shiba-inu", "pepe", "bonk",
+    }
+    return set(_CHAINLINK_FEEDS.keys()) | {_HOWL_CHART_ID, "howl"} | extra
 
 
 def _howl_charts_root() -> Path:
@@ -688,8 +693,8 @@ def fetch_coin_profile(coin_id: str = "bitcoin", force: bool = False) -> Dict[st
     cid = (coin_id or "bitcoin").strip().lower()[:64]
     if cid in ("howl", _HOWL_CHART_ID):
         cid = _HOWL_CHART_ID
-    if cid not in _charts_allowed_ids():
-        cid = _HOWL_CHART_ID
+    # Unknown ids fall through to CoinGecko lifetime series below
+    _unknown = cid not in _charts_allowed_ids()
     now = time.time()
     hit = _coin_profile_cache.get(cid)
     if (
@@ -853,6 +858,34 @@ def _chart_payload(
     }
 
 
+
+def _fetch_coingecko_market_chart(coin_id: str, days: str) -> Dict[str, Any]:
+    """Lifetime / multi-day price series from CoinGecko for wallet asset charts."""
+    cid = (coin_id or "").strip().lower()[:64]
+    d = (days or "max").strip()
+    cg_days = "max" if d == "max" else d
+    url = (
+        "https://api.coingecko.com/api/v3/coins/"
+        + urllib.parse.quote(cid)
+        + "/market_chart?"
+        + urllib.parse.urlencode({"vs_currency": "usd", "days": cg_days})
+    )
+    raw = json.loads(_http_get(url, timeout=20))
+    prices = raw.get("prices") or []
+    points: List[Dict[str, Any]] = []
+    for row in prices:
+        if not row or len(row) < 2:
+            continue
+        try:
+            ts = int(float(row[0]) / 1000.0)
+            px = float(row[1])
+            if px > 0:
+                points.append({"t": ts, "p": px})
+        except (TypeError, ValueError):
+            continue
+    return {"points": points, "id": cid}
+
+
 def fetch_market_chart(
     coin_id: str = "bitcoin", days: str = "7", force: bool = False
 ) -> Dict[str, Any]:
@@ -900,6 +933,18 @@ def fetch_market_chart(
             pass
         return out
 
+    if _unknown:
+        try:
+            gecko = _fetch_coingecko_market_chart(cid, d)
+            if gecko.get("points"):
+                out = _chart_payload(cid, d, gecko["points"], "coingecko", now)
+                if d == "max":
+                    out["range"] = "lifetime"
+                out["note"] = "Howl Charts · market history from inception (available range)"
+                _chart_cache[key] = {"ts": now, "data": {**out, "cached": True}}
+                return out
+        except Exception:
+            pass
     try:
         spot = fetch_onchain_spot(cid, record=True, min_gap=60)
         usd = float(spot["usd"]) if spot.get("usd") is not None else None
@@ -925,6 +970,17 @@ def fetch_market_chart(
             stale["stale"] = True
             stale["error"] = str(e)
             return stale
+        try:
+            gecko = _fetch_coingecko_market_chart(cid, d)
+            if gecko.get("points"):
+                out = _chart_payload(cid, d, gecko["points"], "coingecko", now)
+                if d == "max":
+                    out["range"] = "lifetime"
+                out["note"] = "Howl Charts · market history from inception (available range)"
+                _chart_cache[key] = {"ts": now, "data": {**out, "cached": True}}
+                return out
+        except Exception as e2:
+            e = f"{e}; gecko:{e2}"
         return {
             "id": cid,
             "days": d,
@@ -5309,17 +5365,34 @@ class ExplorerServer:
                 # /app is canonical; /pack redirects for old bookmarks
                 if path in ("/pack", "/pack/"):
                     self.send_response(302)
-                    self.send_header("Location", "/app/")
-                    self.end_headers()
-                    return
-                if path.startswith("/pack/"):
-                    # map /pack/assets/* → pack-wallet for one release, else redirect app
-                    self.send_response(302)
-                    self.send_header("Location", "/app/" + path[len("/pack/"):])
+                    self.send_header("Location", "/app")
                     self.end_headers()
                     return
 
-                if path in ("/app", "/app/", "/wallet/app", "/wallet/app/") or path.startswith("/app/"):
+                if path in ("/app", "/app/", "/wallet/app", "/wallet/app/"):
+                    # Original PIN-unlock multi-chain wallet
+                    app = ASSETS_DIR / "public-wallet.html"
+                    if not app.is_file():
+                        return self._json(404, {"error": "wallet not found"})
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                    self.send_header("Pragma", "no-cache")
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    data = app.read_bytes()
+                    self.send_header("Content-Length", str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                    return
+
+                if path.startswith("/app/"):
+                    # SPA leftovers → home wallet
+                    self.send_response(302)
+                    self.send_header("Location", "/app")
+                    self.end_headers()
+                    return
+
+                if False and path.startswith("/app-pack/"):
                     pack_root = ASSETS_DIR / "pack-wallet"
                     # strip /app or /wallet/app prefix
                     if path.startswith("/wallet/app"):

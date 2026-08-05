@@ -389,7 +389,8 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .bal .sub-bal b{color:var(--text);font-weight:700}
 /* Circular action strip */
 .wa-actions{display:flex;justify-content:space-around;align-items:flex-start;gap:4px;margin:18px 0 20px;padding:0 4px}
-.wa-act{flex:1;border:0;background:transparent;color:var(--text);font:inherit;cursor:pointer;padding:0;
+.wa-actions{gap:2px}
+.wa-act{flex:1;border:0;background:transparent;color:var(--text);font:inherit;cursor:pointer;padding:0;min-width:56px;
   display:flex;flex-direction:column;align-items:center;gap:8px;max-width:88px}
 .wa-act .wa-ico{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;
   font-size:1.15rem;font-weight:700;background:linear-gradient(145deg,color-mix(in srgb,var(--green) 28%,var(--card2)),color-mix(in srgb,var(--cyan) 18%,var(--card)));
@@ -1003,11 +1004,12 @@ html.embed .gate{min-height:100dvh}
         </div>
       </div>
 
-      <div class="wa-actions" role="navigation" aria-label="Quick actions">
-        <button class="wa-act" type="button" onclick="showPage('recv')"><span class="wa-ico" data-icon="recv"></span><span class="wa-lab">Receive</span></button>
+      <div class="wa-actions" role="navigation" aria-label="Quick actions" style="flex-wrap:wrap">
+        <button class="wa-act" type="button" onclick="openBuyFlow()"><span class="wa-ico" data-icon="recv"></span><span class="wa-lab">Buy</span></button>
+        <button class="wa-act" type="button" onclick="showPage('swap');try{setSwapMode('jup')}catch(_){}"><span class="wa-ico" data-icon="swap"></span><span class="wa-lab">Swap</span></button>
+        <button class="wa-act" type="button" onclick="openBridgeFlow()"><span class="wa-ico" data-icon="swap"></span><span class="wa-lab">Bridge</span></button>
         <button class="wa-act" type="button" onclick="showPage('send')"><span class="wa-ico" data-icon="send"></span><span class="wa-lab">Send</span></button>
-        <button class="wa-act" type="button" onclick="showPage('assets')"><span class="wa-ico" data-icon="assets"></span><span class="wa-lab">Assets</span></button>
-        <button class="wa-act" type="button" onclick="showPage('markets')"><span class="wa-ico" data-icon="chart"></span><span class="wa-lab">Charts</span></button>
+        <button class="wa-act" type="button" onclick="showPage('recv')"><span class="wa-ico" data-icon="recv"></span><span class="wa-lab">Receive</span></button>
       </div>
 
       <div class="assets-hub" id="homeAssetsHub">
@@ -1208,9 +1210,24 @@ html.embed .gate{min-height:100dvh}
         <div class="bal" style="margin:12px 0;border:0;box-shadow:none;background:transparent;padding:8px">
           <div class="amt" id="assetDetailBal" style="font-size:1.8rem">—</div>
           <div class="lbl" id="assetDetailName">—</div>
+          <div class="price-hint" id="assetDetailPx" style="margin-top:6px">—</div>
         </div>
         <div class="mono" id="assetDetailAddr" style="font-size:.78rem;margin-bottom:8px" onclick="copyAssetAddress()" title="Copy">—</div>
+        <div class="wa-actions" id="assetQuickActs" style="margin:12px 0 4px" role="navigation" aria-label="Token actions">
+          <button class="wa-act" type="button" data-aq="buy"><span class="wa-ico" data-icon="recv"></span><span class="wa-lab">Buy</span></button>
+          <button class="wa-act" type="button" data-aq="swap"><span class="wa-ico" data-icon="swap"></span><span class="wa-lab">Swap</span></button>
+          <button class="wa-act" type="button" data-aq="bridge"><span class="wa-ico" data-icon="swap"></span><span class="wa-lab">Bridge</span></button>
+          <button class="wa-act" type="button" data-aq="send"><span class="wa-ico" data-icon="send"></span><span class="wa-lab">Send</span></button>
+          <button class="wa-act" type="button" data-aq="recv"><span class="wa-ico" data-icon="recv"></span><span class="wa-lab">Receive</span></button>
+        </div>
         <div class="asset-actions" id="assetActions"></div>
+      </div>
+      <div class="panel">
+        <h2>Chart · lifetime</h2>
+        <p class="hint" id="assetChartMeta" style="margin:0 0 8px">From first available market data</p>
+        <div class="chart-canvas-wrap" id="assetChartWrap" style="min-height:160px">
+          <canvas id="assetChart" width="400" height="180" aria-label="Asset price chart"></canvas>
+        </div>
       </div>
       <div class="panel">
         <h2>Receive / deposit</h2>
@@ -5082,6 +5099,140 @@ function assetActions(a){
   }
   return acts;
 }
+
+function openBuyFlow(assetId){
+  // Buy: Howl Swap for HOWL, else Jupiter / external
+  const a = allAssets().find(x=>x.id===(assetId||selectedAsset||detailAssetId));
+  if(a && a.kind === "howl"){
+    showPage("swap");
+    try{ setSwapMode("howl"); }catch(_){}
+    toast("Buy HOWL via Howl Swap / bridge");
+    return;
+  }
+  if(a && (a.kind === "sol" || a.kind === "spl")){
+    showPage("swap");
+    try{ setSwapMode("jup"); }catch(_){}
+    return;
+  }
+  showPage("swap");
+  try{ setSwapMode("howl"); }catch(_){}
+}
+function openBridgeFlow(assetId){
+  showPage("swap");
+  try{ setSwapMode("howl"); }catch(_){}
+  setTimeout(()=>{
+    const el = document.getElementById("bridgePanel") || document.querySelector("[id*=bridge]");
+    if(el) el.scrollIntoView({behavior:"smooth", block:"start"});
+  }, 150);
+  toast("Bridge · SOL/USDC → HOWL");
+}
+/** Map wallet asset → Howl Charts / CoinGecko id for lifetime series */
+function chartIdForAsset(a){
+  if(!a) return "howlcoin";
+  if(a.chartId) return a.chartId;
+  if(a.coingeckoId) return a.coingeckoId;
+  if(a.kind === "howl") return "howlcoin";
+  const map = {
+    btc: "bitcoin", ltc: "litecoin", bch: "bitcoin-cash", doge: "dogecoin",
+    sol: "solana", eth: "ethereum", op: "ethereum", base: "ethereum",
+    bnb: "binancecoin", avax: "avalanche-2", hype: "ethereum",
+    usdc_sol: "usd-coin", usdt_sol: "tether", usdc_eth: "usd-coin", usdt_eth: "tether",
+    weth: "weth", trx: "tron", xrp: "ripple", xlm: "stellar", xtz: "tezos",
+    whowl: "howlcoin",
+  };
+  if(map[a.id]) return map[a.id];
+  if(a.kind === "spl" && (a.symbol||"").toUpperCase()==="USDC") return "usd-coin";
+  if(a.kind === "spl" && (a.symbol||"").toUpperCase()==="USDT") return "tether";
+  if(a.kind === "erc20" && (a.symbol||"").toUpperCase()==="USDC") return "usd-coin";
+  if(a.kind === "erc20" && (a.symbol||"").toUpperCase()==="USDT") return "tether";
+  if(a.kind === "erc20" && (a.symbol||"").toUpperCase()==="WETH") return "weth";
+  if(a.kind === "evm" || a.kind === "eth") return "ethereum";
+  if(a.kind === "sol" || a.kind === "spl") return "solana";
+  if(a.kind === "utxo") return map[a.coinId] || map[a.id] || "bitcoin";
+  return "howlcoin";
+}
+async function loadAssetChart(a){
+  const meta = $("assetChartMeta");
+  const canvas = $("assetChart");
+  if(!canvas) return;
+  const cid = chartIdForAsset(a);
+  if(meta) meta.textContent = "Loading lifetime chart…";
+  try{
+    const j = await api(`/api/public/chart?id=${encodeURIComponent(cid)}&days=max&force=0`);
+    const pts = j.points || [];
+    if(!pts.length) throw new Error(j.error || "No history yet");
+    drawAssetChart(canvas, pts);
+    const first = pts[0], last = pts[pts.length-1];
+    const chg = first.p ? ((last.p - first.p) / first.p * 100) : 0;
+    const from = first.t ? new Date(first.t*1000).toLocaleDateString() : "—";
+    if(meta) meta.textContent = `${j.name||cid} · from ${from} · ${pts.length} pts · ${chg>=0?"+":""}${chg.toFixed(1)}% · ${j.source||"Howl Charts"}`;
+    if($("assetDetailPx") && last.p != null){
+      $("assetDetailPx").textContent = `$${Number(last.p).toLocaleString(undefined,{maximumFractionDigits: last.p<1?6:2})} · lifetime`;
+    }
+  }catch(e){
+    if(meta) meta.textContent = e.message || "Chart unavailable";
+    const ctx = canvas.getContext("2d");
+    if(ctx){ ctx.clearRect(0,0,canvas.width,canvas.height); }
+  }
+}
+function drawAssetChart(canvas, points){
+  const ctx = canvas.getContext("2d");
+  if(!ctx || !points.length) return;
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth || 360;
+  const h = 180;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,w,h);
+  const pad = 12;
+  const prices = points.map(p=>Number(p.p));
+  const min = Math.min(...prices), max = Math.max(...prices);
+  const span = (max - min) || 1;
+  ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--green").trim() || "#3dff9a";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  points.forEach((pt,i)=>{
+    const x = pad + (i / Math.max(1, points.length-1)) * (w - pad*2);
+    const y = h - pad - ((Number(pt.p) - min) / span) * (h - pad*2);
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+  // fill
+  ctx.lineTo(w-pad, h-pad); ctx.lineTo(pad, h-pad); ctx.closePath();
+  ctx.fillStyle = "color-mix(in srgb, " + (ctx.strokeStyle||"#3dff9a") + " 18%, transparent)";
+  try{ ctx.fill(); }catch(_){}
+}
+function wireAssetQuickActs(a){
+  const host = $("assetQuickActs");
+  if(!host) return;
+  host.querySelectorAll("[data-aq]").forEach(btn=>{
+    const k = btn.getAttribute("data-aq");
+    btn.onclick = ()=>{
+      selectedAsset = a.id;
+      detailAssetId = a.id;
+      if(k==="buy") openBuyFlow(a.id);
+      else if(k==="swap"){
+        showPage("swap");
+        try{
+          if(a.kind==="howl") setSwapMode("howl");
+          else if(a.kind==="sol"||a.kind==="spl") setSwapMode("jup");
+          else setSwapMode("jup");
+        }catch(_){}
+      }
+      else if(k==="bridge") openBridgeFlow(a.id);
+      else if(k==="send"){
+        if(a.kind==="howl") showPage("send");
+        else if(a.kind==="sol"||a.kind==="spl") openSendAsset(a.id==="sol"?"sol":(a.id||"sol"));
+        else if(typeof openSendAsset === "function") openSendAsset(a.id);
+        else showPage("send");
+      }
+      else if(k==="recv"){ showPage("recv"); try{ selectAsset(a.id); }catch(_){ } }
+    };
+  });
+  try{ paintIcons(host); }catch(_){}
+}
+
+
 function renderAssetDetail(){
   const a = allAssets().find(x=>x.id===detailAssetId) || PRESET_ASSETS[0];
   if($("assetDetailTitle")) $("assetDetailTitle").textContent = a.symbol || "Asset";
@@ -5131,6 +5282,8 @@ function renderAssetDetail(){
       btn.onclick = ()=> actions[Number(btn.dataset.i)]?.fn();
     });
   }
+  try{ wireAssetQuickActs(a); }catch(_){}
+  try{ loadAssetChart(a); }catch(_){}
   // mini deposit / receive
   const mini = $("assetDepositMini");
   if(mini){
@@ -11498,6 +11651,10 @@ window.toggleSendQrScan = toggleSendQrScan;
 window.pickSendAddress = pickSendAddress;
 window.addAddressBookEntry = addAddressBookEntry;
 window.removeAddressBookEntry = removeAddressBookEntry;
+window.openBuyFlow = openBuyFlow;
+window.openBridgeFlow = openBridgeFlow;
+window.chartIdForAsset = chartIdForAsset;
+window.loadAssetChart = loadAssetChart;
 window.setPlayTab = setPlayTab;
 window.refreshPlayPots = refreshPlayPots;
 window.refreshPlayHowls = refreshPlayHowls;
