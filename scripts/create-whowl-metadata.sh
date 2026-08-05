@@ -6,6 +6,7 @@ KP="${HOWL_WRAP_SOL_KEYPAIR:-/var/lib/howlcoin/bridge-sol-treasury.json}"
 URI="${WHOWL_METADATA_URI:-https://howlscan.org/assets/whowl-token.json}"
 NAME="${WHOWL_NAME:-Wrapped HOWL}"
 SYMBOL="${WHOWL_SYMBOL:-wHOWL}"
+RPC="${SOLANA_RPC:-https://api.mainnet-beta.solana.com}"
 export PATH="${HOME}/.local/share/solana/install/active_release/bin:/usr/local/bin:$PATH"
 
 if [[ ! -f "$KP" ]]; then
@@ -13,54 +14,25 @@ if [[ ! -f "$KP" ]]; then
   exit 1
 fi
 
-# Install metaboss if missing
 if ! command -v metaboss >/dev/null 2>&1; then
-  echo "Installing metaboss…"
-  tmp=$(mktemp -d)
-  # pin a known linux x86_64 release
-  curl -fsSL -o "$tmp/metaboss.tar.gz" \
-    "https://github.com/samuelvanderwaal/metaboss/releases/download/v0.43.1/metaboss-ubuntu-latest.tar.gz" \
-    || curl -fsSL -o "$tmp/metaboss" \
-    "https://github.com/samuelvanderwaal/metaboss/releases/download/v0.43.1/metaboss-ubuntu-latest"
-  if [[ -f "$tmp/metaboss.tar.gz" ]]; then
-    tar -xzf "$tmp/metaboss.tar.gz" -C "$tmp"
-    install -m 755 "$tmp"/metaboss* /usr/local/bin/metaboss 2>/dev/null \
-      || install -m 755 "$(find "$tmp" -type f -name 'metaboss' | head -1)" /usr/local/bin/metaboss
-  else
-    install -m 755 "$tmp/metaboss" /usr/local/bin/metaboss
-  fi
+  echo "Installing metaboss 0.49…"
+  curl -fsSL -o /usr/local/bin/metaboss \
+    "https://github.com/samuelvanderwaal/metaboss/releases/download/v0.49.0/metaboss-ubuntu-latest"
+  chmod +x /usr/local/bin/metaboss
 fi
+
+tmp=$(mktemp)
+cat > "$tmp" <<JSON
+{
+  "name": "$NAME",
+  "symbol": "$SYMBOL",
+  "uri": "$URI",
+  "seller_fee_basis_points": 0,
+  "creators": null
+}
+JSON
 
 echo "Creating metadata for $MINT"
-echo "  name=$NAME symbol=$SYMBOL uri=$URI"
-
-# metaboss create-metadata (v0.4x)
-set +e
-metaboss create-metadata \
-  -k "$KP" \
-  -a "$MINT" \
-  -n "$NAME" \
-  -s "$SYMBOL" \
-  -u "$URI" \
-  --sfbp \
-  --rpc "https://api.mainnet-beta.solana.com" 2>&1
-rc=$?
-if [[ $rc -ne 0 ]]; then
-  # alternate subcommand names across versions
-  metaboss create metadata \
-    --keypair "$KP" \
-    --mint "$MINT" \
-    --name "$NAME" \
-    --symbol "$SYMBOL" \
-    --uri "$URI" \
-    --seller-fee-basis-points 0 \
-    --rpc "https://api.mainnet-beta.solana.com" 2>&1
-  rc=$?
-fi
-set -e
-if [[ $rc -ne 0 ]]; then
-  echo "metaboss failed — try manually: https://solscan.io/token/$MINT" >&2
-  exit $rc
-fi
-echo "OK · Solscan may take a few minutes to refresh metadata"
-echo "https://solscan.io/token/$MINT"
+metaboss create metadata -k "$KP" -a "$MINT" -m "$tmp" -r "$RPC" -P medium
+rm -f "$tmp"
+echo "OK · Solscan may take a few minutes: https://solscan.io/token/$MINT"
