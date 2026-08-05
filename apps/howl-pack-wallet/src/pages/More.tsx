@@ -128,7 +128,7 @@ export function More() {
         <p className="muted m-0 mt-1 text-xs">Non-custodial · Base-first · BIP44 m/44&apos;/60&apos;/0&apos;/0/i (same as classic /app ETH)</p>
         <div className="mt-3 flex flex-col gap-2 text-sm">
           <a href="/whitepaper">White paper</a>
-          <a href="/app">Classic multi-chain wallet</a>
+          <a href="/classic">Classic multi-chain wallet</a>
           <a href="https://howlscan.org">Howlscan</a>
           <Link to="/">Home</Link>
         </div>

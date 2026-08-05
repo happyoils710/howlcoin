@@ -57,7 +57,7 @@ export function Onboarding() {
         <div className="flex flex-col gap-3">
           <Button onClick={() => setMode('create')}>Create new wallet</Button>
           <Button variant="secondary" onClick={() => setMode('import')}>Import recovery phrase</Button>
-          <a href="/app" className="muted mt-2 text-center text-sm no-underline hover:text-[var(--mint)]">Classic Howl L1 wallet →</a>
+          <a href="/classic" className="muted mt-2 text-center text-sm no-underline hover:text-[var(--mint)]">Classic Howl L1 wallet →</a>
         </div>
       </div>
     )

@@ -107,7 +107,7 @@ export function Home() {
           <span className="font-bold text-[var(--mint)]">Howl L1</span>
           <span className="muted"> — City, Play, and Scrypt HOWL live in the classic app.</span>
         </p>
-        <a href="/app" className="mt-2 inline-block text-sm font-bold text-[var(--mint)] no-underline">Open classic wallet →</a>
+        <a href="/classic" className="mt-2 inline-block text-sm font-bold text-[var(--mint)] no-underline">Open classic wallet →</a>
       </Card>
     </div>
   )

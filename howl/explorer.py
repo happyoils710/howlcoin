@@ -2696,7 +2696,7 @@ input.field,textarea.field{border-radius:10px}
     <button class="chipbtn" type="button" onclick="location.hash='#/city'">City</button>
     <button class="chipbtn" type="button" onclick="location.hash='#/play'">Play</button>
     <button class="chipbtn" type="button" onclick="location.hash='#/charts'">Charts</button>
-    <a class="chipbtn" href="/app" style="text-decoration:none;color:var(--green)">Wallet</a>
+    <a class="chipbtn" href="/app/" style="text-decoration:none;color:var(--green)">Wallet</a>
   </div>
   <div class="grow"></div>
   <div class="top-actions desktop-nav" id="authTopActions">
@@ -2730,8 +2730,8 @@ input.field,textarea.field{border-radius:10px}
   <button class="ditem" type="button" onclick="navTo('#/'+net+'/mempool')">Mempool</button>
   <h4 style="margin-top:16px">Get started</h4>
   <button class="ditem primary" type="button" onclick="navTo('#/run')">Run a node</button>
-  <a class="ditem" href="/pack/">Pack Wallet</a>
-  <a class="ditem" href="/app">Classic wallet</a>
+  <a class="ditem primary" href="/app/">Wallet</a>
+  <a class="ditem" href="/classic">Classic HOWL / SOL</a>
   <a class="ditem" href="/whitepaper">White paper</a>
   <a class="ditem" href="https://github.com/happyoils710/howlcoin" target="_blank" rel="noopener">GitHub</a>
   <h4 style="margin-top:16px">Appearance</h4>
@@ -2769,10 +2769,10 @@ input.field,textarea.field{border-radius:10px}
     <a href="#/culture">Culture</a> ·
     <a href="#/charts">Charts</a> ·
     <a href="#/health">Network</a> ·
-    <a href="/app">Wallet</a> ·
+    <a href="/app/">Wallet</a> ·
     <a href="#/run">Mine</a> ·
     <a href="#/api">API</a> ·
-    <a href="/pack/">Pack Wallet</a> ·
+    <a href="/classic">Classic wallet</a> ·
     <a href="/whitepaper">White paper</a>
   </div>
   <div>seed <span class="mono">147.182.223.204:42069</span> ·
@@ -2896,7 +2896,7 @@ function authFormCard(title, bodyHtml){
     ${crumbs([{label:'Home',href:'#/'+net},{label:title}])}
     <div class="card detail" style="padding:20px">
       <h2 style="margin:0 0 6px;font-size:1.25rem">${esc(title)}</h2>
-      <p class="muted" style="margin:0 0 16px;font-size:.88rem">Howlscan account only — usernames are free. <b>This does not hold HOWL</b>; use the <a href="/app">wallet</a> for funds.</p>
+      <p class="muted" style="margin:0 0 16px;font-size:.88rem">Howlscan account only — usernames are free. <b>This does not hold HOWL</b>; use the <a href="/app/">wallet</a> for funds.</p>
       ${bodyHtml}
     </div>
   </div>`;
@@ -2968,7 +2968,7 @@ async function showAccount(){
     <div class="card detail">
       <div class="badge ok">@${esc(u.username)}</div>
       <h2 style="margin:8px 0 4px">${esc(u.display_name||u.username)}</h2>
-      <p class="muted" style="margin:0 0 12px;font-size:.88rem">Site profile only — funds stay in your <a href="/app">wallet</a>.</p>
+      <p class="muted" style="margin:0 0 12px;font-size:.88rem">Site profile only — funds stay in your <a href="/app/">wallet</a>.</p>
       <div class="kv">
         <div class="k">Username</div><div>@${esc(u.username)}</div>
         <div class="k">HOWL address</div><div class="mono">${u.howl_address?esc(u.howl_address):'<span class="muted">Not linked</span>'}${u.howl_address?copyBtn(u.howl_address):''}</div>
@@ -2984,7 +2984,7 @@ async function showAccount(){
       <div class="quick-row" style="display:flex!important">
         <button type="button" class="chipbtn" style="border-color:var(--primary-border);color:var(--green)" onclick="saveAccount()">Save profile</button>
         <button type="button" class="chipbtn" onclick="authLogout()">Log out</button>
-        <a class="chipbtn" href="/app" style="text-decoration:none">Open wallet</a>
+        <a class="chipbtn" href="/app/" style="text-decoration:none">Open wallet</a>
       </div>
     </div>
   </div>`;
@@ -3027,7 +3027,7 @@ async function showUserProfile(username){
         ${u.onchain_name?`<div class="k">On-chain name</div><div>${linkName(u.onchain_name)}</div>`:''}
       </div>
       <div class="quick-row" style="display:flex!important;margin-top:12px">
-        ${u.howl_address?`<a class="chipbtn" href="/app?to=${encodeURIComponent(u.howl_address)}" style="text-decoration:none;color:var(--green)">Send HOWL</a>`:''}
+        ${u.howl_address?`<a class="chipbtn" href="/app/?to=${encodeURIComponent(u.howl_address)}" style="text-decoration:none;color:var(--green)">Send HOWL</a>`:''}
         <button class="chipbtn" onclick="location.hash='#/city'">City</button>
       </div>
     </div>
@@ -3388,7 +3388,7 @@ async function loadHome(){
         <a class="rail-link" href="#/culture">🖼 Culture</a>
         <a class="rail-link" href="#/charts">📈 Charts</a>
         <a class="rail-link" href="#/health">💓 Network</a>
-        <a class="rail-link" href="/app">💎 Wallet</a>
+        <a class="rail-link" href="/app/">💎 Wallet</a>
         <a class="rail-link" href="#/run">⛏ Mine</a>
         <a class="rail-link" href="/whitepaper">📄 White paper</a>
       </div>
@@ -3442,7 +3442,7 @@ async function loadHome(){
         <button class="chipbtn" onclick="location.hash='#/play'">Play</button>
         <button class="chipbtn" onclick="location.hash='#/culture'">Culture</button>
         <button class="chipbtn" onclick="location.hash='#/charts'">Charts</button>
-        <a class="chipbtn" href="/app" style="text-decoration:none;color:var(--green)">Wallet</a>
+        <a class="chipbtn" href="/app/" style="text-decoration:none;color:var(--green)">Wallet</a>
         <button class="chipbtn" onclick="location.hash='#/run'">Mine</button>
       </div>
 
@@ -3542,7 +3542,7 @@ async function fillHomeCityList(){
     const j = await api(`/api/${net}/city?limit=8`);
     const events = j.events || [];
     if(!events.length){
-      el.innerHTML = `<article class="post"><div class="post-body"><p class="muted">Quiet city — <a href="#/city">open live feed</a> or howl from the <a href="/app">wallet</a>.</p></div></article>`;
+      el.innerHTML = `<article class="post"><div class="post-body"><p class="muted">Quiet city — <a href="#/city">open live feed</a> or howl from the <a href="/app/">wallet</a>.</p></div></article>`;
       return;
     }
     el.innerHTML = events.map(cityEventRow).join('');
@@ -4296,7 +4296,7 @@ async function showHowlCity(filterKind){
     <div class="page-actions">
       <button class="back" onclick="location.hash='#/${net}'">← Home</button>
       <button class="chipbtn" onclick="location.hash='#/play'">Play</button>
-      <a class="chipbtn" href="/app" style="text-decoration:none;color:var(--green)">Wallet</a>
+      <a class="chipbtn" href="/app/" style="text-decoration:none;color:var(--green)">Wallet</a>
       <button class="chipbtn" onclick="showHowlCity(${JSON.stringify(fk)})">↻</button>
     </div>
     <article class="post">
@@ -4315,7 +4315,7 @@ async function showHowlCity(filterKind){
       </div>
     </article>
     <div id="cityFeed">
-      ${events.length?events.map(cityEventRow).join(''):`<article class="post"><div class="post-body"><p class="muted">Quiet city — mine, howl, or open a pot in the <a href="/app">wallet</a>.</p></div></article>`}
+      ${events.length?events.map(cityEventRow).join(''):`<article class="post"><div class="post-body"><p class="muted">Quiet city — mine, howl, or open a pot in the <a href="/app/">wallet</a>.</p></div></article>`}
     </div>
   </div>`;
 }
@@ -4347,16 +4347,16 @@ async function showPlayBoard(){
     <div class="page-actions">
       <button class="back" onclick="location.hash='#/${net}'">← Home</button>
       <button class="chipbtn" onclick="location.hash='#/city'">City feed</button>
-      <a class="chipbtn" href="/app" style="text-decoration:none;color:var(--green)">Act in wallet</a>
+      <a class="chipbtn" href="/app/" style="text-decoration:none;color:var(--green)">Act in wallet</a>
       <button class="chipbtn" onclick="showPlayBoard()">↻</button>
     </div>
     <div class="card detail" style="padding:12px 14px">
       <h2 style="margin:0 0 6px;font-size:1.15rem">Play</h2>
-      <p class="muted" style="margin:0;font-size:.88rem">${cul.packpots_open??openPots.length} open pots · ${cul.howls??howls.length} howls · ${cul.names??names.length} names · ${cul.tipjars??tips.length} tip jars · join in the <a href="/app">wallet</a></p>
+      <p class="muted" style="margin:0;font-size:.88rem">${cul.packpots_open??openPots.length} open pots · ${cul.howls??howls.length} howls · ${cul.names??names.length} names · ${cul.tipjars??tips.length} tip jars · join in the <a href="/app/">wallet</a></p>
     </div>
     <div class="main cols" style="padding:12px 0 0;margin:0">
       <div class="card">
-        <h3>Pack pots <a class="more" href="/app#play">act in wallet →</a></h3>
+        <h3>Pack pots <a class="more" href="/app/#play">act in wallet →</a></h3>
         <div class="mlist">
           ${openPots.length?openPots.map(c=>{
             const uh = Number(c.unlock_height||0);
@@ -4448,7 +4448,7 @@ async function showCultureGallery(){
       <div class="badge blue">CULTURE</div>
       <span class="badge ok" style="margin-left:6px">● live</span>
       <h2 style="margin:8px 0 6px">Howlcoin NFT gallery</h2>
-      <p class="muted" style="margin:0 0 10px">${cul.nfts??nfts.length} NFTs on-chain · including mint-from-howl collectibles. Mint in the <a href="/app">wallet</a>.</p>
+      <p class="muted" style="margin:0 0 10px">${cul.nfts??nfts.length} NFTs on-chain · including mint-from-howl collectibles. Mint in the <a href="/app/">wallet</a>.</p>
     </div>
     <div class="main" style="padding:12px 0 0;margin:0">
       <div class="card">
@@ -4530,8 +4530,8 @@ async function showNameProfile(slug){
       <button class="back" onclick="location.hash='#/city'">← City</button>
       <button class="chipbtn" onclick="copyText(${JSON.stringify(shareUrl)}, this)">Share @${esc(s)}</button>
       <button class="chipbtn" onclick="copyText(${JSON.stringify(addr)}, this)">Copy address</button>
-      <a class="chipbtn" href="/app?to=${encodeURIComponent('@'+s)}" style="text-decoration:none;color:var(--green)">Send HOWL</a>
-      <a class="chipbtn" href="/app?howl=1" style="text-decoration:none;color:var(--cyan)">Howl</a>
+      <a class="chipbtn" href="/app/?to=${encodeURIComponent('@'+s)}" style="text-decoration:none;color:var(--green)">Send HOWL</a>
+      <a class="chipbtn" href="/app/?howl=1" style="text-decoration:none;color:var(--cyan)">Howl</a>
     </div>
     <div class="card detail">
       <div class="badge ok">@${esc(s)}</div>
@@ -4603,7 +4603,7 @@ async function showChartsBoard(){
     <div class="page-actions">
       <button class="back" onclick="location.hash='#/${net}'">← Home</button>
       <button class="chipbtn" onclick="location.hash='#/health'">Network</button>
-      <a class="chipbtn" href="/app" style="text-decoration:none">Wallet charts</a>
+      <a class="chipbtn" href="/app/" style="text-decoration:none">Wallet charts</a>
       <button class="chipbtn" onclick="showChartsBoard()">↻ Refresh</button>
       <span class="muted" style="font-size:.72rem;align-self:center">● Live · lifetime</span>
     </div>
@@ -4761,7 +4761,7 @@ async function showContractsBrowser(kindFilter){
     <div class="page-actions">
       <button class="back" onclick="location.hash='#/${net}'">← Home</button>
       <button class="chipbtn" onclick="location.hash='#/play'">Play</button>
-      <a class="chipbtn" href="/app" style="text-decoration:none;color:var(--green)">Act in wallet</a>
+      <a class="chipbtn" href="/app/" style="text-decoration:none;color:var(--green)">Act in wallet</a>
     </div>
     <div class="card detail">
       <div class="badge blue">CONTRACTS</div>
@@ -4820,7 +4820,7 @@ async function showContractDetail(cid){
     <div class="page-actions">
       <button class="back" onclick="location.hash='#/contracts'">← Contracts</button>
       <button class="chipbtn" onclick="copyText(${JSON.stringify(String(c.contract_id||''))}, this)">Copy id</button>
-      <a class="chipbtn" href="/app" style="text-decoration:none;color:var(--green)">Join / act in wallet</a>
+      <a class="chipbtn" href="/app/" style="text-decoration:none;color:var(--green)">Join / act in wallet</a>
     </div>
     <div class="card detail">
       <span class="badge blue">${esc(c.kind||'contract')}</span>
@@ -5289,11 +5289,11 @@ class ExplorerServer:
                     return self._bytes(200, wh.read_bytes(), "text/html; charset=utf-8")
 
                 # Public non-custodial wallet (syncs to public chain via API)
-                if path in ("/app", "/app/", "/wallet/app", "/wallet/app/"):
+                # Classic multi-chain HOWL/SOL wallet (legacy)
+                if path in ("/classic", "/classic/", "/wallet/classic", "/app/classic"):
                     app = ASSETS_DIR / "public-wallet.html"
                     if not app.is_file():
-                        return self._json(404, {"error": "public wallet not found"})
-                    # no-cache so SOL balance / wallet UI fixes land immediately
+                        return self._json(404, {"error": "classic wallet not found"})
                     self.send_response(200)
                     self.send_header("Content-Type", "text/html; charset=utf-8")
                     self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
@@ -5305,21 +5305,40 @@ class ExplorerServer:
                     self.wfile.write(data)
                     return
 
-                # Howl Pack Wallet (Base-first React SPA)
-                if path in ("/pack", "/pack/") or path.startswith("/pack/"):
+                # Howl Pack Wallet is the primary wallet (Base-first React SPA)
+                # /app is canonical; /pack redirects for old bookmarks
+                if path in ("/pack", "/pack/"):
+                    self.send_response(302)
+                    self.send_header("Location", "/app/")
+                    self.end_headers()
+                    return
+                if path.startswith("/pack/"):
+                    # map /pack/assets/* → pack-wallet for one release, else redirect app
+                    self.send_response(302)
+                    self.send_header("Location", "/app/" + path[len("/pack/"):])
+                    self.end_headers()
+                    return
+
+                if path in ("/app", "/app/", "/wallet/app", "/wallet/app/") or path.startswith("/app/"):
                     pack_root = ASSETS_DIR / "pack-wallet"
-                    rel = path[len("/pack"):].lstrip("/") or "index.html"
-                    # SPA fallback: unknown routes serve index.html
+                    # strip /app or /wallet/app prefix
+                    if path.startswith("/wallet/app"):
+                        rel = path[len("/wallet/app"):].lstrip("/") or "index.html"
+                    else:
+                        rel = path[len("/app"):].lstrip("/") or "index.html"
+                    # never treat classic under /app anymore
                     candidate = pack_root / rel
-                    if not candidate.is_file() or rel.endswith("/"):
+                    if (not candidate.is_file()) or rel.endswith("/"):
                         candidate = pack_root / "index.html"
-                    # prevent path escape
                     try:
                         candidate.resolve().relative_to(pack_root.resolve())
                     except Exception:
                         return self._json(400, {"error": "bad path"})
                     if not candidate.is_file():
-                        return self._json(404, {"error": "pack wallet not built — run apps/howl-pack-wallet npm run build"})
+                        return self._json(
+                            404,
+                            {"error": "wallet not built — run apps/howl-pack-wallet npm run build"},
+                        )
                     data = candidate.read_bytes()
                     ctype = "text/html; charset=utf-8"
                     if candidate.suffix == ".js":
@@ -5334,7 +5353,10 @@ class ExplorerServer:
                         ctype = f"image/{candidate.suffix.lstrip('.')}"
                     self.send_response(200)
                     self.send_header("Content-Type", ctype)
-                    self.send_header("Cache-Control", "no-cache" if candidate.name == "index.html" else "public, max-age=3600")
+                    self.send_header(
+                        "Cache-Control",
+                        "no-cache" if candidate.name == "index.html" else "public, max-age=3600",
+                    )
                     self.send_header("Access-Control-Allow-Origin", "*")
                     self.send_header("Content-Length", str(len(data)))
                     self.end_headers()

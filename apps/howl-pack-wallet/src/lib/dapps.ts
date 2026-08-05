@@ -20,7 +20,7 @@ export const DAPPS: DappEntry[] = [
   { id: 'mint-fun', name: 'mint.fun', description: 'Discover NFT mints', url: 'https://mint.fun/', category: 'nft', chains: ['base'] },
   { id: 'lifi', name: 'LI.FI', description: 'Bridge & swap across chains', url: 'https://jumper.exchange/', category: 'defi', chains: ['base', 'ethereum'] },
   { id: 'howlscan', name: 'Howlscan', description: 'Howlcoin explorer · City · Charts', url: 'https://howlscan.org/', category: 'tools', chains: ['howl'] },
-  { id: 'howl-app', name: 'Howl L1 Wallet', description: 'Classic multi-chain app · HOWL · SOL', url: 'https://howlscan.org/app', category: 'tools', chains: ['howl'] },
+  { id: 'howl-app', name: 'Howl L1 Wallet', description: 'Classic multi-chain app · HOWL · SOL', url: 'https://howlscan.org/classic', category: 'tools', chains: ['howl'] },
 ]
 
 export const CATEGORY_LABELS: Record<DappCategory, string> = {

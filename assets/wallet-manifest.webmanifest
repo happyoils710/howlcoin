@@ -1,8 +1,8 @@
 {
   "name": "Howlcoin Wallet",
   "short_name": "Howlcoin",
-  "description": "Public Howlcoin wallet — send and receive HOWL on the live chain",
-  "start_url": "/app",
+  "description": "Howl Pack Wallet — Base-first self-custody for Howlcoin",
+  "start_url": "/app/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",

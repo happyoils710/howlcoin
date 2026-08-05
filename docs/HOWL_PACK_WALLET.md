@@ -4,14 +4,14 @@ Base-first non-custodial EVM wallet for Howlcoin (React + TypeScript + viem).
 
 ## URL
 
-- Production: https://howlscan.org/pack/
-- Local: `cd apps/howl-pack-wallet && npm install && npm run dev` → http://localhost:5174/pack/
+- Production: https://howlscan.org/app/
+- Local: `cd apps/howl-pack-wallet && npm install && npm run dev` → http://localhost:5174/app/
 
 ## Source
 
 - Preferred workspace if Desktop iCloud is flaky: `~/src/howl-pack-wallet`
 - Monorepo: `apps/howl-pack-wallet`
-- Built static assets: `assets/pack-wallet/` (served by explorer at `/pack`)
+- Built static assets: `assets/pack-wallet/` (served by explorer at `/app`)
 
 ## Build & ship
 
