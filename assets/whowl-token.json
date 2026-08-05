@@ -1,0 +1,12 @@
+{
+  "name": "Wrapped HOWL",
+  "symbol": "wHOWL",
+  "description": "Wrapped HOWL (wHOWL) is the Solana SPL representation of native Howlcoin (HOWL) on Howl L1. 1 HOWL ≈ 1 wHOWL via Howl Wrap (semi-custodial). https://howlscan.org",
+  "image": "https://howlscan.org/assets/howlcoin-logo-meme-pup-coin.jpg",
+  "external_url": "https://howlscan.org",
+  "extensions": {
+    "website": "https://howlscan.org",
+    "twitter": "https://x.com"
+  },
+  "tags": ["howl", "wrapped", "utility"]
+}

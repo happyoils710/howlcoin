@@ -1448,6 +1448,11 @@ html.embed .gate{min-height:100dvh}
       <div class="card" id="wrapPanel">
         <h2>wHOWL · Solana SPL</h2>
         <p class="hint">Wrap native <b>HOWL</b> into <b>wHOWL</b> (SPL) for Solana DEXs, or unwrap back. Semi-custodial 1:1 (minus fee).</p>
+        <div class="warnbox" style="margin:8px 0 12px">
+          <b>Do not send HOWL to the deposit address without an open order.</b>
+          Flow: enter amount + your Solana address → <b>Open wrap order</b> → send exact amount → paste txid → relayer mints wHOWL.
+          Bare deposits sit locked until fulfilled with your Sol address.
+        </div>
         <div id="wrapStatus" class="hint">Loading wrap config…</div>
         <div class="seg" style="margin:10px 0">
           <button type="button" class="on" id="wrapDirWrap" onclick="setWrapDir('wrap')">Wrap → Solana</button>
@@ -11059,7 +11064,7 @@ function renderCustomTokenForms(opts){
           ? ("Paste the " + (TOKEN_SYSTEMS[selectedChain]?.standard || "token") + " address for " +
              (ASSET_CHAINS.find(c=>c.id===selectedChain)?.label || selectedChain) +
              ". You can switch chain in the form.")
-          : "Pick Solana (SPL) for wHOWL, paste the mint, symbol wHOWL, decimals 9 (or mint default).";
+          : "Pick Solana (SPL) for wHOWL, paste the mint, symbol wHOWL, decimals 8. Note: adding a custom token only shows it in this wallet — it does not wrap HOWL. Use Swap → Wrap for minting.";
       }
       // Soft update: do not rebuild form on balance/list refresh (kills mobile keyboard)
       const softChain = formChain || ($("atChain")?.value) || "solana";
@@ -11111,7 +11116,9 @@ function addCustomTokenFromForm(scope){
     let sym = symbol;
     if(mint === "HYRKhV2Y9HEtKCCHSgH18Zfo4U9Ln9vAg2dCmBJSLWaG"){
       if(!sym || sym === "TOKEN") sym = "wHOWL";
-      if(!Number.isFinite(parseInt(String(($("atDecimals")||$("rtDecimals"))?.value||""),10))) dec = 9;
+      // on-chain mint decimals = 8
+      const typed = parseInt(String(($("atDecimals")||$("rtDecimals"))?.value||"").trim(), 10);
+      if(!Number.isFinite(typed)) dec = 8;
     }
     rec = { chain: "solana", kind: "spl", mint, symbol: sym, decimals: dec };
   } else if(ts.kind === "trc20"){
@@ -12291,12 +12298,12 @@ async function initWrapUI(){
     if(m) m.textContent = wrapCfg.mint || "not deployed";
     const a = document.getElementById("wrapMintLink");
     if(a && wrapCfg.mint_explorer){ a.href = wrapCfg.mint_explorer; a.textContent = "Solscan"; }
-    if($("wrapSol") && typeof solAddress !== "undefined" && solAddress) $("wrapSol").value = solAddress;
-    else if($("wrapSol") && typeof keypair !== "undefined"){
-      try{
-        const { solAddressFromMnemonic } = await import("/assets/howl-crypto.mjs");
-        /* sol filled if available from wallet state */
-      }catch(_){}
+    if($("wrapSol")){
+      const existing = ($("wrapSol").value || "").trim();
+      if(!existing){
+        if(typeof solInfo !== "undefined" && solInfo && solInfo.address) $("wrapSol").value = solInfo.address;
+        else if(typeof solAddress !== "undefined" && solAddress) $("wrapSol").value = solAddress;
+      }
     }
   }catch(e){
     const st = document.getElementById("wrapStatus");

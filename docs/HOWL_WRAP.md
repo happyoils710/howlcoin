@@ -79,3 +79,29 @@ HOWL_BRIDGE_HOT_WALLET=/var/lib/howlcoin/bridge-hot-wallet.json
 - HOWL remains a **native Scrypt L1** coin. wHOWL is an optional wrapped representation.  
 - Mint authority is the Solana treasury key — keep that key offline-backed and secure.  
 - Token metadata (name/symbol on Solscan) can be added later with Metaplex/metaboss.  
+
+
+## Solscan name / symbol
+
+The mint alone shows as generic "Token" until Metaplex metadata exists:
+
+```bash
+# after assets/whowl-token.json is live on howlscan.org
+bash /opt/howlcoin/scripts/create-whowl-metadata.sh
+```
+
+## Recover a bare HOWL deposit (no order)
+
+If someone sent HOWL to the deposit address without opening a wrap order:
+
+```bash
+# list stranded deposits
+cd /opt/howlcoin
+set -a; source /var/lib/howlcoin/bridge.env; set +a
+/opt/howlcoin-venv/bin/python3 scripts/howl-wrap-relayer.py --list-orphans
+
+# mint wHOWL to their Solana wallet (takes 0.5% fee from amount)
+/opt/howlcoin-venv/bin/python3 scripts/howl-wrap-relayer.py \
+  --fulfill-txid <HOWL_TXID> \
+  --sol <USER_SOLANA_ADDRESS>
+```

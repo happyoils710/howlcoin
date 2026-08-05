@@ -135,6 +135,33 @@ def mint_whowl(to_sol: str, amount: float, mint: str) -> str:
     return out.strip()[:120] or "minted"
 
 
+def _chain_height(chain) -> int:
+    h = getattr(chain, "height", 0)
+    try:
+        return int(h() if callable(h) else h or 0)
+    except Exception:
+        return 0
+
+
+def _block_ts(block) -> int:
+    if block is None:
+        return 0
+    if isinstance(block, dict):
+        if block.get("timestamp") is not None:
+            try:
+                return int(block["timestamp"])
+            except Exception:
+                pass
+        hdr = block.get("header") or {}
+        if isinstance(hdr, dict) and hdr.get("timestamp") is not None:
+            try:
+                return int(hdr["timestamp"])
+            except Exception:
+                pass
+        return 0
+    return int(getattr(block, "timestamp", 0) or 0)
+
+
 def find_howl_deposit(deposit_addr: str, amount_howlies: int, since_ts: float, memo: str = "") -> str:
     """Scan L1 chain for inbound HOWL matching amount to deposit address."""
     from howl.blockchain import Blockchain
@@ -144,19 +171,21 @@ def find_howl_deposit(deposit_addr: str, amount_howlies: int, since_ts: float, m
     ).expanduser()
     chain = Blockchain(data_dir)
     tol = max(COIN // 100, amount_howlies // 1000)
-    # Walk recent blocks for transfers to deposit_addr
-    tip = int(getattr(chain, "height", 0) or 0)
-    start = max(0, tip - 400)
+    tip = _chain_height(chain)
+    start = max(0, tip - 800)
     for h in range(tip, start - 1, -1):
         try:
-            block = chain.get_block(str(h))
+            block = chain.get_block(h)
+            if block is None:
+                block = chain.get_block(str(h))
         except Exception:
             continue
         if not block:
             continue
-        ts = int(getattr(block, "timestamp", 0) or (block.get("timestamp") if isinstance(block, dict) else 0) or 0)
-        if ts and ts < since_ts - 600:
-            break
+        ts = _block_ts(block)
+        if ts and since_ts and ts < since_ts - 7200:
+            # keep scanning a bit — timestamps on Howl can lag wall clock
+            pass
         txs = getattr(block, "transactions", None) or (block.get("transactions") if isinstance(block, dict) else []) or []
         for tx in txs:
             if isinstance(tx, dict):
@@ -173,11 +202,55 @@ def find_howl_deposit(deposit_addr: str, amount_howlies: int, since_ts: float, m
                 continue
             if abs(amt - amount_howlies) > tol:
                 continue
-            if memo and memo not in m and memo not in txid:
-                pass
+            # Prefer memo match when provided, but accept blank-memo deposits of exact amount
+            if memo and m and (memo not in m) and (memo[:12] not in m):
+                continue
             if txid:
                 return txid
     return ""
+
+
+def list_orphan_howl_deposits(deposit_addr: str, lookback: int = 500) -> list:
+    """Inbound HOWL to wrap deposit not already claimed by a wrap order."""
+    from howl.blockchain import Blockchain
+
+    data_dir = Path(
+        env("HOWL_PUBLIC_DATA") or env("HOWL_WRAP_DATA") or env("HOWL_BRIDGE_DATA") or "/var/lib/howlcoin"
+    ).expanduser()
+    chain = Blockchain(data_dir)
+    claimed = set()
+    for o in list_orders(limit=500):
+        if o.get("direction") == "wrap" and o.get("deposit_txid"):
+            claimed.add(o["deposit_txid"])
+    tip = _chain_height(chain)
+    start = max(0, tip - lookback)
+    found = []
+    for h in range(start, tip + 1):
+        try:
+            block = chain.get_block(h) or chain.get_block(str(h))
+        except Exception:
+            continue
+        if not block:
+            continue
+        txs = (block.get("transactions") if isinstance(block, dict) else getattr(block, "transactions", None)) or []
+        for tx in txs:
+            if not isinstance(tx, dict):
+                continue
+            if (tx.get("to") or "") != deposit_addr:
+                continue
+            txid = tx.get("txid") or ""
+            if not txid or txid in claimed:
+                continue
+            amt = int(tx.get("amount") or 0)
+            found.append({
+                "height": h if isinstance(block, dict) else getattr(block, "height", h),
+                "txid": txid,
+                "from": tx.get("from") or "",
+                "amount_howl": amt / COIN,
+                "amount_howlies": amt,
+                "memo": tx.get("memo") or "",
+            })
+    return found
 
 
 def find_spl_deposit(treasury: str, mint: str, amount_raw: int, since_ts: float) -> str:
@@ -346,18 +419,106 @@ def tick() -> None:
             print(f"  order {o.get('id')} error: {e}")
 
 
+def fulfill_wrap_deposit(txid: str, sol_address: str, amount_howl: float | None = None) -> None:
+    """
+    Manual recovery: mint wHOWL for an existing HOWL deposit that had no wrap order.
+    Usage:
+      HOWL_BRIDGE_HOT_WALLET=... python3 scripts/howl-wrap-relayer.py \
+        --fulfill-txid <howl_txid> --sol <user_sol_address> [--amount 10]
+    """
+    from howl.blockchain import Blockchain
+    from howl.wrap import create_order, quote_wrap
+
+    data_dir = Path(
+        env("HOWL_PUBLIC_DATA") or env("HOWL_WRAP_DATA") or env("HOWL_BRIDGE_DATA") or "/var/lib/howlcoin"
+    ).expanduser()
+    chain = Blockchain(data_dir)
+    cfg = wrap_config()
+    deposit = cfg.get("howl_deposit_address") or ""
+    tip = _chain_height(chain)
+    found = None
+    for h in range(max(0, tip - 2000), tip + 1):
+        try:
+            block = chain.get_block(h) or chain.get_block(str(h))
+        except Exception:
+            continue
+        if not block:
+            continue
+        for tx in (block.get("transactions") if isinstance(block, dict) else []) or []:
+            if isinstance(tx, dict) and (tx.get("txid") or "") == txid:
+                found = tx
+                break
+        if found:
+            break
+    if not found:
+        raise SystemExit(f"txid not found on chain: {txid}")
+    if (found.get("to") or "") != deposit:
+        raise SystemExit(f"txid to={found.get('to')} is not wrap deposit {deposit}")
+    amt_howlies = int(found.get("amount") or 0)
+    amt = amount_howl if amount_howl is not None else (amt_howlies / COIN)
+    howl_from = found.get("from") or deposit
+    q = quote_wrap(amt, "wrap")
+    order = create_order(
+        direction="wrap",
+        amount_howl=amt,
+        howl_address=howl_from,
+        sol_address=sol_address,
+    )
+    update_order(
+        order["id"],
+        deposit_txid=txid,
+        status="confirming",
+        amount_in=q["amount_in"],
+        amount_out=q["amount_out"],
+        fee_howl=q["fee_howl"],
+    )
+    order = get_order(order["id"]) or order
+    print(f"created order {order['id']} for {q['amount_out']} wHOWL → {sol_address}")
+    hot = load_hot_wallet()
+    process_wrap(order, hot)
+    print("done · check order status / Solscan mint supply")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Howl Wrap relayer")
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--interval", type=int, default=30)
+    ap.add_argument("--list-orphans", action="store_true", help="List HOWL deposits with no wrap order")
+    ap.add_argument("--fulfill-txid", default="", help="Howl L1 deposit txid to fulfill manually")
+    ap.add_argument("--sol", default="", help="User Solana address to receive wHOWL (with --fulfill-txid)")
+    ap.add_argument("--amount", type=float, default=None, help="Override amount HOWL for fulfill")
     args = ap.parse_args()
     print("Howl Wrap relayer · orders", orders_path())
+    if args.list_orphans:
+        cfg = wrap_config()
+        dep = cfg.get("howl_deposit_address") or ""
+        rows = list_orphan_howl_deposits(dep)
+        print(json.dumps(rows, indent=2))
+        if not rows:
+            print("(no orphan deposits in lookback)")
+        return
+    if args.fulfill_txid:
+        if not args.sol:
+            raise SystemExit("--sol USER_SOLANA_ADDRESS required with --fulfill-txid")
+        fulfill_wrap_deposit(args.fulfill_txid.strip(), args.sol.strip(), args.amount)
+        return
     if args.once:
         tick()
         return
     while True:
         try:
             tick()
+            # surface orphans occasionally
+            try:
+                cfg = wrap_config()
+                dep = cfg.get("howl_deposit_address") or ""
+                orphans = list_orphan_howl_deposits(dep, lookback=200)
+                if orphans:
+                    print(f"  WARN {len(orphans)} orphan HOWL deposit(s) without wrap order — use --list-orphans / --fulfill-txid")
+                    for o in orphans[-3:]:
+                        print(f"    h={o['height']} {o['amount_howl']} HOWL tx={o['txid'][:16]}… from={o['from'][:12]}…")
+            except Exception as e:
+                print("  orphan scan", e)
         except Exception as e:
             print("tick error", e)
         time.sleep(max(10, args.interval))
