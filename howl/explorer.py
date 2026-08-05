@@ -2536,6 +2536,10 @@ input.field,textarea.field{border-radius:10px}
 .mrow .mt{font-weight:700;font-size:.95rem}
 .mrow .ms{color:var(--muted);font-size:.78rem;margin-top:3px}
 .mrow .ma{font-weight:700;color:var(--green);font-size:.92rem}
+/* Compact blocks/txs lists (same on desktop + mobile) */
+.compact-list .mrow{padding:10px 14px;min-height:0}
+.compact-list .mrow .mt{font-size:.9rem}
+.compact-list .mrow .ms{font-size:.75rem;margin-top:2px}
 /* Drawer + bottom nav (mobile) */
 .drawer-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:50}
 .drawer-bg.open{display:block}
@@ -3271,8 +3275,8 @@ async function loadHome(){
     return;
   }
   const [blocks, txs, statusJ]=await Promise.all([
-    api(`/api/${net}/blocks?limit=15`),
-    api(`/api/${net}/txs?limit=15`),
+    api(`/api/${net}/blocks?limit=10`),
+    api(`/api/${net}/txs?limit=10`),
     api(`/api/public/status?window=20`).catch(()=>({})),
   ]);
   const bl = blocks.blocks||[];
@@ -3341,57 +3345,29 @@ async function loadHome(){
   </div>
   <div class="main cols">
     <div class="card">
-      <h3>Blocks <a class="more" href="#/${net}/block/${s.height}">tip →</a></h3>
-      <div class="desktop-only table-wrap">
-      <table>
-        <thead><tr><th>Height</th><th>Hash</th><th>Txs</th><th>Miner</th><th>Reward</th><th>Time</th></tr></thead>
-        <tbody>
-          ${bl.slice(0,12).map(b=>`<tr onclick="location.hash='#/${net}/block/${b.height}'">
-            <td><b>${linkBlock(b.height)}</b></td>
-            <td class="mono">${esc(short(b.hash,12))}</td>
-            <td>${b.tx_count}</td>
-            <td onclick="event.stopPropagation()">${linkAddr(b.miner)}</td>
-            <td class="amount">${fmtAmt(b.reward)}</td>
-            <td class="muted" title="${esc(fmtTime(b.timestamp))}">${ago(b.timestamp)}</td>
-          </tr>`).join('')}
-        </tbody>
-      </table>
-      </div>
-      <div class="mobile-only mlist">
-        ${bl.slice(0,12).map(b=>`<div class="mrow" onclick="location.hash='#/${net}/block/${b.height}'">
+      <h3>Blocks <a class="more" href="#/${net}/block/${s.height}">all →</a></h3>
+      <div class="mlist compact-list">
+        ${bl.slice(0,8).map(b=>`<div class="mrow" onclick="location.hash='#/${net}/block/${b.height}'">
           <div class="ml">
-            <div class="mt">Block #${b.height}</div>
-            <div class="ms mono">${esc(short(b.hash,10))} · ${b.tx_count} tx · ${ago(b.timestamp)}</div>
+            <div class="mt">#${b.height} <span class="muted" style="font-weight:500;font-size:.8rem">· ${b.tx_count||0} tx · ${ago(b.timestamp)}</span></div>
+            <div class="ms mono">${esc(short(b.hash,14))}${b.miner?' · '+short(b.miner,10):''}</div>
           </div>
-          <div class="mr"><div class="ma">${fmtAmt(b.reward)}</div></div>
+          <div class="mr"><div class="ma" style="font-size:.85rem">${fmtAmt(b.reward)}</div></div>
         </div>`).join('')||'<div class="mrow"><div class="muted">No blocks</div></div>'}
       </div>
     </div>
     <div class="card">
       <h3>Transactions <a class="more" href="#/${net}/mempool">mempool →</a></h3>
-      <div class="desktop-only table-wrap">
-      <table>
-        <thead><tr><th>Txid</th><th>Type</th><th>Flow</th><th>Amount</th><th>Status</th></tr></thead>
-        <tbody>
-          ${tl.slice(0,12).map(t=>`<tr onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
-            <td onclick="event.stopPropagation()">${linkTx(t.txid)}</td>
-            <td>${txTypeBadge(t)}</td>
-            <td class="mono" onclick="event.stopPropagation()">${txFlowHtml(t)}</td>
-            <td class="amount">${fmtAmt(t.amount)}</td>
-            <td>${t.confirmed?`<span class="badge ok" onclick="event.stopPropagation();location.hash='#/${net}/block/${t.block_height}'">#${t.block_height}</span>`:`<span class="badge warn">pending</span>`}</td>
-          </tr>`).join('') || '<tr><td colspan="5" class="muted" style="padding:16px">No transactions yet</td></tr>'}
-        </tbody>
-      </table>
-      </div>
-      <div class="mobile-only mlist">
-        ${tl.slice(0,12).map(t=>{
+      <div class="mlist compact-list">
+        ${tl.slice(0,8).map(t=>{
           const m = txTypeMeta(t);
+          const st = t.confirmed ? ('#'+t.block_height) : 'pending';
           return `<div class="mrow" onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
           <div class="ml">
-            <div class="mt">${esc(m.label)} <span class="badge ${t.confirmed?'ok':'warn'}" style="margin-left:4px">${t.confirmed?'#'+t.block_height:'pending'}</span></div>
-            <div class="ms mono">${txFlowHtml(t)}</div>
+            <div class="mt">${esc(m.label)} <span class="badge ${t.confirmed?'ok':'warn'}" style="margin-left:4px">${esc(st)}</span></div>
+            <div class="ms mono">${esc(short(t.txid,12))}${t.from||t.to?' · '+(t.from?short(t.from,8):'—')+' → '+(t.to?short(t.to,8):'—'):''}</div>
           </div>
-          <div class="mr"><div class="ma">${fmtAmt(t.amount)}</div></div>
+          <div class="mr"><div class="ma" style="font-size:.85rem">${fmtAmt(t.amount)}</div></div>
         </div>`;
         }).join('')||'<div class="mrow"><div class="muted">No transactions yet</div></div>'}
       </div>
@@ -3673,33 +3649,18 @@ async function showMempool(){
   app().innerHTML=`<div class="main" style="padding-top:12px">
     ${crumbs([{label:'Home',href:'#/'+net},{label:'Mempool'}])}
     <div class="page-actions"><button class="back" onclick="location.hash='#/${net}'">← Home</button>
-      <button class="chipbtn" onclick="showMempool()">↻ Refresh</button></div>
+      <button class="chipbtn" onclick="showMempool()">↻</button></div>
     <div class="card" style="margin-top:4px">
-      <h3>Mempool <span class="badge warn">${d.count||0} waiting for miner</span></h3>
-      <p class="muted" style="padding:0 14px 8px;font-size:.85rem">Pending howls, joins, mints, and transfers — confirmed when a miner includes them.</p>
-      <div class="desktop-only table-wrap">
-      <table>
-        <thead><tr><th>Txid</th><th>Type</th><th>Flow</th><th>Amount</th><th>Fee</th></tr></thead>
-        <tbody>
-          ${rows.map(t=>`<tr onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
-            <td onclick="event.stopPropagation()">${linkTx(t.txid)}</td>
-            <td>${txTypeBadge(t)}</td>
-            <td class="mono" onclick="event.stopPropagation()">${txFlowHtml(t)}</td>
-            <td class="amount">${fmtAmt(t.amount)}</td>
-            <td>${fmtAmt(t.fee||0)}</td>
-          </tr>`).join('')||'<tr><td colspan="5" class="muted" style="padding:16px">Mempool empty — chain is quiet</td></tr>'}
-        </tbody>
-      </table>
-      </div>
-      <div class="mobile-only mlist">
+      <h3>Mempool <span class="badge warn">${d.count||0}</span></h3>
+      <div class="mlist compact-list">
         ${rows.map(t=>{
           const m = txTypeMeta(t);
           return `<div class="mrow" onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
           <div class="ml">
-            <div class="mt">${esc(m.label)} <span class="badge warn">waiting</span></div>
-            <div class="ms mono">${txFlowHtml(t)}</div>
+            <div class="mt">${esc(m.label)} <span class="badge warn">pending</span></div>
+            <div class="ms mono">${esc(short(t.txid,14))} · fee ${fmtAmt(t.fee||0)}</div>
           </div>
-          <div class="mr"><div class="ma">${fmtAmt(t.amount)}</div><div class="ms">fee ${fmtAmt(t.fee||0)}</div></div>
+          <div class="mr"><div class="ma" style="font-size:.85rem">${fmtAmt(t.amount)}</div></div>
         </div>`;
         }).join('')||'<div class="mrow"><div class="muted">Mempool empty</div></div>'}
       </div>
