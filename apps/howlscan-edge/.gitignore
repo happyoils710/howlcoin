@@ -1,0 +1,15 @@
+node_modules/
+.wrangler/
+dist/
+*.log
+.dev.vars
+.DS_Store
+# built into public/ by npm run build (CI/local)
+public/assets/
+public/app/
+public/whitepaper.html
+public/public-wallet.html
+public/robots.txt
+public/security.txt
+public/edge-fallback.html
+public/.assets-built

@@ -1,0 +1,3 @@
+# Optional local overrides (copy to .dev.vars — never commit)
+ORIGIN=https://howlscan.org
+TRIPPY_DEFAULT=full

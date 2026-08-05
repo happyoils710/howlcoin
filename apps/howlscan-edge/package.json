@@ -1,0 +1,22 @@
+{
+  "name": "howlscan-edge",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Howlscan.org on Cloudflare Workers (static assets + edge proxy + trippy theme)",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-assets.mjs",
+    "dev": "npm run build && wrangler dev",
+    "deploy": "npm run build && wrangler deploy",
+    "tail": "wrangler tail",
+    "types": "wrangler types"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250801.0",
+    "typescript": "^5.8.3",
+    "wrangler": "^4.28.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

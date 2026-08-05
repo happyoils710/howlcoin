@@ -1,0 +1,28 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "howlscan",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-08-05",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "none"
+  },
+  "observability": {
+    "enabled": true
+  },
+  // Set after first deploy (Workers & Pages → Settings → Domains & Routes)
+  // or uncomment when zone is ready:
+  // "routes": [
+  //   { "pattern": "howlscan.org/*", "zone_name": "howlscan.org" },
+  //   { "pattern": "www.howlscan.org/*", "zone_name": "howlscan.org" }
+  // ],
+  "vars": {
+    // Grey-cloud (DNS only) hostname that hits the VPS nginx/explorer.
+    // Do NOT use howlscan.org here or you will create a proxy loop.
+    "ORIGIN": "https://origin.howlscan.org",
+    "TRIPPY_DEFAULT": "mild"
+  }
+}
