@@ -10,7 +10,7 @@
   "theme_color": "#0b1020",
   "icons": [
     {
-      "src": "/assets/howlcoin-logo-meme-pup-coin.jpg",
+      "src": "/assets/howlcoin-logo.png",
       "sizes": "1024x1024",
       "type": "image/jpeg",
       "purpose": "any maskable"

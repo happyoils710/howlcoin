@@ -2380,12 +2380,12 @@ EXPLORER_HTML = r"""<!DOCTYPE html>
 <meta property="og:title" content="Howlscan — Howlcoin Block Explorer" id="ogTitle"/>
 <meta property="og:description" content="Public Howlcoin explorer: chain health, Play board, culture gallery, @name profiles." id="ogDesc"/>
 <meta property="og:url" content="https://howlscan.org/" id="ogUrl"/>
-<meta property="og:image" content="https://howlscan.org/assets/howlcoin-logo-meme-pup-coin.jpg" id="ogImage"/>
+<meta property="og:image" content="https://howlscan.org/assets/howlcoin-logo.png" id="ogImage"/>
 <meta name="twitter:card" content="summary"/>
 <meta name="twitter:title" content="Howlscan — Howlcoin Block Explorer" id="twTitle"/>
 <meta name="twitter:description" content="Public Howlcoin explorer: chain health, Play, culture, @names." id="twDesc"/>
 <title>Howlscan — Howlcoin Block Explorer</title>
-<link rel="icon" href="/assets/howlcoin-logo-meme-pup-coin.jpg"/>
+<link rel="icon" href="/assets/howlcoin-logo.png"/>
 <link rel="canonical" href="https://howlscan.org/" id="canonicalLink"/>
 <script>
 /* Apply theme before paint (site + wallet keys stay in sync) */
@@ -2745,7 +2745,7 @@ input.field,textarea.field{border-radius:10px}
 </head>
 <body>
 <div class="topbar">
-  <img src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt="HOWL" onclick="goHome()" style="cursor:pointer"/>
+  <img src="/assets/howlcoin-logo.png" alt="HOWL" onclick="goHome()" style="cursor:pointer"/>
   <div class="brand" onclick="goHome()">Howl<span>scan</span><small>Explorer</small></div>
   <div class="nav desktop-nav" style="display:flex;gap:4px;margin-left:12px;align-items:center">
     <button class="chipbtn" type="button" onclick="goHome()">Explorer</button>
@@ -3460,7 +3460,7 @@ async function loadHome(){
 
       <article class="post">
         <div class="post-hd">
-          <img class="post-av" src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt=""/>
+          <img class="post-av" src="/assets/howlcoin-logo.png" alt=""/>
           <div>
             <div class="post-who">Howlcoin <span class="badge ok" style="margin-left:4px">LIVE</span></div>
             <div class="post-meta">tip #${s.height} · ${esc(tipAge)}</div>
@@ -4357,7 +4357,7 @@ async function showHowlCity(filterKind){
     </div>
     <article class="post">
       <div class="post-hd">
-        <img class="post-av" src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt=""/>
+        <img class="post-av" src="/assets/howlcoin-logo.png" alt=""/>
         <div>
           <div class="post-who">Howl City <span class="badge ok">#${esc(String(height))}</span></div>
           <div class="post-meta">live pack feed · ${events.length} posts</div>
@@ -5492,7 +5492,7 @@ class ExplorerServer:
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <meta name="theme-color" content="#1a1524" id="themeColorMeta"/>
 <title>HOWL Token Info — Howlcoin</title>
-<link rel="icon" href="/assets/howlcoin-logo-meme-pup-coin.jpg"/>
+<link rel="icon" href="/assets/howlcoin-logo.png"/>
 <script>
 (function(){{
   try{{
@@ -5749,7 +5749,7 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                                 "description": "Howlcoin multi-chain wallet",
                                 "url": HOWL_SITE,
                                 "icons": [
-                                    f"{HOWL_SITE}/assets/howlcoin-logo-meme-pup-coin.jpg"
+                                    f"{HOWL_SITE}/assets/howlcoin-logo.png"
                                 ],
                             },
                             "deepLink": f"{HOWL_SITE}/app",

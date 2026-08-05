@@ -41,8 +41,8 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#0b1020"/>
 <title>Howlcoin Wallet</title>
-<link rel="icon" href="/assets/howlcoin-logo-meme-pup-coin.jpg"/>
-<link rel="apple-touch-icon" href="/assets/howlcoin-logo-meme-pup-coin.jpg"/>
+<link rel="icon" href="/assets/howlcoin-logo.png"/>
+<link rel="apple-touch-icon" href="/assets/howlcoin-logo.png"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <style>
 :root{
@@ -172,7 +172,7 @@ label{display:block;font-size:.78rem;color:var(--muted);font-weight:650;margin:0
 <body>
 <!-- Optional install hint (can skip — local mining wallet works in browser) -->
 <div id="installGate" class="hidden">
-  <img src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt="HOWL"/>
+  <img src="/assets/howlcoin-logo.png" alt="HOWL"/>
   <h1>Howlcoin Wallet</h1>
   <p>This is your <strong style="color:var(--text)">local mining node wallet</strong> (keys in <span class="mono">~/.howlcoin</span>).</p>
   <div class="steps">
@@ -190,7 +190,7 @@ label{display:block;font-size:.78rem;color:var(--muted);font-weight:650;margin:0
 
 <!-- CREATE WALLET / UNLOCK -->
 <div id="lock" class="hidden">
-  <img src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt="HOWL"/>
+  <img src="/assets/howlcoin-logo.png" alt="HOWL"/>
   <h1>Howlcoin Wallet</h1>
   <p id="lockSub">Send, receive, and back up your HOWL</p>
   <div class="lock-card" id="lockCard">
@@ -215,7 +215,7 @@ label{display:block;font-size:.78rem;color:var(--muted);font-weight:650;margin:0
 <!-- APP -->
 <div id="app" class="hidden">
   <div class="top">
-    <img src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt=""/>
+    <img src="/assets/howlcoin-logo.png" alt=""/>
     <div>
       <div class="title">Howl<span>coin</span></div>
       <div class="sub" id="netSub">Local wallet</div>
@@ -916,7 +916,7 @@ PORTAL_HTML = r"""<!DOCTYPE html>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Howlcoin Node</title>
-<link rel="icon" href="/assets/howlcoin-logo-meme-pup-coin.jpg"/>
+<link rel="icon" href="/assets/howlcoin-logo.png"/>
 <style>
 :root{--bg:#070b14;--card:#121a2e;--border:#1e2a44;--text:#e8eef7;--muted:#8b9bb8;--green:#3dff9a;--blue:#4da3ff}
 *{box-sizing:border-box}
@@ -936,7 +936,7 @@ a.secondary{background:#151e32;color:var(--text);border-color:var(--border)}
 </style>
 </head>
 <body>
-<img src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt="HOWL"/>
+<img src="/assets/howlcoin-logo.png" alt="HOWL"/>
 <h1>Howl<span>coin</span> Node</h1>
 <p>Local mining node. Rewards go to the address below.</p>
 <div class="card" id="stats">
@@ -1102,7 +1102,7 @@ MANIFEST_JSON = """{
   "theme_color": "#0b1020",
   "icons": [
     {
-      "src": "/assets/howlcoin-logo-meme-pup-coin.jpg",
+      "src": "/assets/howlcoin-logo.png",
       "sizes": "1024x1024",
       "type": "image/jpeg",
       "purpose": "any maskable"

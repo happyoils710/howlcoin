@@ -7,8 +7,8 @@
 <meta name="apple-mobile-web-app-title" content="Howlcoin"/>
 <meta name="theme-color" content="#03010a" id="themeColorMeta"/>
 <title>Howlcoin Wallet</title>
-<link rel="icon" href="/assets/howlcoin-logo-meme-pup-coin.jpg"/>
-<link rel="apple-touch-icon" href="/assets/howlcoin-logo-meme-pup-coin.jpg"/>
+<link rel="icon" href="/assets/howlcoin-logo.png"/>
+<link rel="apple-touch-icon" href="/assets/howlcoin-logo.png"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <script>
 /* Keep appearance across Howlscan ↔ /app */
@@ -538,9 +538,13 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .asset-row:active{background:rgba(0,255,198,.05)}
 .asset-row .ico,.asset-row .asset-logo{
   width:40px;height:40px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;
-  font-size:.72rem;font-weight:800;background:var(--card2);border:1px solid var(--border);overflow:hidden;object-fit:cover}
-.asset-row .asset-logo{padding:0;background:#0a0a12}
-.asset-row .asset-logo img{width:100%;height:100%;object-fit:cover;display:block}
+  font-size:.72rem;font-weight:800;background:transparent;border:0;box-shadow:none;overflow:hidden;object-fit:cover}
+.asset-row .asset-logo{padding:0;background:transparent}
+.asset-row .asset-logo img{width:100%;height:100%;object-fit:cover;display:block;border:0;border-radius:50%;background:transparent}
+.asset-row .ico{background:color-mix(in srgb,var(--card2) 90%,transparent);color:var(--text)}
+/* top header brand logo — no heavy ring */
+.top img{border:0!important;box-shadow:none!important}
+.screen img.logo{border:0!important;box-shadow:0 8px 28px rgba(0,0,0,.35)!important}
 .asset-row .meta{flex:1;min-width:0}
 .asset-row .sym{font-weight:800;font-size:.95rem}
 .asset-row .nm{font-size:.72rem;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -969,7 +973,7 @@ html.embed .gate{min-height:100dvh}
 </head>
 <body>
 <div id="gate" class="screen">
-  <img class="logo" src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt="HOWL"/>
+  <img class="logo" src="/assets/howlcoin-logo.png" alt="HOWL"/>
   <h1>Howlcoin</h1>
   <p id="gateMsg">Loading…</p>
   <div class="card" id="gateCard"></div>
@@ -983,7 +987,7 @@ html.embed .gate{min-height:100dvh}
   </div>
   <div class="top">
     <button type="button" class="top-brand" onclick="showPage('home')" title="Home" aria-label="Go home">
-      <img src="/assets/howlcoin-logo-meme-pup-coin.jpg" alt=""/>
+      <img src="/assets/howlcoin-logo.png" alt=""/>
       <div><div class="t">Howl<span>coin</span></div><div class="s" id="syncSub">Wallet</div></div>
     </button>
     <div class="grow"></div>
@@ -5067,23 +5071,35 @@ function assetLogoUrl(a){
   if(!a) return "/assets/token-logos/howl.png";
   if(isWhowlAsset(a)) return ASSET_LOGO.whowl;
   if(a.kind === "howl") return ASSET_LOGO.howl;
-  if(a.logo) return a.logo;
+  // explicit logo on asset (from PRESET)
+  if(a.logo && String(a.logo).startsWith("/assets/")) return a.logo;
   if(ASSET_LOGO[a.id]) return ASSET_LOGO[a.id];
   if(a.coinId && ASSET_LOGO[a.coinId]) return ASSET_LOGO[a.coinId];
+  // map kind → default chain logo
+  if(a.kind === "sol") return ASSET_LOGO.sol;
+  if(a.kind === "eth" || a.kind === "evm") return ASSET_LOGO[a.evmId] || ASSET_LOGO.eth;
+  if(a.kind === "xtz" || a.kind === "fa") return ASSET_LOGO.xtz;
+  if(a.kind === "trx" || a.kind === "trc20") return ASSET_LOGO.trx;
+  if(a.kind === "xrp" || a.kind === "xrp_token") return ASSET_LOGO.xrp;
+  if(a.kind === "xlm" || a.kind === "xlm_asset") return ASSET_LOGO.xlm;
+  if(a.kind === "utxo") return ASSET_LOGO[a.coinId] || ASSET_LOGO.btc;
+  // last resort: Trust Wallet CDN (remote; may fail offline)
   const tw = trustWalletLogo(a);
   if(tw) return tw;
-  // letter fallback via data uri handled in HTML
+  if(a.logo) return a.logo;
   return "";
 }
 function assetLogoHtml(a){
   const sym = assetDisplaySymbol(a);
-  const url = assetLogoUrl(a);
-  const letter = escHtml((sym || "?").slice(0, 2));
+  let url = assetLogoUrl(a);
+  // cache-bust local assets so hard-refresh picks new pack
+  if(url && url.startsWith("/assets/")) url += (url.includes("?") ? "&" : "?") + "v=3";
+  const letter = (sym || "?").slice(0, 2).replace(/[<>&"']/g, "");
   if(!url){
-    return `<span class="ico" aria-hidden="true">${letter}</span>`;
+    return `<span class="ico" aria-hidden="true">${escHtml(letter)}</span>`;
   }
-  return `<span class="asset-logo" aria-hidden="true"><img src="${escAttr(url)}" alt="" loading="lazy" decoding="async"
-    onerror="this.onerror=null;this.parentElement.className='ico';this.parentElement.textContent='${letter.replace(/'/g,"")}';"/></span>`;
+  return `<span class="asset-logo" aria-hidden="true"><img src="${escAttr(url)}" alt="" width="40" height="40" loading="lazy" decoding="async" referrerpolicy="no-referrer"
+    onerror="this.onerror=null;var p=this.parentElement;if(p){p.className='ico';p.textContent='${letter}';}"/></span>`;
 }
 function setSelectedChain(chainId, source){
   const id = (chainId || "all").toString();
