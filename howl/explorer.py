@@ -2812,6 +2812,9 @@ function linkAddr(a){if(!a||a==='HOWL_GENESIS_BURN') return `<span class="mono">
 /** Current SPA route key for live refresh */
 let __routeKey = '';
 let __liveRefreshOn = true;
+let __liveBusy = false;
+/** Last chain snapshot per surface — avoid full DOM redraw when nothing changed */
+let __liveSnap = {};
 
 function setPageMeta(title, description, path){
   const t = title || 'Howlscan — Howlcoin Block Explorer';
@@ -4695,38 +4698,82 @@ function liveRouteKind(){
 function refreshData(){
   softLiveRefresh(true);
 }
+
+/** Lightweight chain fingerprint — only full re-render when this changes */
+async function liveChainSnap(){
+  try{
+    const s = await api('/api/public/summary');
+    return String(s.height||'') + ':' + String(s.tip||'') + ':' + String(s.mempool??'');
+  }catch(e){
+    return '';
+  }
+}
+
 function softLiveRefresh(force){
   if(!__liveRefreshOn && !force) return;
+  // Background tabs: don't thrash the DOM
+  if(document.hidden && !force) return;
+  if(__liveBusy && !force) return;
   const kind = liveRouteKind();
   if(!kind && !force) return;
+  // Detail pages (block/tx/address) are not live-refreshed — avoids glitch while reading
   const keyBefore = __routeKey;
+  const y = window.scrollY || window.pageYOffset || 0;
   const run = async ()=>{
-    if(kind==='home') await loadHome();
-    else if(kind==='city'){
-      const hh=(location.hash||'').replace(/^#\/?/,'').split('/').filter(Boolean);
-      await showHowlCity(hh[1]||'');
+    __liveBusy = true;
+    try{
+      // Skip full page paint if height/tip/mempool unchanged (manual ↻ still forces)
+      if(!force){
+        const snap = await liveChainSnap();
+        if(snap && __liveSnap[kind] === snap){
+          // Still nudge tip age labels without reloading the page
+          try{
+            const ageEls = document.querySelectorAll('[data-live-age]');
+            // no-op placeholder — ticker interval handles home tip
+          }catch(e){}
+          return;
+        }
+        if(snap) __liveSnap[kind] = snap;
+      } else {
+        __liveSnap[kind] = await liveChainSnap();
+      }
+      if(kind==='home') await loadHome();
+      else if(kind==='city'){
+        const hh=(location.hash||'').replace(/^#\/?/,'').split('/').filter(Boolean);
+        await showHowlCity(hh[1]||'');
+      }
+      else if(kind==='play') await showPlayBoard();
+      else if(kind==='culture') await showCultureGallery();
+      else if(kind==='charts') await showChartsBoard();
+      else if(kind==='health') await showHealth();
+      else if(kind==='mempool') await showMempool();
+      else if(kind==='contracts'){
+        const hh=(location.hash||'').replace(/^#\/?/,'').split('/').filter(Boolean);
+        await showContractsBrowser(hh[1]||'');
+      } else if(force) await route();
+    }finally{
+      __liveBusy = false;
+      // Keep scroll position after soft refresh (stops jump/glitch)
+      if(__routeKey === keyBefore && y > 40){
+        try{ window.scrollTo(0, y); }catch(e){}
+      }
     }
-    else if(kind==='play') await showPlayBoard();
-    else if(kind==='culture') await showCultureGallery();
-    else if(kind==='charts') await showChartsBoard();
-    else if(kind==='health') await showHealth();
-    else if(kind==='mempool') await showMempool();
-    else if(kind==='contracts'){
-      const hh=(location.hash||'').replace(/^#\/?/,'').split('/').filter(Boolean);
-      await showContractsBrowser(hh[1]||'');
-    } else if(force) await route();
   };
-  run().catch(()=>{});
-  void keyBefore;
+  run().catch(()=>{ __liveBusy = false; });
 }
 window.addEventListener('hashchange', ()=>route());
+// Pause live refresh when tab hidden; resume lightly when visible
+document.addEventListener('visibilitychange', ()=>{
+  if(!document.hidden) softLiveRefresh(false);
+});
 ensureBanner();
 loadNetworks().then(route);
-// Live surfaces refresh every 15s
-setInterval(()=>{ softLiveRefresh(false); }, 15000);
-// Tip ticker: flash when height/tip changes (home only)
+// Poll chain every 30s — only re-renders when height/tip/mempool change
+setInterval(()=>{ softLiveRefresh(false); }, 30000);
+// Tip ticker: update hash text only (no full page redraw) · home only
 let __lastTipKey = '';
 setInterval(async ()=>{
+  if(document.hidden) return;
   if(!isHomeHash()) return;
   try{
     const s = await api('/api/public/summary');
@@ -4734,14 +4781,18 @@ setInterval(async ()=>{
     const el = document.getElementById('tipTickerHash');
     const box = document.getElementById('tipTicker');
     if(el && s.tip) el.textContent = short(s.tip, 18);
+    // Light stat patches without reloading whole home
+    const hEl = document.querySelector('.stat .v'); // first height box is fragile — skip bulk
     if(box && __lastTipKey && key !== __lastTipKey){
       box.style.borderColor = 'var(--green)';
       box.style.boxShadow = '0 0 16px rgba(61,255,154,.35)';
       setTimeout(()=>{ box.style.borderColor = ''; box.style.boxShadow = ''; }, 1200);
+      // Height changed → allow next soft refresh to repaint lists
+      __liveSnap.home = '';
     }
     __lastTipKey = key;
   }catch(e){}
-}, 8000);
+}, 12000);
 </script>
 </body>
 </html>
