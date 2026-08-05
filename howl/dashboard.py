@@ -1244,6 +1244,8 @@ class Dashboard:
         items: List[Dict[str, Any]] = []
         # mempool first
         for tx in reversed(self.chain.mempool):
+            if not isinstance(tx, dict):
+                continue
             if tx.get("type") == "coinbase":
                 continue
             frm, to = tx.get("from"), tx.get("to")
@@ -1266,6 +1268,8 @@ class Dashboard:
         for block in reversed(self.chain.blocks):
             h = block.get("height", 0)
             for tx in reversed(block.get("transactions") or []):
+                if not isinstance(tx, dict):
+                    continue
                 if tx.get("type") == "coinbase":
                     if tx.get("to") in addrs:
                         items.append(

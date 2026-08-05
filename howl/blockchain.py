@@ -80,13 +80,32 @@ class Blockchain:
         self.chain_path.write_text(json.dumps(payload, indent=2))
 
     def _load_mempool(self) -> None:
-        if self.mempool_path.exists():
-            self.mempool = json.loads(self.mempool_path.read_text())
-        else:
+        """Load mempool as a list of tx dicts. Accepts legacy list or {"txs": [...]}."""
+        if not self.mempool_path.exists():
             self.mempool = []
+            return
+        try:
+            raw = json.loads(self.mempool_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            self.mempool = []
+            return
+        if isinstance(raw, list):
+            txs = raw
+        elif isinstance(raw, dict):
+            # common mistaken / external format
+            txs = raw.get("txs") if isinstance(raw.get("txs"), list) else raw.get("transactions")
+            if not isinstance(txs, list):
+                txs = []
+        else:
+            txs = []
+        # drop garbage entries (e.g. if someone iterated a dict as mempool)
+        self.mempool = [t for t in txs if isinstance(t, dict)]
 
     def save_mempool(self) -> None:
-        self.mempool_path.write_text(json.dumps(self.mempool, indent=2))
+        # always persist a clean list of dicts
+        clean = [t for t in self.mempool if isinstance(t, dict)]
+        self.mempool = clean
+        self.mempool_path.write_text(json.dumps(clean, indent=2))
 
     # ---------- genesis ----------
 
@@ -872,7 +891,7 @@ class Blockchain:
             return False, msg
         tid = tx.get("txid") or txid(tx)
         tx["txid"] = tid
-        if any(t.get("txid") == tid for t in self.mempool):
+        if any(isinstance(t, dict) and t.get("txid") == tid for t in self.mempool):
             return False, "already in mempool"
         # also reject if already in chain
         for b in self.blocks:
@@ -898,6 +917,11 @@ class Blockchain:
         Remove mempool txs that fail validation (wrong nonce, low balance, etc.).
         Returns number of dropped txs. Call after blocks land or on broadcast.
         """
+        # Normalize in case mempool was loaded as a dict or mixed junk
+        if not isinstance(self.mempool, list):
+            self.mempool = []
+        else:
+            self.mempool = [t for t in self.mempool if isinstance(t, dict)]
         if not self.mempool:
             return 0
         kept: List[Dict[str, Any]] = []
@@ -1057,7 +1081,7 @@ class Blockchain:
         self._apply_block(block)
         # purge mempool txs that confirmed
         confirmed = {t["txid"] for t in block["transactions"] if "txid" in t}
-        self.mempool = [t for t in self.mempool if t.get("txid") not in confirmed]
+        self.mempool = [t for t in self.mempool if isinstance(t, dict) and t.get("txid") not in confirmed]
         # also drop invalid / conflicting-nonce leftovers
         self.purge_invalid_mempool(save=False)
         self.save()
