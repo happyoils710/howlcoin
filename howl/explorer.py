@@ -2741,6 +2741,20 @@ input.field,textarea.field{border-radius:10px}
   .stats{grid-template-columns:1fr 1fr}
   .bnav-item{font-size:.58rem}
 }
+
+/* pro-responsive */
+@media(min-width:1100px){
+  .dash-shell{max-width:1200px;margin:0 auto;padding:16px 20px 40px}
+  .dash-rail{position:sticky;top:72px}
+}
+@media(max-width:900px){
+  .dash-shell{display:block;padding:8px 12px 88px}
+  .dash-rail{display:none}
+  .bottom-nav{padding-bottom:env(safe-area-inset-bottom,0)}
+}
+.rail-link{font-weight:650}
+.post-av{border-radius:12px;object-fit:cover}
+.bnav-item .ico{font-size:1rem;opacity:.9}
 </style>
 </head>
 <body>
@@ -2838,9 +2852,9 @@ input.field,textarea.field{border-radius:10px}
 </div>
 <nav class="bottom-nav" id="bottom-nav" aria-label="Primary">
   <button type="button" class="bnav-item" data-tab="home" onclick="goHome()"><span class="ico">⌂</span>Home</button>
-  <button type="button" class="bnav-item" data-tab="play" onclick="location.hash='#/play'"><span class="ico">🎮</span>Play</button>
-  <button type="button" class="bnav-item" data-tab="culture" onclick="location.hash='#/culture'"><span class="ico">🖼</span>Culture</button>
-  <button type="button" class="bnav-item" data-tab="health" onclick="location.hash='#/health'"><span class="ico">💓</span>Net</button>
+  <button type="button" class="bnav-item" data-tab="play" onclick="location.hash='#/play'"><span class="ico">◇</span>Play</button>
+  <button type="button" class="bnav-item" data-tab="culture" onclick="location.hash='#/culture'"><span class="ico">▣</span>NFTs</button>
+  <button type="button" class="bnav-item" data-tab="health" onclick="location.hash='#/health'"><span class="ico">●</span>Net</button>
   <button type="button" class="bnav-item" data-tab="more" onclick="toggleDrawer(true)"><span class="ico">☰</span>More</button>
 </nav>
 <script>
@@ -3439,14 +3453,14 @@ async function loadHome(){
     <aside class="dash-rail" aria-label="Explore">
       <div class="rail-card">
         <h4>Explore</h4>
-        <a class="rail-link" href="#/city">🐺 City feed</a>
-        <a class="rail-link" href="#/play">🎮 Play</a>
-        <a class="rail-link" href="#/culture">🖼 Culture</a>
-        <a class="rail-link" href="#/charts">📈 Charts</a>
-        <a class="rail-link" href="#/health">💓 Network</a>
-        <a class="rail-link" href="/app/">💎 Wallet</a>
-        <a class="rail-link" href="#/run">⛏ Mine</a>
-        <a class="rail-link" href="/whitepaper">📄 White paper</a>
+        <a class="rail-link" href="#/city">City feed</a>
+        <a class="rail-link" href="#/play">Play</a>
+        <a class="rail-link" href="#/culture">Culture</a>
+        <a class="rail-link" href="#/charts">Charts</a>
+        <a class="rail-link" href="#/health">Network</a>
+        <a class="rail-link" href="/app/">Wallet</a>
+        <a class="rail-link" href="#/run">Mine</a>
+        <a class="rail-link" href="/whitepaper">White paper</a>
       </div>
       <div class="rail-card">
         <h4>Account</h4>
@@ -3510,7 +3524,7 @@ async function loadHome(){
 
       <article class="post">
         <div class="post-hd">
-          <div class="post-av-emoji" aria-hidden="true">⬛</div>
+          <div class="post-av-emoji" aria-hidden="true"></div>
           <div>
             <div class="post-who">Blocks</div>
             <div class="post-meta">latest on chain</div>
@@ -3554,7 +3568,7 @@ async function loadHome(){
 
       <article class="post">
         <div class="post-hd">
-          <div class="post-av-emoji" aria-hidden="true">📄</div>
+          <div class="post-av-emoji" aria-hidden="true"></div>
           <div>
             <div class="post-who">White paper</div>
             <div class="post-meta">Howlcoin · Scrypt PoW · emission · wallets</div>
@@ -3798,7 +3812,7 @@ async function showAddr(addr){
           <div class="ms">${esc(c.balance_fmt||'')}</div></div>
         </div>`).join(''):'<div class="mrow"><div class="muted">No contracts</div></div>'}</div>
         <h3 style="margin-top:12px">Howls</h3>
-        <div class="mlist">${howls.length?howls.map(e=>`<div class="mrow"><div class="ml"><div class="mt">🐺 ${esc(String(e.message||e.value||''))}</div><div class="ms">#${esc(String(e.height??'—'))}</div></div></div>`).join(''):'<div class="mrow"><div class="muted">No howls</div></div>'}</div>
+        <div class="mlist">${howls.length?howls.map(e=>`<div class="mrow"><div class="ml"><div class="mt">${esc(String(e.message||e.value||''))}</div><div class="ms">#${esc(String(e.height??'—'))}</div></div></div>`).join(''):'<div class="mrow"><div class="muted">No howls</div></div>'}</div>
       </div>`;
     }
   }catch(e){}
@@ -4035,9 +4049,9 @@ python3 -m howl status`;
     { label: 'Chain status', cmd: 'python3 -m howl status', note: 'Height, difficulty, tip, mempool' },
     { label: 'Balance only', cmd: 'python3 -m howl balance', note: 'Quick balance for primary address' },
     { label: 'Software version', cmd: 'python3 -m howl --version', note: 'Must be v0.6+ for the public chain' },
-    { label: 'Recovery phrase', cmd: 'python3 -m howl mnemonic', note: '⚠ Secrets — only when alone; backs up the wallet' },
-    { label: 'Phrase via wallet', cmd: 'python3 -m howl wallet --show-mnemonic', note: '⚠ Same as mnemonic (dangerous if shared)' },
-    { label: 'Private key', cmd: 'python3 -m howl wallet --show-keys', note: '⚠ Full control of funds — never paste online' },
+    { label: 'Recovery phrase', cmd: 'python3 -m howl mnemonic', note: 'Secrets — only when alone; backs up the wallet' },
+    { label: 'Phrase via wallet', cmd: 'python3 -m howl wallet --show-mnemonic', note: 'Same as mnemonic (dangerous if shared)' },
+    { label: 'Private key', cmd: 'python3 -m howl wallet --show-keys', note: 'Full control of funds — never paste online' },
     { label: 'JSON dump', cmd: 'python3 -m howl export', note: 'Tip + summary as JSON for debugging' },
     { label: 'Wallet folder', cmd: 'ls -la ~/.howlcoin/', note: 'wallet.json · chain.json live here' },
   ];
@@ -4091,7 +4105,7 @@ python3 -m howl status`;
     </div>
 
     <div class="card detail" style="margin-top:14px;border-color:rgba(77,163,255,.35)">
-      <h3 style="margin-top:0">⚙ Everyday settings (Terminal) — for beginners</h3>
+      <h3 style="margin-top:0">Everyday settings (Terminal) — for beginners</h3>
       <p class="muted" style="margin:0 0 10px">
         After you install Howlcoin, open <b>Terminal</b>, go into the project folder, then run these anytime.
         This is your <b>local mining wallet</b> (not the browser wallet at howlscan.org/app unless you imported the same phrase).
@@ -4137,7 +4151,7 @@ python3 -m howl status`;
     </div>
 
     <div class="card detail" style="margin-top:14px">
-      <h3 style="margin-top:0">🖥 Mac Desktop (double-click)</h3>
+      <h3 style="margin-top:0">Mac Desktop (double-click)</h3>
       <p class="muted">Install a Desktop app shortcut that does the same as <code>howl go</code>.</p>
       ${cmdBox('Install “Howlcoin Mine” on Desktop', desktopCmd)}
       <p class="muted" style="margin-bottom:0">Then double-click <b>Howlcoin Mine</b> on your Desktop. Keep the Terminal window open while mining.</p>
@@ -4156,7 +4170,7 @@ python3 -m howl status`;
     </div>
 
     <div class="card detail" style="margin-top:14px;border-color:rgba(77,163,255,.3)">
-      <h3 style="margin-top:0">📡 Communicate with other nodes (P2P)</h3>
+      <h3 style="margin-top:0">Communicate with other nodes (P2P)</h3>
       <p class="muted" style="margin:0 0 10px">
         Howlcoin nodes talk over <b>TCP port 42069</b> using simple JSON messages.
         They share the same genesis, sync longer chains, and relay new blocks + transactions.
@@ -4273,7 +4287,7 @@ function sparkPts(points, w, h){
 }
 
 function cityKindEmoji(k){
-  const m = {block:'⬛', howl:'🐺', name:'@', nft:'🖼', pot:'🍯', tip:'☕', bond:'🔗', mine:'⛏', transfer:'⇄', contract:'📜', oracle:'📡', other:'·'};
+  const m = {block:'#', howl:'*', name:'@', nft:'N', pot:'P', tip:'T', bond:'B', mine:'M', transfer:'tx', contract:'C', oracle:'', other:'·'};
   return m[k] || '·';
 }
 function cityEventWho(kind){
@@ -4434,7 +4448,7 @@ async function showPlayBoard(){
         <div class="mlist">
           ${howls.length?howls.map(e=>`<div class="mrow">
             <div class="ml">
-              <div class="mt">🐺 ${esc(String(e.message||e.value||''))}</div>
+              <div class="mt">${esc(String(e.message||e.value||''))}</div>
               <div class="ms">${e.from||e.reporter?linkAddr(e.from||e.reporter):'—'} · ${e.pending?'mempool':'#'+esc(String(e.height??'—'))}</div>
             </div>
           </div>`).join(''):`<div class="mrow"><div class="muted">No howls yet.</div></div>`}
@@ -4514,7 +4528,7 @@ async function showCultureGallery(){
             const uri = n.uri || '';
             const isHowl = String(uri).startsWith('howl://');
             const img = (!isHowl && uri && (uri.startsWith('http')||uri.startsWith('/'))) ? `<img src="${esc(uri)}" alt="" style="width:100%;height:100px;object-fit:cover;border-radius:8px;background:#111" onerror="this.style.display='none'"/>` :
-              `<div style="height:100px;border-radius:8px;background:rgba(61,255,154,.08);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:1.6rem">🐺</div>`;
+              `<div style="height:100px;border-radius:8px;background:rgba(61,255,154,.08);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:1.6rem"></div>`;
             return `<div style="border:1px solid var(--border);border-radius:12px;padding:8px;background:var(--panel2);cursor:pointer" onclick="location.hash='#/${net}/address/${encodeURIComponent(n.owner||'')}'">
               ${img}
               <div style="font-weight:700;font-size:.82rem;margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(n.name||'NFT')}</div>
@@ -4608,7 +4622,7 @@ async function showNameProfile(slug){
       <div class="card">
         <h3>Howls</h3>
         <div class="mlist">
-          ${howls.length?howls.map(e=>`<div class="mrow"><div class="ml"><div class="mt">🐺 ${esc(String(e.message||e.value||''))}</div><div class="ms">#${esc(String(e.height??'—'))}</div></div></div>`).join(''):`<div class="mrow"><div class="muted">No howls from this name yet.</div></div>`}
+          ${howls.length?howls.map(e=>`<div class="mrow"><div class="ml"><div class="mt">${esc(String(e.message||e.value||''))}</div><div class="ms">#${esc(String(e.height??'—'))}</div></div></div>`).join(''):`<div class="mrow"><div class="muted">No howls from this name yet.</div></div>`}
         </div>
       </div>
       <div class="card">

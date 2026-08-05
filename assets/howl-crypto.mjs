@@ -523,7 +523,7 @@ export const PRESET_ASSETS = [
   { logo: "/assets/token-logos/base.png", id: "base", symbol: "ETH", name: "Ether (Base)", network: "Base", kind: "evm", evmId: "base", displaySymbol: "BASE-ETH" },
   { logo: "/assets/token-logos/bnb.png", id: "bnb", symbol: "BNB", name: "BNB", network: "BNB Chain", kind: "evm", evmId: "bnb" },
   { logo: "/assets/token-logos/avax.png", id: "avax", symbol: "AVAX", name: "Avalanche", network: "Avalanche C-Chain", kind: "evm", evmId: "avax" },
-  { id: "hype", symbol: "HYPE", name: "Hyperliquid", network: "HyperEVM", kind: "evm", evmId: "hype" },
+  { id: "hype", symbol: "HYPE", name: "Hyperliquid", network: "HyperEVM", kind: "evm", evmId: "hype", logo: "/assets/token-logos/eth.png" },
   { logo: "/assets/token-logos/usdt.png", id: "usdt", symbol: "USDT", name: "Tether", network: "Ethereum (ERC-20)", kind: "erc20", contract: "0xdac17f958d2ee523a2206206994597c13d831ec7", decimals: 6 },
   { logo: "/assets/token-logos/usdc.png", id: "usdc", symbol: "USDC", name: "USD Coin", network: "Ethereum (ERC-20)", kind: "erc20", contract: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", decimals: 6 },
   { logo: "/assets/token-logos/dai.png", id: "dai", symbol: "DAI", name: "Dai", network: "Ethereum (ERC-20)", kind: "erc20", contract: "0x6b175474e89094c44da98b954eedeac495271d0f", decimals: 18 },
@@ -536,10 +536,10 @@ export const PRESET_ASSETS = [
   { logo: "/assets/token-logos/trx.png", id: "trx", symbol: "TRX", name: "TRON", network: "TRON", kind: "trx" },
   { logo: "/assets/token-logos/xrp.png", id: "xrp", symbol: "XRP", name: "XRP", network: "XRP Ledger", kind: "xrp" },
   { logo: "/assets/token-logos/xlm.png", id: "xlm", symbol: "XLM", name: "Stellar", network: "Stellar", kind: "xlm" },
-  { id: "hbar", symbol: "HBAR", name: "Hedera", network: "Hedera (EVM alias)", kind: "evm", evmId: "eth", note: "EVM 0x alias — link in HashPack if needed." },
-  { id: "ada", symbol: "ADA", name: "Cardano", network: "Cardano", kind: "external", explorer: "https://cardanoscan.io/", note: "Use Yoroi/Eternl with this seed if supported." },
-  { id: "xmr", symbol: "XMR", name: "Monero", network: "Monero", kind: "external", explorer: "https://xmrchain.net/", note: "Use an official Monero wallet (different address scheme)." },
-  { id: "zec", symbol: "ZEC", name: "Zcash", network: "Zcash", kind: "external", explorer: "https://explorer.zcha.in/", note: "Use a Zcash wallet for transparent/shielded addresses." },
+  { id: "hbar", symbol: "HBAR", name: "Hedera", network: "Hedera (EVM alias)", kind: "evm", evmId: "eth", logo: "/assets/token-logos/hbar.png", note: "EVM 0x alias — link in HashPack if needed." },
+  { id: "ada", symbol: "ADA", name: "Cardano", network: "Cardano", kind: "external", explorer: "https://cardanoscan.io/", logo: "/assets/token-logos/ada.png", note: "Use Yoroi/Eternl with this seed if supported." },
+  { id: "xmr", symbol: "XMR", name: "Monero", network: "Monero", kind: "external", explorer: "https://xmrchain.net/", logo: "/assets/token-logos/xmr.png", note: "Use an official Monero wallet (different address scheme)." },
+  { id: "zec", symbol: "ZEC", name: "Zcash", network: "Zcash", kind: "external", explorer: "https://explorer.zcha.in/", logo: "/assets/token-logos/zec.png", note: "Use a Zcash wallet for transparent/shielded addresses." },
 ];
 
 export function txSighash(txBody) {
