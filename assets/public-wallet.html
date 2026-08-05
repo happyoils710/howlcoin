@@ -1412,8 +1412,13 @@ html.embed .gate{min-height:100dvh}
           </select>
           <input class="field" id="bridgeAmt" inputmode="decimal" placeholder="0.1" style="margin:0;flex:1"/>
         </div>
-        <p class="hint" id="bridgeBalHint">Your SOL address is used to send the deposit.</p>
-        <button class="btn sec" type="button" onclick="getBridgeQuote()">Get HOWL quote</button>
+        <label style="margin-top:10px">You receive</label>
+        <select id="bridgePayout" style="width:100%;padding:12px;border-radius:12px;border:1px solid var(--border);background:var(--field-bg);color:var(--text);font:inherit;font-weight:700;margin-bottom:8px">
+          <option value="howl">Native HOWL (Howl L1)</option>
+          <option value="whowl">wHOWL (Solana SPL) — from treasury mint</option>
+        </select>
+        <p class="hint" id="bridgeBalHint">Your SOL address is used to send the deposit. wHOWL is minted to the same Solana wallet.</p>
+        <button class="btn sec" type="button" onclick="getBridgeQuote()">Get quote</button>
         <div class="quote-card hidden" id="bridgeQuote"></div>
         <button class="btn" type="button" id="bridgeOrderBtn" onclick="createBridgeOrder()" disabled>Create order</button>
         <p class="err" id="bridgeErr"></p>
@@ -2389,6 +2394,7 @@ const ASSET_PRICE_ID = {
   sol: "solana",
   usdt_sol: "tether",
   usdc_sol: "usd-coin",
+  whowl: "howlcoin",
   eth: "ethereum",
   op: "ethereum",
   base: "ethereum",
@@ -2410,6 +2416,28 @@ const ASSET_PRICE_ID = {
   hbar: "ethereum", // EVM alias balance is ETH-priced if funded as ETH; HBAR separate not tracked
   // howl, ada, xmr, zec: no reliable market feed yet
 };
+
+/** Official wHOWL SPL mint (Howl Wrap) */
+const WHOWL_MINT = "HYRKhV2Y9HEtKCCHSgH18Zfo4U9Ln9vAg2dCmBJSLWaG";
+
+function isWhowlAsset(a){
+  if(!a) return false;
+  if(a.id === "whowl") return true;
+  if((a.symbol || "").toUpperCase() === "WHOWL") return true;
+  if(a.mint && String(a.mint) === WHOWL_MINT) return true;
+  if(a.kind === "spl" && a.id && String(a.id).includes(WHOWL_MINT)) return true;
+  return false;
+}
+
+/** CoinGecko / Howl Charts id for portfolio + detail price */
+function priceIdForAsset(a){
+  if(!a) return null;
+  if(a.kind === "howl" || isWhowlAsset(a)) return "howlcoin";
+  if(a.coingeckoId) return a.coingeckoId;
+  if(a.chartId) return a.chartId;
+  if(ASSET_PRICE_ID[a.id]) return ASSET_PRICE_ID[a.id];
+  return null;
+}
 
 function $(id){ return document.getElementById(id); }
 let toastTimer = null;
@@ -2908,7 +2936,8 @@ async function refreshSolBalances(paint = true){
     if(a.kind !== "spl") continue;
     try{
       const b = await splBalance(a.mint, solInfo.address);
-      setAssetBal(a.id, b, 6);
+      const dec = a.decimals != null ? Number(a.decimals) : 6;
+      setAssetBal(a.id, b, Math.min(8, Math.max(2, dec)));
     }catch(e){
       ethBalances[a.id] = "—";
       delete assetRaw[a.id];
@@ -2974,9 +3003,8 @@ function computePortfolioTotals(){
     if(a.kind === "external") continue;
     const amt = assetRaw[a.id];
     if(amt == null || !Number.isFinite(amt) || amt === 0) continue;
-    // HOWL live index from Howl Charts (howlcoin / howl)
-    let cid = ASSET_PRICE_ID[a.id];
-    if(a.kind === "howl") cid = "howlcoin";
+    // HOWL / wHOWL share Howl Charts index; never price wHOWL as SOL
+    let cid = priceIdForAsset(a);
     if(!cid){ unpriced++; continue; }
     const row = marketPrices[cid] || (cid === "howlcoin" ? marketPrices.howl : null);
     if(!row){ unpriced++; continue; }
@@ -5210,7 +5238,12 @@ function assetActions(a){
     }
     acts.push({ label: "Swap (Jupiter)", fn: ()=>{ showPage("swap"); setSwapMode("jup"); } });
     if(isHowlSwapLive() && (a.id === "sol" || a.id === "usdc_sol")){
-      acts.push({ label: "Howl Swap → HOWL", fn: ()=>{ showPage("swap"); setSwapMode("howl"); if($("bridgeAsset")) $("bridgeAsset").value = a.id==="sol"?"sol":"usdc"; } });
+      acts.push({ label: "Howl Swap → HOWL", fn: ()=>{ showPage("swap"); setSwapMode("howl"); if($("bridgeAsset")) $("bridgeAsset").value = a.id==="sol"?"sol":"usdc"; if($("bridgePayout")) $("bridgePayout").value = "howl"; } });
+      acts.push({ label: "Howl Swap → wHOWL", fn: ()=>{ showPage("swap"); setSwapMode("howl"); if($("bridgeAsset")) $("bridgeAsset").value = a.id==="sol"?"sol":"usdc"; if($("bridgePayout")) $("bridgePayout").value = "whowl"; } });
+    }
+    if(isWhowlAsset(a)){
+      acts.push({ label: "Wrap / unwrap HOWL", fn: ()=> showPage("wrap") });
+      acts.push({ label: "Buy wHOWL with SOL", fn: ()=>{ showPage("swap"); setSwapMode("howl"); if($("bridgeAsset")) $("bridgeAsset").value = "sol"; if($("bridgePayout")) $("bridgePayout").value = "whowl"; } });
     }
     acts.push({ label: "Open Solscan", fn: ()=> openExternalUrl("https://solscan.io/account/"+encodeURIComponent(solInfo?.address||"")) });
   }
@@ -5283,9 +5316,10 @@ function openBridgeFlow(assetId){
 /** Map wallet asset → Howl Charts / CoinGecko id for lifetime series */
 function chartIdForAsset(a){
   if(!a) return "howlcoin";
+  // wHOWL tracks HOWL index (never SOL)
+  if(isWhowlAsset(a) || a.kind === "howl") return "howlcoin";
   if(a.chartId) return a.chartId;
   if(a.coingeckoId) return a.coingeckoId;
-  if(a.kind === "howl") return "howlcoin";
   const map = {
     btc: "bitcoin", ltc: "litecoin", bch: "bitcoin-cash", doge: "dogecoin",
     sol: "solana", eth: "ethereum", op: "ethereum", base: "ethereum",
@@ -5301,7 +5335,9 @@ function chartIdForAsset(a){
   if(a.kind === "erc20" && (a.symbol||"").toUpperCase()==="USDT") return "tether";
   if(a.kind === "erc20" && (a.symbol||"").toUpperCase()==="WETH") return "weth";
   if(a.kind === "evm" || a.kind === "eth") return "ethereum";
-  if(a.kind === "sol" || a.kind === "spl") return "solana";
+  if(a.kind === "sol") return "solana";
+  // other unknown SPL: no SOL chart (would misprice)
+  if(a.kind === "spl") return "";
   if(a.kind === "utxo") return map[a.coinId] || map[a.id] || "bitcoin";
   return "howlcoin";
 }
@@ -5325,6 +5361,9 @@ async function loadAssetChart(a, opts){
   assetChartLiveId = a.id || cid;
   if(meta && !force) meta.textContent = "Loading chart…";
   try{
+    if(!cid){
+      throw new Error(isWhowlAsset(a) ? "wHOWL chart loading…" : "No price chart for this token");
+    }
     const j = await api(`/api/public/chart?id=${encodeURIComponent(cid)}&days=max${force?"&force=1":""}`);
     let pts = (j.points || []).filter(p => p && p.p != null && Number(p.p) > 0);
     if(!pts.length) throw new Error(j.error || "No history yet");
@@ -5346,11 +5385,20 @@ async function loadAssetChart(a, opts){
     }
     if($("assetDetailPx") && Number.isFinite(live)){
       const dig = live < 1 ? 6 : (live < 100 ? 4 : 2);
-      $("assetDetailPx").textContent = `$${live.toLocaleString(undefined,{maximumFractionDigits:dig})} USD`;
+      $("assetDetailPx").textContent = `$${live.toLocaleString(undefined,{maximumFractionDigits:dig})} USD`
+        + (isWhowlAsset(a) ? " · tracks HOWL" : "");
     }
     startAssetChartLive(a);
   }catch(e){
     if(meta) meta.textContent = (e && e.message) ? e.message : "Chart unavailable";
+    // Still show live HOWL index price for wHOWL even if series fails
+    if(isWhowlAsset(a) && $("assetDetailPx")){
+      const px = Number(marketPrices.howlcoin?.usd ?? marketPrices.howl?.usd);
+      if(Number.isFinite(px)){
+        $("assetDetailPx").textContent = `$${px.toLocaleString(undefined,{maximumFractionDigits: px < 1 ? 6 : 4})} USD · tracks HOWL`;
+        if(meta) meta.textContent = "wHOWL priced 1:1 with HOWL index";
+      }
+    }
     const ctx = canvas.getContext && canvas.getContext("2d");
     if(ctx){
       const w = (wrap && wrap.clientWidth) || 360;
@@ -5358,7 +5406,7 @@ async function loadAssetChart(a, opts){
       ctx.clearRect(0,0,w,160);
       ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--muted").trim() || "#888";
       ctx.font = "13px system-ui,sans-serif";
-      ctx.fillText("No chart data", 16, 80);
+      ctx.fillText(isWhowlAsset(a) ? "wHOWL · HOWL index" : "No chart data", 16, 80);
     }
   }
 }
@@ -6484,12 +6532,15 @@ async function getBridgeQuote(){
     const q = await api(`/api/public/bridge/quote?asset=${encodeURIComponent(asset)}&amount=${encodeURIComponent(amount)}`);
     lastBridgeQuote = q;
     $("bridgeQuote").classList.remove("hidden");
+    const payout = ($("bridgePayout")?.value || "howl");
+    const outSym = payout === "whowl" ? "wHOWL" : "HOWL";
     $("bridgeQuote").innerHTML = `
       <b>Howl Swap quote</b><br>
       Pay <b>${q.amount_in} ${q.symbol}</b> on Solana<br>
-      Gross ${q.gross_howl} HOWL · fee ${q.fee_howl} HOWL (${q.fee_bps} bps)<br>
-      You receive ≈ <b style="color:var(--green)">${q.net_howl} HOWL</b><br>
-      Rate ${q.howl_per_unit} HOWL per ${q.symbol}`;
+      Gross ${q.gross_howl} · fee ${q.fee_howl} (${q.fee_bps} bps)<br>
+      You receive ≈ <b style="color:var(--green)">${q.net_howl} ${outSym}</b>
+      ${payout === "whowl" ? " on Solana (SPL)" : " on Howl L1"}<br>
+      Rate ${q.howl_per_unit} per ${q.symbol}`;
     $("bridgeOrderBtn").disabled = false;
   }catch(e){
     lastBridgeQuote = null;
@@ -6504,7 +6555,10 @@ async function createBridgeOrder(){
   try{
     if(!keypair) throw new Error("Unlock wallet first");
     if(!lastBridgeQuote) throw new Error("Get a quote first");
-    if(!confirm(`Create Howl Swap order?\n\nSend ${lastBridgeQuote.amount_in} ${lastBridgeQuote.symbol} → receive ~${lastBridgeQuote.net_howl} HOWL\n\nThis is semi-custodial.`)) return;
+    const payout = ($("bridgePayout")?.value || "howl");
+    const outLab = payout === "whowl" ? "wHOWL (Solana)" : "HOWL (L1)";
+    if(!confirm(`Create Howl Swap order?\n\nSend ${lastBridgeQuote.amount_in} ${lastBridgeQuote.symbol} → receive ~${lastBridgeQuote.net_howl} ${outLab}\n\nThis is semi-custodial.`)) return;
+    if(payout === "whowl" && !solInfo?.address) throw new Error("Solana address required for wHOWL payout — unlock seed wallet");
     const order = await api("/api/public/bridge/order", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -6513,6 +6567,7 @@ async function createBridgeOrder(){
         asset: $("bridgeAsset").value || "sol",
         amount: lastBridgeQuote.amount_in,
         sol_from: solInfo?.address || "",
+        payout,
       }),
     });
     activeBridgeOrder = order;
@@ -6537,7 +6592,7 @@ function renderBridgeOrder(o){
     <div class="item"><div>Status</div><div class="r" style="color:var(--green)">${esc(o.status)}</div></div>
     <div class="item"><div>Send</div><div class="r">${esc(String(o.amount_in))} ${esc(o.symbol||"")}</div></div>
     <div class="item"><div>Deposit to</div><div class="r mono" style="font-size:.72rem;word-break:break-all">${esc(o.deposit_address||"")}</div></div>
-    <div class="item"><div>Receive</div><div class="r" style="color:var(--green)">${esc(String(o.net_howl))} HOWL</div></div>
+    <div class="item"><div>Receive</div><div class="r" style="color:var(--green)">${esc(String(o.net_howl))} ${esc((o.payout||"howl")==="whowl"?"wHOWL":"HOWL")}</div></div>
     <div class="item"><div>HOWL address</div><div class="r mono" style="font-size:.72rem;word-break:break-all">${esc(o.howl_address||"")}</div></div>
     <div class="item"><div>Memo (optional)</div><div class="r mono">${esc(o.memo||o.id||"")}</div></div>
     <div class="item"><div>Expires</div><div class="r">${esc(exp)}</div></div>

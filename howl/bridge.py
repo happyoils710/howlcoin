@@ -91,10 +91,15 @@ def bridge_config() -> Dict[str, Any]:
         "phase": "A",
         "note": (
             "Semi-custodial: send SOL/USDC to the deposit address, then a relayer "
-            "credits native HOWL to your Howl address. Not trustless."
+            "credits native HOWL (L1) or mints wHOWL (SPL) to your Solana wallet. Not trustless."
             if enabled
             else "Bridge offline — set HOWL_BRIDGE_ENABLED=1 and HOWL_BRIDGE_SOL_TREASURY on the server."
         ),
+        "whowl_mint": _env("HOWL_SPL_MINT") or None,
+        "payouts": [
+            {"id": "howl", "label": "Native HOWL (Howl L1)"},
+            {"id": "whowl", "label": "wHOWL (Solana SPL)"},
+        ],
         "assets": [
             {
                 "id": "sol",
@@ -205,6 +210,7 @@ def create_order(
     asset: str,
     amount_in: float,
     sol_from: str = "",
+    payout: str = "howl",
     dd: Optional[Path] = None,
 ) -> Dict[str, Any]:
     if not bridge_enabled():
@@ -213,6 +219,14 @@ def create_order(
     if not is_valid_address(howl_address):
         raise ValueError("invalid Howl address")
     asset = (asset or "sol").lower().strip()
+    payout = (payout or "howl").lower().strip()
+    if payout not in ("howl", "whowl"):
+        raise ValueError("payout must be howl or whowl")
+    if payout == "whowl" and not (_env("HOWL_SPL_MINT") or ""):
+        raise RuntimeError("wHOWL mint not configured (HOWL_SPL_MINT)")
+    sol_from = (sol_from or "").strip()
+    if payout == "whowl" and (len(sol_from) < 32 or len(sol_from) > 48):
+        raise ValueError("sol_from (Solana address) required for wHOWL payout")
     q = quote_howl(asset, float(amount_in))
     if not q.get("deposit_address"):
         raise RuntimeError("deposit address not configured")
@@ -222,17 +236,20 @@ def create_order(
     # expected raw amount for matching
     decimals = int(q["decimals"])
     raw = int(round(float(amount_in) * (10**decimals)))
+    out_label = "wHOWL" if payout == "whowl" else "HOWL"
     order = {
         "id": oid,
         "status": "awaiting_deposit",
         "asset": asset,
         "symbol": q["symbol"],
+        "payout": payout,
         "howl_address": howl_address,
-        "sol_from": (sol_from or "").strip(),
+        "sol_from": sol_from,
         "amount_in": q["amount_in"],
         "amount_in_raw": str(raw),
         "decimals": decimals,
         "mint": q.get("mint"),
+        "whowl_mint": _env("HOWL_SPL_MINT") or None,
         "deposit_address": q["deposit_address"],
         "howl_per_unit": q["howl_per_unit"],
         "fee_bps": q["fee_bps"],
@@ -243,10 +260,14 @@ def create_order(
         "memo": oid,  # put in Solana memo if wallet supports it
         "deposit_tx": "",
         "howl_txid": "",
+        "payout_txid": "",
         "created_at": now,
         "updated_at": now,
         "expires_at": now + ttl,
-        "note": f"Send exactly {q['amount_in']} {q['symbol']} to deposit_address. Optional memo: {oid}",
+        "note": (
+            f"Send exactly {q['amount_in']} {q['symbol']} to deposit_address. "
+            f"Receive ~{q['net_howl']} {out_label}. Optional memo: {oid}"
+        ),
     }
     path = orders_path(dd)
     with _lock:

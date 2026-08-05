@@ -6398,6 +6398,7 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                             asset=str(body.get("asset") or "sol"),
                             amount_in=float(body.get("amount") or body.get("amount_in") or 0),
                             sol_from=str(body.get("sol_from") or body.get("from") or ""),
+                            payout=str(body.get("payout") or body.get("receive") or "howl"),
                             dd=pub,
                         )
                         return self._json(200, order)

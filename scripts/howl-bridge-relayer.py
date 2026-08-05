@@ -224,6 +224,66 @@ def send_howl(to: str, amount_howlies: int, memo: str = "") -> str:
         return msg
 
 
+
+def mint_whowl_to(to_sol: str, amount_ui: float) -> str:
+    """Mint wHOWL (UI units) to user Solana wallet using treasury mint authority."""
+    import subprocess
+
+    mint = env("HOWL_SPL_MINT")
+    if not mint:
+        raise RuntimeError("HOWL_SPL_MINT not set")
+    kp = Path(
+        env("HOWL_WRAP_SOL_KEYPAIR")
+        or env("HOWL_BRIDGE_SOL_KEYPAIR")
+        or "/var/lib/howlcoin/bridge-sol-treasury.json"
+    )
+    if not kp.is_file():
+        raise RuntimeError(f"missing Solana keypair {kp}")
+    # find spl-token
+    candidates = [
+        "spl-token",
+        str(Path.home() / ".local/share/solana/install/active_release/bin/spl-token"),
+        "/root/.local/share/solana/install/active_release/bin/spl-token",
+    ]
+    bin_ = None
+    for c in candidates:
+        try:
+            subprocess.run([c if c != "spl-token" else "spl-token", "--version"], capture_output=True, check=True)
+            bin_ = c if c != "spl-token" else "spl-token"
+            break
+        except Exception:
+            continue
+    if not bin_:
+        raise RuntimeError("spl-token CLI not found")
+    kp_s = str(kp)
+    # ensure ATA
+    ca = subprocess.run(
+        [bin_, "create-account", mint, "--owner", to_sol, "--fee-payer", kp_s],
+        capture_output=True,
+        text=True,
+    )
+    if ca.returncode != 0:
+        err = (ca.stderr or ca.stdout or "").lower()
+        if "already" not in err and "exist" not in err:
+            print("  create-account:", (ca.stderr or ca.stdout or "")[:180])
+    cmd = [
+        bin_, "mint", mint, f"{float(amount_ui):.8f}",
+        "--recipient-owner", to_sol,
+        "--fee-payer", kp_s,
+        "--mint-authority", kp_s,
+    ]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError((r.stderr or r.stdout or "mint failed")[:400])
+    out = (r.stdout or "") + "\n" + (r.stderr or "")
+    for line in out.splitlines():
+        if "Signature" in line or "signature" in line:
+            for part in line.split():
+                if len(part) >= 64:
+                    return part.strip()
+    return out.strip()[:120] or "minted"
+
+
 def process_once(dd: Path, dry_run: bool = False) -> int:
     n = 0
     treasury = env("HOWL_BRIDGE_SOL_TREASURY")
@@ -262,21 +322,36 @@ def process_once(dd: Path, dry_run: bool = False) -> int:
             else:
                 continue
 
-        if o.get("status") == "paid" and not o.get("howl_txid"):
+        if o.get("status") == "paid" and not o.get("howl_txid") and not o.get("payout_txid"):
             howlies = int(o.get("net_howlies") or 0)
+            net_howl = float(o.get("net_howl") or (howlies / 1e8))
+            payout = (o.get("payout") or "howl").lower()
             to = o.get("howl_address") or ""
-            print(f"[{oid}] credit {format_howl(howlies)} → {to[:12]}…")
+            sol_to = (o.get("sol_from") or "").strip()
             if dry_run:
                 n += 1
                 continue
             try:
-                txid = send_howl(to, howlies, memo=f"bridge:{oid}")
-                update_order(
-                    oid,
-                    {"status": "completed", "howl_txid": txid},
-                    dd,
-                )
-                print(f"[{oid}] HOWL tx {txid}")
+                if payout == "whowl":
+                    if not sol_to:
+                        raise RuntimeError("sol_from missing for wHOWL payout")
+                    print(f"[{oid}] mint {net_howl} wHOWL → {sol_to[:12]}…")
+                    sig = mint_whowl_to(sol_to, net_howl)
+                    update_order(
+                        oid,
+                        {"status": "completed", "payout_txid": sig, "howl_txid": sig, "payout": "whowl"},
+                        dd,
+                    )
+                    print(f"[{oid}] wHOWL mint {sig}")
+                else:
+                    print(f"[{oid}] credit {format_howl(howlies)} → {to[:12]}…")
+                    txid = send_howl(to, howlies, memo=f"bridge:{oid}")
+                    update_order(
+                        oid,
+                        {"status": "completed", "howl_txid": txid, "payout": "howl"},
+                        dd,
+                    )
+                    print(f"[{oid}] HOWL tx {txid}")
                 n += 1
             except Exception as e:
                 print(f"[{oid}] credit failed: {e}")

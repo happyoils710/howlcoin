@@ -127,3 +127,26 @@ Hot wallet must hold enough HOWL + fees. After credit, a **miner** must confirm 
 - Wrapped HOWL (SPL) + Jupiter  
 - Multi-sig treasury  
 - Stronger proofs of reserves  
+
+
+## SOL / USDC → wHOWL (SPL)
+
+Same deposit flow as Phase A, but set `payout: "whowl"` on the order (wallet: **You receive → wHOWL**).
+
+- User sends SOL/USDC to the Solana treasury.
+- Relayer **mints wHOWL** to the user’s Solana address (`sol_from`) instead of sending L1 HOWL.
+- Requires `HOWL_SPL_MINT` and mint authority keypair (bridge Solana treasury).
+- Rate is the same HOWL-per-unit quote (1 wHOWL ≈ 1 HOWL index unit after fee).
+
+API:
+
+```json
+POST /api/public/bridge/order
+{
+  "howl_address": "H…",
+  "asset": "sol",
+  "amount": 0.1,
+  "sol_from": "Fg…",
+  "payout": "whowl"
+}
+```
