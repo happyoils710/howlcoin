@@ -539,6 +539,9 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .home-nft-card .nft-ph{display:flex;align-items:center;justify-content:center;font-size:1.1rem}
 .home-nft-card .t{font-weight:700;font-size:.92rem}
 .home-nft-card .s{font-size:.72rem;color:var(--muted);margin-top:2px}
+.assets-hub{touch-action:pan-y}
+.assets-tabs button{transition:background .15s,color .15s}
+
 
 .asset-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
 .asset-actions .btn{margin:0;min-height:48px;font-size:.78rem}
@@ -1019,6 +1022,15 @@ html.embed .gate{min-height:100dvh}
         <div class="wa-pills hidden" id="homeChainPills" aria-hidden="true"></div>
         <div id="homeAssetList"><p class="hint">Loading…</p></div>
         <div id="homeNftList" class="hidden"><p class="hint">Loading NFTs…</p></div>
+        <div class="panel" id="homeHowlGenerate" style="margin:8px 0;padding:12px 14px">
+          <h2 style="margin:0 0 6px;font-size:.92rem">Generate on Howlcoin</h2>
+          <p class="hint" style="margin:0 0 10px">Mint collectibles and culture tokens on Howl L1 (on-chain NFT).</p>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <button type="button" class="btn sec" style="margin:0;flex:1;min-width:120px" onclick="openHowlGenerate('nft')">Mint NFT</button>
+            <button type="button" class="btn sec" style="margin:0;flex:1;min-width:120px" onclick="openHowlGenerate('tools')">Mint tools</button>
+            <button type="button" class="btn" style="margin:0;flex:1;min-width:120px" onclick="showPage('nft');setNftDashTab('mine')">My NFTs</button>
+          </div>
+        </div>
         <button type="button" class="wa-link" style="margin:4px 0 8px;display:block;width:100%;text-align:center" onclick="showPage('assets')">Manage assets ›</button>
       </div>
 
@@ -1172,6 +1184,14 @@ html.embed .gate{min-height:100dvh}
         <p class="hint" style="margin:0 0 8px">Tap an asset for deposit, swap, send, and history. Filter by network or show all.</p>
         <div id="assetsList"><p class="hint">Loading…</p></div>
         <div id="assetsNftList" class="hidden"><p class="hint">Loading NFTs…</p></div>
+      </div>
+      <div class="panel" id="assetsHowlGeneratePanel">
+        <h2 style="margin:0 0 6px">Generate on Howlcoin</h2>
+        <p class="hint" style="margin:0 0 10px">Create an on-chain NFT / culture token on Howl L1. Fee ≈ 1 HOWL to miners.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <button type="button" class="btn" style="margin:0;flex:1" onclick="openHowlGenerate('nft')">Mint NFT token</button>
+          <button type="button" class="btn sec" style="margin:0;flex:1" onclick="showPage('contracts')">Contracts</button>
+        </div>
       </div>
       <div class="panel" id="assetsCustomTokenPanel">
         <h2 id="assetsCustomTitle">Add custom token</h2>
@@ -4632,13 +4652,26 @@ function chainOfAsset(a){
   if(a.kind === "external") return "other";
   return "howl";
 }
+function assetBalanceRank(a){
+  // 0 = has balance, 1 = loading, 2 = zero/empty — load funded assets first
+  try{
+    if(!a) return 2;
+    if(a.kind === "howl"){
+      const bal = (typeof chainInfo !== "undefined" && chainInfo && chainInfo.balance != null) ? Number(chainInfo.balance) : 0;
+      return bal > 0 ? 0 : 2;
+    }
+    const t = String(assetBalanceText(a) || "").trim();
+    if(!t || t === "—" || t === "…" || t === "..." || t === HIDDEN_BAL) return 1;
+    const n = parseFloat(t.replace(/[^0-9.eE+-]/g, ""));
+    if(!Number.isFinite(n)) return 1;
+    return n > 0 ? 0 : 2;
+  }catch(_){ return 1; }
+}
 function assetsForChain(chainId){
   if(!chainId || chainId === "all"){
-    // All networks — prefer non-zero first when balances known
     return allAssets().slice().sort((a,b)=>{
-      const za = (assetBalanceText(a)||"").replace(/[^0-9.]/g,"") === "0" || assetBalanceText(a)==="…" ? 1 : 0;
-      const zb = (assetBalanceText(b)||"").replace(/[^0-9.]/g,"") === "0" || assetBalanceText(b)==="…" ? 1 : 0;
-      if(za !== zb) return za - zb;
+      const ra = assetBalanceRank(a), rb = assetBalanceRank(b);
+      if(ra !== rb) return ra - rb; // lower = better (has balance first)
       return assetDisplaySymbol(a).localeCompare(assetDisplaySymbol(b));
     });
   }
@@ -4775,7 +4808,9 @@ function renderHomeChainPills(){
 function renderAssetRows(containerId){
   const el = $(containerId);
   if(!el) return;
-  const list = assetsForChain(selectedChain);
+  let list = assetsForChain(selectedChain);
+  // Always show balances first within current filter
+  list = list.slice().sort((a,b)=> assetBalanceRank(a) - assetBalanceRank(b) || assetDisplaySymbol(a).localeCompare(assetDisplaySymbol(b)));
   if(!list.length){
     el.innerHTML = `<p class="hint" style="padding:16px 8px">No assets on this chain</p>`;
     return;
@@ -4802,24 +4837,87 @@ function renderAssetRows(containerId){
 }
 function setHomeAssetsTab(tab){
   homeAssetsTab = tab === "nfts" ? "nfts" : "crypto";
-  document.querySelectorAll("[data-home-tab]").forEach(b=>{
+  document.querySelectorAll("#homeAssetsHub [data-home-tab], [data-home-tab]").forEach(b=>{
     b.classList.toggle("on", b.getAttribute("data-home-tab") === homeAssetsTab);
   });
-  if($("homeAssetList")) $("homeAssetList").classList.toggle("hidden", homeAssetsTab !== "crypto");
-  if($("homeNftList")) $("homeNftList").classList.toggle("hidden", homeAssetsTab !== "nfts");
+  const cryptoEl = $("homeAssetList");
+  const nftEl = $("homeNftList");
+  if(cryptoEl){
+    const hide = homeAssetsTab !== "crypto";
+    cryptoEl.classList.toggle("hidden", hide);
+    cryptoEl.style.display = hide ? "none" : "";
+  }
+  if(nftEl){
+    const hide = homeAssetsTab !== "nfts";
+    nftEl.classList.toggle("hidden", hide);
+    nftEl.style.display = hide ? "none" : "";
+  }
+  const gen = $("homeHowlGenerate");
+  if(gen) gen.classList.toggle("hidden", homeAssetsTab === "nfts" ? false : (selectedChain !== "howl" && selectedChain !== "all"));
   if(homeAssetsTab === "nfts") renderHomeNfts();
   else renderAssetRows("homeAssetList");
+  wireAssetsHubSwipe($("homeAssetsHub"), "home");
 }
 function setAssetsPageTab(tab){
   assetsPageTab = tab === "nfts" ? "nfts" : "crypto";
-  document.querySelectorAll("[data-assets-tab]").forEach(b=>{
+  document.querySelectorAll("#p-assets [data-assets-tab], [data-assets-tab]").forEach(b=>{
     b.classList.toggle("on", b.getAttribute("data-assets-tab") === assetsPageTab);
   });
-  if($("assetsList")) $("assetsList").classList.toggle("hidden", assetsPageTab !== "crypto");
-  if($("assetsNftList")) $("assetsNftList").classList.toggle("hidden", assetsPageTab !== "nfts");
-  if($("assetsCustomTokenPanel")) $("assetsCustomTokenPanel").classList.toggle("hidden", assetsPageTab !== "crypto");
+  const cryptoEl = $("assetsList");
+  const nftEl = $("assetsNftList");
+  if(cryptoEl){
+    const hide = assetsPageTab !== "crypto";
+    cryptoEl.classList.toggle("hidden", hide);
+    cryptoEl.style.display = hide ? "none" : "";
+  }
+  if(nftEl){
+    const hide = assetsPageTab !== "nfts";
+    nftEl.classList.toggle("hidden", hide);
+    nftEl.style.display = hide ? "none" : "";
+  }
+  if($("assetsCustomTokenPanel")){
+    // show custom tokens when crypto + chain supports tokens OR howl generate
+    const showCustom = assetsPageTab === "crypto" && (chainHasTokenSystem(selectedChain) || selectedChain === "howl" || selectedChain === "all");
+    $("assetsCustomTokenPanel").classList.toggle("hidden", !showCustom);
+  }
   if(assetsPageTab === "nfts") renderAssetsPageNfts();
   else { renderAssetRows("assetsList"); renderCustomTokenForms(); }
+  wireAssetsHubSwipe($("p-assets"), "assets");
+}
+/** Swipe left/right between Crypto and NFTs (Base-style). */
+function wireAssetsHubSwipe(root, which){
+  if(!root || root.dataset.swipeWired === "1") return;
+  root.dataset.swipeWired = "1";
+  let x0 = 0, y0 = 0, tracking = false;
+  root.addEventListener("touchstart", (e)=>{
+    if(!e.touches || !e.touches[0]) return;
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; tracking = true;
+  }, { passive: true });
+  root.addEventListener("touchend", (e)=>{
+    if(!tracking) return;
+    tracking = false;
+    const t = e.changedTouches && e.changedTouches[0];
+    if(!t) return;
+    const dx = t.clientX - x0, dy = t.clientY - y0;
+    if(Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+    if(which === "home"){
+      if(dx < 0) setHomeAssetsTab("nfts");
+      else setHomeAssetsTab("crypto");
+    } else {
+      if(dx < 0) setAssetsPageTab("nfts");
+      else setAssetsPageTab("crypto");
+    }
+  }, { passive: true });
+}
+function openHowlGenerate(kind){
+  // Generate collectibles / culture on Howl L1
+  showPage("nft");
+  if(typeof setNftDashTab === "function") setNftDashTab("tools");
+  setTimeout(()=>{
+    const panel = $("nftMintPanel") || $("nftToolsWrap");
+    if(panel) panel.scrollIntoView({ behavior: "smooth", block: "start" });
+    if(kind === "nft" && $("nftName")) $("nftName").focus();
+  }, 200);
 }
 function renderHomeAssets(refill){
   if(refill !== false) fillChainSelects();
@@ -4827,15 +4925,9 @@ function renderHomeAssets(refill){
     $("homeChainSelect").value = selectedChain;
   }
   renderHomeChainPills();
-  if(homeAssetsTab === "nfts"){
-    if($("homeAssetList")) $("homeAssetList").classList.add("hidden");
-    if($("homeNftList")) $("homeNftList").classList.remove("hidden");
-    renderHomeNfts();
-  } else {
-    if($("homeAssetList")) $("homeAssetList").classList.remove("hidden");
-    if($("homeNftList")) $("homeNftList").classList.add("hidden");
-    renderAssetRows("homeAssetList");
-  }
+  // Preserve tab state via setHomeAssetsTab (also wires swipe)
+  setHomeAssetsTab(homeAssetsTab || "crypto");
+  if(typeof renderCustomTokenForms === "function") renderCustomTokenForms();
 }
 function renderAssetsList(refill){
   if(refill !== false) fillChainSelects();
@@ -4846,16 +4938,7 @@ function renderAssetsList(refill){
     const ch = selectedChain === "all" ? null : ASSET_CHAINS.find(c=>c.id===selectedChain);
     $("assetsListTitle").textContent = ch ? (ch.label + " assets") : "All networks";
   }
-  if(assetsPageTab === "nfts"){
-    if($("assetsList")) $("assetsList").classList.add("hidden");
-    if($("assetsNftList")) $("assetsNftList").classList.remove("hidden");
-    renderAssetsPageNfts();
-  } else {
-    if($("assetsList")) $("assetsList").classList.remove("hidden");
-    if($("assetsNftList")) $("assetsNftList").classList.add("hidden");
-    renderAssetRows("assetsList");
-    renderCustomTokenForms();
-  }
+  setAssetsPageTab(assetsPageTab || "crypto");
 }
 /** Compact NFT rows for home / assets hub (reuses Howl + multi-chain NFT loaders when available). */
 function renderHomeNfts(){
@@ -10415,6 +10498,17 @@ function renderCustomTokenFormInto(containerId, scope, defaultChain){
   if(btn) btn.onclick = ()=> addCustomTokenFromForm(scope);
 }
 function renderCustomTokenForms(){
+  // Howl L1 generate panel
+  const howlGen = $("assetsHowlGeneratePanel");
+  if(howlGen){
+    const showHowl = (selectedChain === "howl" || selectedChain === "all") && (typeof assetsPageTab === "undefined" || assetsPageTab === "crypto" || assetsPageTab === "nfts");
+    howlGen.classList.toggle("hidden", !(selectedChain === "howl" || selectedChain === "all"));
+  }
+  const homeGen = $("homeHowlGenerate");
+  if(homeGen){
+    // show on home for Howl / All networks
+    homeGen.classList.toggle("hidden", !(selectedChain === "howl" || selectedChain === "all"));
+  }
   // Assets page: form locked to selected chain when it has tokens
   const assetsPanel = $("assetsCustomTokenPanel");
   if(assetsPanel){
@@ -11466,6 +11560,12 @@ window.paintIcons = paintIcons;
 window.startHowlLivePrices = startHowlLivePrices;
 window.setPlayTab = setPlayTab;
 window.setCityFilter = setCityFilter;
+window.setHomeAssetsTab = setHomeAssetsTab;
+window.setAssetsPageTab = setAssetsPageTab;
+window.renderHomeNfts = renderHomeNfts;
+window.renderAssetsPageNfts = renderAssetsPageNfts;
+window.paintNftListInto = paintNftListInto;
+window.openHowlGenerate = openHowlGenerate;
 window.refreshPlayCity = refreshPlayCity;
 window.refreshHomeCity = refreshHomeCity;
 window.shareMyProfile = shareMyProfile;
