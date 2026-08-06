@@ -245,22 +245,13 @@ html[data-theme="pack"] .assets-tabs button.on{
 }
 /* Frames / layout polish */
 #app,.screen{position:relative;z-index:1}
-.content{max-width:480px;margin:0 auto;padding-left:12px;padding-right:12px;width:100%;box-sizing:border-box}
 .page{max-width:100%;overflow-x:hidden}
-.panel,.bal,.assets-hub,.wa-actions{max-width:100%}
-.wa-actions{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
-.wa-act{min-width:0;padding:10px 4px}
-.wa-act .wa-lab{overflow:hidden;text-overflow:ellipsis}
+.panel,.bal,.assets-hub{max-width:100%}
 .top{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
 .bottom{padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right))}
 html.embed .degen-ticker{display:none}
 html.embed[data-theme="pack"] .bal::before{display:none}
 html.embed .content{max-width:100%;padding-left:10px;padding-right:10px}
-@media (max-width:360px){
- .wa-actions{grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
- .wa-act .wa-lab{font-size:.62rem}
- .bal .amt{font-size:1.75rem}
-}
 html[data-theme="neo"] body::before{
  background:
  radial-gradient(900px 500px at 10% -10%,rgba(0,255,198,.14),transparent 55%),
@@ -488,10 +479,10 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
 .chip{border:1px solid var(--border);background:var(--card2);color:var(--muted);
  border-radius:999px;padding:6px 10px;font-size:.72rem;font-weight:700;letter-spacing:.04em}
 .chip.ok{color:var(--green);border-color:var(--green)}
-.content{max-width:480px;margin:0 auto;padding:8px 16px 20px;width:100%}
+.content{max-width:480px;margin:0 auto;padding:8px 14px 20px;width:100%;box-sizing:border-box}
 /* Portfolio hero — clean mobile wallet home */
 .bal{text-align:center;padding:8px 8px 4px;position:relative;border-radius:0;margin-bottom:0;
- background:transparent;border:0;box-shadow:none;overflow:visible}
+ background:transparent;border:0;box-shadow:none;overflow:hidden}
 .bal .lbl{color:var(--muted);font-size:.75rem;text-transform:none;letter-spacing:.02em;font-weight:600;
  font-family:var(--font-ui)}
 .bal .amt{font-family:var(--font-ui);font-size:clamp(2rem,8vw,2.65rem);font-weight:800;
@@ -500,11 +491,15 @@ label{font-size:.78rem;color:var(--muted);font-weight:650;display:block;letter-s
  display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:var(--card2);border:1px solid var(--border);margin-top:4px}
 .bal .sub-bal{font-size:.8rem;color:var(--muted);margin:2px 0 4px}
 .bal .sub-bal b{color:var(--text);font-weight:700}
-/* Circular action strip */
-.wa-actions{display:flex;justify-content:space-around;align-items:flex-start;gap:4px;margin:18px 0 20px;padding:0 4px}
-.wa-actions{gap:2px}
-.wa-act{flex:1;border:0;background:transparent;color:var(--text);font:inherit;cursor:pointer;padding:0;min-width:56px;
- display:flex;flex-direction:column;align-items:center;gap:8px;max-width:88px}
+/* Circular action strip — even 5-col frame on all phones */
+.wa-actions{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:18px 0 20px;padding:0 2px;max-width:100%}
+.wa-act{border:0;background:transparent;color:var(--text);font:inherit;cursor:pointer;padding:0 2px;min-width:0;
+ display:flex;flex-direction:column;align-items:center;gap:8px;max-width:none}
+.wa-act .wa-lab{overflow:hidden;text-overflow:ellipsis;max-width:100%}
+@media (max-width:360px){
+ .wa-act .wa-lab{font-size:.62rem}
+ .bal .amt{font-size:1.75rem!important}
+}
 .wa-act .wa-ico{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;
  font-size:1.15rem;font-weight:700;background:linear-gradient(145deg,color-mix(in srgb,var(--green) 28%,var(--card2)),color-mix(in srgb,var(--cyan) 18%,var(--card)));
  color:var(--text);border:1px solid color-mix(in srgb,var(--green) 25%,var(--border));box-shadow:0 4px 16px rgba(0,0,0,.18)}
