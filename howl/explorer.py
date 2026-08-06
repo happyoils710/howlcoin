@@ -2865,6 +2865,7 @@ input.field,textarea.field{border-radius:10px}
   <button type="button" class="bnav-item" data-tab="culture" onclick="location.hash='#/culture'"><span class="ico">▣</span>NFTs</button>
   <button type="button" class="bnav-item" data-tab="health" onclick="location.hash='#/health'"><span class="ico">●</span>Net</button>
   <button type="button" class="bnav-item" data-tab="more" onclick="toggleDrawer(true)"><span class="ico">☰</span>More</button>
+</nav>
 <script>
 /* Global: any [data-nav="#/..."] is a chain navigation target */
 document.addEventListener('click', function(ev){
@@ -2877,7 +2878,6 @@ document.addEventListener('click', function(ev){
   else location.href = h;
 }, true);
 </script>
-</nav>
 <script>
 let net='public', networks=[];
 const SEED = '147.182.223.204:42069';

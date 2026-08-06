@@ -216,6 +216,8 @@ def send_leg(
     if last_err and not txid_out:
         raise RuntimeError(last_err)
 
+    # Reserve only while we believe the nonce is taken (mempool or confirmed).
+    # If the tx drops without confirming, re-sync from chain so we don't skip to want N+1.
     _local_reserved[from_addr] = int(nonce) + 1
     out["txid"] = txid_out or tx.get("txid")
     out["status"] = "broadcast"
@@ -238,21 +240,25 @@ def send_leg(
     if not ok:
         out["status"] = "pending_timeout"
         out["hint"] = (
-            "Tx may still be in mempool. Wait for a mined block, or do not re-send "
-            f"until address nonce advances past {nonce}. Chain said next nonce after "
-            "confirm will be "
-            f"{int(nonce) + 1}."
+            "Tx may still be in mempool waiting for a miner. "
+            f"Do not force another send with a higher nonce until chain next-nonce > {nonce}. "
+            "If mempool dropped the tx, re-run — client will re-sync nonce from the API."
         )
+        # Re-sync reservation from live API+mempool (fixes "want 9" after false +1)
+        try:
+            _local_reserved[from_addr] = next_nonce(api_base, from_addr, data_dir)
+        except Exception:
+            # safest: allow reuse of same nonce on next attempt
+            _local_reserved[from_addr] = int(nonce)
     else:
         out["status"] = "confirmed"
-        # Align reservation with chain
         try:
             _local_reserved[from_addr] = max(
-                _local_reserved.get(from_addr, 0),
+                int(nonce) + 1,
                 next_nonce(api_base, from_addr, data_dir),
             )
         except Exception:
-            pass
+            _local_reserved[from_addr] = int(nonce) + 1
     return out
 
 

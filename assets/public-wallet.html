@@ -232,6 +232,7 @@ html[data-theme="pack"] .degen-ticker{
  background:rgba(0,0,0,.25);
  font-size:.68rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
  color:var(--amber);
+ max-width:100%;
 }
 html[data-theme="pack"] .degen-ticker span{
  display:inline-block;padding-left:100%;
@@ -241,6 +242,24 @@ html[data-theme="pack"] .degen-ticker span{
 html[data-theme="pack"] .menu-row .mt{font-weight:800}
 html[data-theme="pack"] .assets-tabs button.on{
  background:rgba(0,255,156,.15);color:var(--green);border-color:rgba(0,255,156,.4);
+}
+/* Frames / layout polish */
+#app,.screen{position:relative;z-index:1}
+.content{max-width:480px;margin:0 auto;padding-left:12px;padding-right:12px;width:100%;box-sizing:border-box}
+.page{max-width:100%;overflow-x:hidden}
+.panel,.bal,.assets-hub,.wa-actions{max-width:100%}
+.wa-actions{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.wa-act{min-width:0;padding:10px 4px}
+.wa-act .wa-lab{overflow:hidden;text-overflow:ellipsis}
+.top{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
+.bottom{padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right))}
+html.embed .degen-ticker{display:none}
+html.embed[data-theme="pack"] .bal::before{display:none}
+html.embed .content{max-width:100%;padding-left:10px;padding-right:10px}
+@media (max-width:360px){
+ .wa-actions{grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
+ .wa-act .wa-lab{font-size:.62rem}
+ .bal .amt{font-size:1.75rem}
 }
 html[data-theme="neo"] body::before{
  background:
@@ -9584,7 +9603,7 @@ async function mintNftFromHowl(message){
 
 async function mintHowlNft({ name, uri, memo }){
  if(!keypair) throw new Error("Unlock wallet");
- const fee = Number(COIN);
+ const fee = Number(typeof COIN === "bigint" ? COIN : (COIN || 100000000));
  const nonce = await nextLocalNonce();
  const nft_id = makeNftId(keypair.address, name, uri || "", nonce);
  openSlideConfirm({
@@ -10088,7 +10107,7 @@ async function transferNft(){
 
  if(meta.id === "howl"){
  if(!isValidAddress(to)) throw new Error("Invalid HOWL address");
- const fee = Number(COIN);
+ const fee = Number(typeof COIN === "bigint" ? COIN : (COIN || 100000000));
  const addr = await api("/api/public/address/" + encodeURIComponent(keypair.address));
  const nonce = addr.nonce||0;
  openSlideConfirm({
@@ -10293,7 +10312,7 @@ async function deployHowlContract(){
  let fundHowl = 0n;
  const fundTxt = ($("hcFund")?.value || "").trim();
  if(fundTxt) fundHowl = parseHowl(fundTxt);
- const fee = Number(COIN);
+ const fee = Number(typeof COIN === "bigint" ? COIN : (COIN || 100000000));
  const nonce = await nextLocalNonce();
  const contract_id = makeContractId(keypair.address, kind, name, nonce);
  const extra = { contract_id, contract_kind: kind, name };
@@ -10537,7 +10556,7 @@ async function callHowlContract(method, usePartial){
  if(!hcSelectedId) throw new Error("No contract selected");
  const j = await api("/api/public/contract/" + encodeURIComponent(hcSelectedId));
  const c = j.contract || {};
- const fee = Number(COIN);
+ const fee = Number(typeof COIN === "bigint" ? COIN : (COIN || 100000000));
  const nonce = await nextLocalNonce();
  let amountHowlies = 0;
  let call_value = undefined;
@@ -10629,12 +10648,16 @@ async function nextLocalNonce(){
  return n;
 }
 function reserveLocalNonce(addr, nonce){
- // next send must use > this nonce
- localPendingNonce[addr] = Math.max(localPendingNonce[addr] || 0, nonce + 1);
+ // next send must use > this nonce (only after successful broadcast)
+ localPendingNonce[addr] = Math.max(localPendingNonce[addr] || 0, Number(nonce) + 1);
+}
+/** After a failed send, drop local reservation so we re-read chain want-N */
+function releaseLocalNonce(addr){
+ try{ delete localPendingNonce[addr]; }catch(_){}
 }
 
 async function postOracle({ source_chain, oracle_key, oracle_value, nonce }){
- const fee = Number(COIN);
+ const fee = Number(typeof COIN === "bigint" ? COIN : (COIN || 100000000));
  const observed_at = Math.floor(Date.now()/1000);
  const useNonce = nonce != null ? nonce : await nextLocalNonce();
  const tx = await buildSignedTx({
@@ -11267,20 +11290,46 @@ async function executeSend({ to, amount, fee, nonce, memo, fingerprint }){
  if(sendInFlight) throw new Error("Send already in progress");
  sendInFlight = true;
  if($("sendBtn")) $("sendBtn").disabled = true;
+ let useNonce = Number(nonce);
  try{
- reserveLocalNonce(keypair.address, nonce);
- const tx = await buildSignedTx({
+ // Always re-resolve right before sign (fixes "bad nonce (want 9)")
+ try{ useNonce = await nextLocalNonce(); }catch(_){}
+ let tx = await buildSignedTx({
  keypair, to,
  amountHowlies: howliesJsonSafe(amount),
  feeHowlies: howliesJsonSafe(fee),
- nonce,
+ nonce: useNonce,
  memo: memo || "",
  });
- const res = await api("/api/public/broadcast", {
+ let res;
+ try{
+ res = await api("/api/public/broadcast", {
  method:"POST", headers:{ "Content-Type":"application/json" },
  body: JSON.stringify({ tx }),
  });
- lastSendFingerprint = fingerprint || (keypair.address + "|" + to + "|" + String(amount) + "|" + nonce);
+ }catch(e1){
+ const msg = String(e1.message || e1 || "");
+ const m = msg.match(/want\s+(\d+)/i);
+ if(m){
+ useNonce = parseInt(m[1], 10);
+ releaseLocalNonce(keypair.address);
+ tx = await buildSignedTx({
+ keypair, to,
+ amountHowlies: howliesJsonSafe(amount),
+ feeHowlies: howliesJsonSafe(fee),
+ nonce: useNonce,
+ memo: memo || "",
+ });
+ res = await api("/api/public/broadcast", {
+ method:"POST", headers:{ "Content-Type":"application/json" },
+ body: JSON.stringify({ tx }),
+ });
+ }else{
+ throw e1;
+ }
+ }
+ reserveLocalNonce(keypair.address, useNonce);
+ lastSendFingerprint = fingerprint || (keypair.address + "|" + to + "|" + String(amount) + "|" + useNonce);
  lastSendAt = Date.now();
  if($("sendSaveAddr")?.checked){
  try{
@@ -11301,9 +11350,11 @@ async function executeSend({ to, amount, fee, nonce, memo, fingerprint }){
  showPage("activity");
  setTimeout(refresh, 1500);
  }catch(e){
+ releaseLocalNonce(keypair.address);
  if($("sendBtn")) $("sendBtn").disabled = false;
- if($("sendErr")) $("sendErr").textContent = e.message || String(e);
- toast(e.message || "Send failed");
+ const em = e.message || String(e);
+ if($("sendErr")) $("sendErr").textContent = em;
+ toast(em || "Send failed");
  throw e;
  }finally{
  sendInFlight = false;
@@ -12916,7 +12967,7 @@ function boot(skipInstallPrompt){
  }
  }
  }catch(_){}
- if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=14").catch(()=>{});
+ if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=15").catch(()=>{});
  if(!skipInstallPrompt && !isStandalone() && !sessionStorage.getItem("howl_skip_install") && !sessionStorage.getItem("howl_saw_install")){
  sessionStorage.setItem("howl_saw_install","1");
  uiInstall();
