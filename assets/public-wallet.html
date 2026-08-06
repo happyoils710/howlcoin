@@ -1071,7 +1071,7 @@ html.embed .gate{min-height:100dvh}
  </div>
  <div class="price-hint" id="portfolioHint">Portfolio value</div>
  <div class="sub-bal" id="howlSubBal">HOWL: —</div>
- <div class="addr" id="addr" onclick="copyText(keypair&&keypair.address,'HOWL address')" style="cursor:pointer" title="Copy HOWL address">—</div>
+ <div class="addr" id="addr" style="cursor:pointer" title="Tap: copy · long-press path: open on Howlscan">—</div>
  <div class="id-strip" id="homeIdStrip">
  <span class="hint" id="homeIdHint">Identity loading…</span>
  </div>
@@ -1117,12 +1117,12 @@ html.embed .gate{min-height:100dvh}
  <details class="home-extra">
  <summary>Network · wallets · tools</summary>
  <div class="panel" style="margin-top:8px">
- <div class="net-pulse" id="netPulse" title="Network status">
+ <div class="net-pulse" id="netPulse" title="Network status — tap to explore on Howlscan">
  <span class="np live" id="npLive" onclick="showPage('status')"><b>● …</b></span>
- <span class="np" id="npH" onclick="showPage('status')">H <b id="height">—</b></span>
+ <span class="np" id="npH" data-howl-nav="#/public" title="Open tip on Howlscan">H <b id="height">—</b></span>
  <span class="np" id="npD" onclick="showPage('status')">Diff <b id="homeDiff">—</b></span>
- <span class="np" id="npM" onclick="showPage('status')">Mem <b>—</b></span>
- <span class="np" id="npSeeds" onclick="showPage('status')" title="Public nodes">Nodes <b id="homeSeeds">—</b></span>
+ <span class="np" id="npM" data-howl-nav="#/public/mempool" title="Mempool on Howlscan">Mem <b>—</b></span>
+ <span class="np" id="npSeeds" onclick="showPage('nodes')" title="Active public nodes">Nodes <b id="homeSeeds">—</b></span>
  <span class="np" id="npShare" onclick="openShareCard('address')">Share</span>
  </div>
  <div class="item"><div>Min fee</div><div class="r" id="minFee" style="color:var(--amber)">1 HOWL</div></div>
@@ -3168,7 +3168,28 @@ function clearAssetBal(id){
 }
 
 function howlAmount(){
- try{ return Number(chainInfo.balance) / 1e8; }catch{ return 0; }
+ // Safe HOWL float for UI — never use Number(hugeHowlies) (precision → glitch/negative)
+ try{
+ if(chainInfo.balance == null) return 0;
+ const bi = typeof chainInfo.balance === "bigint" ? chainInfo.balance : BigInt(chainInfo.balance);
+ if(bi < 0n) return 0; // chain balances are non-negative; guard display glitches
+ const whole = bi / 100000000n;
+ const frac = bi % 100000000n;
+ const n = Number(whole) + Number(frac) / 1e8;
+ return Number.isFinite(n) ? n : 0;
+ }catch{ return 0; }
+}
+function howlBalanceText(maxFrac){
+ try{
+ if(chainInfo.balance == null) return "—";
+ const bi = typeof chainInfo.balance === "bigint" ? chainInfo.balance : BigInt(chainInfo.balance);
+ if(bi < 0n) return "0";
+ // Prefer fixed formatter from howl-crypto when available
+ if(typeof formatHowl === "function"){
+ return formatHowl(bi).replace(/ HOWL$/,"");
+ }
+ return formatAssetAmount(howlAmount(), maxFrac != null ? maxFrac : 4);
+ }catch{ return "—"; }
 }
 
 function formatUsd(n){
@@ -3625,14 +3646,34 @@ function activityRowHtml(r){
  </button>`;
 }
 // nicknames available via displayName() for other UIs
+function openHowlscan(path){
+ // path like #/public/tx/… or #/nodes
+ const p = String(path || "#/public");
+ openExternalUrl("https://howlscan.org/" + (p.startsWith("#") ? p : ("#/" + p)));
+}
 function wireActivityClicks(root){
  root.querySelectorAll("[data-txid]").forEach(btn=>{
  btn.onclick = ()=>{
  const id = btn.getAttribute("data-txid");
  const h = btn.getAttribute("data-h");
- if(id) openExternalUrl("https://howlscan.org/#/public/tx/" + encodeURIComponent(id));
- else if(h) openExternalUrl("https://howlscan.org/#/public/block/" + encodeURIComponent(h));
+ if(id) openHowlscan("#/public/tx/" + encodeURIComponent(id));
+ else if(h) openHowlscan("#/public/block/" + encodeURIComponent(h));
  };
+ });
+}
+// Height / address / seed chips across wallet → Howlscan
+function wireChainClicks(root){
+ const el = root || document;
+ el.querySelectorAll("[data-howl-nav]").forEach(node=>{
+ if(node.dataset.chainWired) return;
+ node.dataset.chainWired = "1";
+ node.style.cursor = "pointer";
+ node.addEventListener("click", (e)=>{
+ e.preventDefault();
+ e.stopPropagation();
+ const nav = node.getAttribute("data-howl-nav");
+ if(nav) openHowlscan(nav);
+ });
  });
 }
 
@@ -3834,6 +3875,7 @@ async function pollNetworkBanner(force){
 
 function startNetworkBannerPoll(){
  wireNetBanner();
+ try{ wireChainClicks(document); }catch(_){}
  if(netBannerTimer) clearInterval(netBannerTimer);
  pollNetworkBanner(true);
  try{ refreshPublicSeeds(false); }catch(_){}
@@ -5297,7 +5339,7 @@ function assetsForChain(chainId){
 function assetBalanceText(a){
  if(!a) return "—";
  if(hideBalances) return HIDDEN_BAL;
- if(a.kind === "howl"){ try{ return formatAssetAmount(Number(chainInfo.balance)/1e8, 4); }catch(_){ return formatHowl(chainInfo.balance).replace(" HOWL",""); } }
+ if(a.kind === "howl"){ try{ return howlBalanceText(4); }catch(_){ return "—"; } }
  return ethBalances[a.id] != null ? ethBalances[a.id] : "…";
 }
 function assetAddress(a){
@@ -10470,17 +10512,24 @@ async function callHowlContract(method, usePartial){
 }
 
 async function nextLocalNonce(){
- // confirmed nonce + pending mempool txs from us + local reserved nonces
+ // Chain "next send" nonce + pending mempool + local reserved (after broadcast)
+ // Error "bad nonce (want 9)" means you must use exactly 9 — never reuse older.
  const addr = await api("/api/public/address/" + encodeURIComponent(keypair.address));
- let n = addr.nonce || 0;
+ let n = Number(addr.nonce);
+ if(!Number.isFinite(n) || n < 0) n = 0;
+ n = Math.floor(n);
  try{
  const mp = await api("/api/public/mempool");
  for(const t of (mp.transactions||[])){
- if(t.from === keypair.address) n = Math.max(n, (t.nonce||0) + 1);
+ if(t.from === keypair.address){
+ const tn = Number(t.nonce);
+ if(Number.isFinite(tn)) n = Math.max(n, Math.floor(tn) + 1);
+ }
  }
  }catch(_){}
  const reserved = localPendingNonce[keypair.address];
- if(reserved != null) n = Math.max(n, reserved);
+ if(reserved != null && Number.isFinite(Number(reserved))) n = Math.max(n, Math.floor(Number(reserved)));
+ chainInfo.nonce = n;
  return n;
 }
 function reserveLocalNonce(addr, nonce){
@@ -10611,9 +10660,28 @@ async function refresh(){
  }
  minFeeHowl = fees.default_fee_howl || 1;
  loadNameCache(false);
+ try{
+ const ht = howlBalanceText(8);
+ ethBalances.howl = ht;
+ if(chainInfo.balance != null){
+ const bi = typeof chainInfo.balance === "bigint" ? chainInfo.balance : BigInt(chainInfo.balance);
+ assetRaw.howl = bi >= 0n ? howlAmount() : 0;
+ }
+ }catch(_){
  setAssetBal("howl", howlAmount(), 8);
- if($("addr")) $("addr").textContent = keypair.address;
- if($("height")) $("height").textContent = sum.height;
+ }
+ if($("addr")){
+ $("addr").textContent = keypair.address;
+ $("addr").onclick = ()=> copyText(keypair.address, "HOWL address");
+ $("addr").ondblclick = ()=> openHowlscan("#/public/address/" + encodeURIComponent(keypair.address));
+ $("addr").title = "Tap to copy · double-tap to open on Howlscan";
+ }
+ if($("height")){
+ $("height").textContent = sum.height;
+ const tipNav = "#/public/block/" + encodeURIComponent(String(sum.height));
+ if($("npH")) $("npH").setAttribute("data-howl-nav", tipNav);
+ }
+ try{ wireChainClicks(document); }catch(_){}
  if($("minFee")) $("minFee").textContent = fees.min_fee || "1 HOWL";
  // HOWL count now; Tezos/Solana filled async so More hub stays useful
  if($("nftCount")) $("nftCount").textContent = String((nfts.nfts||[]).length);

@@ -2551,6 +2551,12 @@ html[data-theme="pack"] .post-body .post-quote{font-family:Georgia,"Times New Ro
 a{color:var(--link);text-decoration:none}
 a:hover{text-decoration:underline}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.84rem;word-break:break-all}
+/* Clickable chain data — whole explorer is navigable */
+a.chain-link,.chain-link{color:var(--green);text-decoration:none;cursor:pointer;border-bottom:1px dotted color-mix(in srgb,var(--green) 45%,transparent)}
+a.chain-link:hover,.chain-link:hover{color:var(--cyan,#9b8cff);border-bottom-color:var(--cyan,#9b8cff)}
+.tap,.stat[onclick],.rail-stat[onclick],.mrow[onclick],tr[onclick]{cursor:pointer}
+.stat[onclick]:hover,.rail-stat[onclick]:hover{background:color-mix(in srgb,var(--green) 8%,transparent)}
+.rail-stat[onclick]{border-radius:8px;padding:4px 6px;margin:0 -6px}
 .muted{color:var(--muted)}
 .topbar{display:flex;align-items:center;gap:10px;padding:10px 14px;padding-top:calc(10px + var(--safe-t));
   border-bottom:1px solid var(--border);background:var(--top-bg);backdrop-filter:blur(12px);
@@ -2848,7 +2854,7 @@ input.field,textarea.field{border-radius:10px}
     <a href="/classic">Classic wallet</a> ·
     <a href="/whitepaper">White paper</a>
   </div>
-  <div>seed <span class="mono">147.182.223.204:42069</span> ·
+  <div>seed <a class="chain-link mono" href="#/nodes">147.182.223.204:42069</a> ·
     <a href="/whitepaper">White paper</a> ·
     <a href="https://github.com/happyoils710/howlcoin" target="_blank" rel="noopener">Code</a>
   </div>
@@ -2859,6 +2865,18 @@ input.field,textarea.field{border-radius:10px}
   <button type="button" class="bnav-item" data-tab="culture" onclick="location.hash='#/culture'"><span class="ico">▣</span>NFTs</button>
   <button type="button" class="bnav-item" data-tab="health" onclick="location.hash='#/health'"><span class="ico">●</span>Net</button>
   <button type="button" class="bnav-item" data-tab="more" onclick="toggleDrawer(true)"><span class="ico">☰</span>More</button>
+<script>
+/* Global: any [data-nav="#/..."] is a chain navigation target */
+document.addEventListener('click', function(ev){
+  var el = ev.target && ev.target.closest && ev.target.closest('[data-nav]');
+  if(!el) return;
+  var h = el.getAttribute('data-nav');
+  if(!h) return;
+  ev.preventDefault();
+  if(h.charAt(0) === '#') location.hash = h;
+  else location.href = h;
+}, true);
+</script>
 </nav>
 <script>
 let net='public', networks=[];
@@ -3156,10 +3174,38 @@ function crumbs(parts){
     p.href?`<a href="${p.href}">${esc(p.label)}</a>`:esc(p.label)
   ).join(' <span style="opacity:.5">/</span> ')}</div>`;
 }
-function linkBlock(h){return `<a href="#/${net}/block/${encodeURIComponent(h)}">${esc(h)}</a>`}
-function linkTx(t){if(!t)return '—'; return `<a class="mono" href="#/${net}/tx/${encodeURIComponent(t)}">${esc(short(t,14))}</a>`}
-function linkAddr(a){if(!a||a==='HOWL_GENESIS_BURN') return `<span class="mono">${esc(a||'—')}</span>`;
-  return `<a class="mono" href="#/${net}/address/${encodeURIComponent(a)}">${esc(short(a,12))}</a>`}
+function linkBlock(h){
+  if(h==null||h==='') return '—';
+  const label = String(h).match(/^[0-9]+$/) ? ('#'+h) : short(h,14);
+  return `<a class="chain-link mono" href="#/${net}/block/${encodeURIComponent(h)}" title="Open block">${esc(label)}</a>`;
+}
+function linkTx(t){
+  if(!t) return '—';
+  return `<a class="chain-link mono" href="#/${net}/tx/${encodeURIComponent(t)}" title="Open transaction">${esc(short(t,14))}</a>`;
+}
+function linkAddr(a){
+  if(!a) return '—';
+  if(a==='HOWL_GENESIS_BURN') return `<span class="mono" title="Genesis burn">${esc(a)}</span>`;
+  // Howl L1 addresses start with H
+  if(String(a).startsWith('H') && String(a).length >= 20){
+    return `<a class="chain-link mono" href="#/${net}/address/${encodeURIComponent(a)}" title="Open address">${esc(short(a,12))}</a>`;
+  }
+  return `<span class="mono">${esc(short(a,12))}</span>`;
+}
+function linkName(slug){
+  if(!slug) return '—';
+  const s = String(slug).replace(/^@/,'');
+  return `<a class="chain-link" href="#/name/${encodeURIComponent(s)}" title="Name profile">@${esc(s)}</a>`;
+}
+function linkHeight(h){ return linkBlock(h); }
+function linkSeed(ep){
+  if(!ep) return '—';
+  return `<a class="chain-link mono" href="#/nodes" title="Public nodes directory">${esc(ep)}</a>`;
+}
+function linkMempool(){ return `<a class="chain-link" href="#/${net}/mempool">mempool</a>`; }
+function linkRichlist(){ return `<a class="chain-link" href="#/${net}/richlist">richlist</a>`; }
+function linkNodes(){ return `<a class="chain-link" href="#/nodes">nodes</a>`; }
+function linkHealth(){ return `<a class="chain-link" href="#/health">network</a>`; }
 
 /** Current SPA route key for live refresh */
 let __routeKey = '';
@@ -3316,7 +3362,7 @@ function txDetailRows(t, d){
       <div class="k">Kind / method</div><div>${esc(t.contract_kind||t.kind||'—')} · ${esc(t.method||(ty==='contract_deploy'?'deploy':'call'))}</div>
       <div class="k">Name</div><div>${esc(t.name||'—')}</div>
       <div class="k">Fund / value</div><div class="amount">${fmtAmt(t.amount||0)}</div>
-      ${t.unlock_height!=null?`<div class="k">Unlock height</div><div>#${esc(String(t.unlock_height))}</div>`:''}
+      ${t.unlock_height!=null?`<div class="k">Unlock height</div><div>${linkHeight(t.unlock_height)}</div>`:''}
       <div class="k">Memo</div><div>${esc(t.memo||'—')}</div>`;
   } else if(ty === 'oracle'){
     rows += `
@@ -3499,17 +3545,19 @@ async function loadHome(){
         <div class="post-ft">
           <a href="#/${net}/block/${s.height}">Open tip</a>
           <a href="#/health">Network</a>
-          <span class="mono" style="font-size:.7rem;opacity:.75">${esc(SEED)}</span>
+          <a href="#/nodes">Nodes</a>
+          <a class="mono" style="font-size:.7rem" href="#/nodes">${esc(SEED)}</a>
         </div>
       </article>
 
       <div class="stats" style="padding:0 0 10px;max-width:none;margin:0">
-        <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/block/${s.height}'">
+        <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/block/${s.height}'" title="Open tip block">
           <div class="k">Height</div><div class="v">${s.height}</div><div class="s">last ${esc(tipAge)}</div></div>
-        <div class="stat" title="${esc(dLabel)}"><div class="k">Difficulty</div><div class="v">${esc(dShow)}</div><div class="s">~${esc(expectTxt)} H next</div></div>
+        <div class="stat" style="cursor:pointer" onclick="location.hash='#/health'" title="${esc(dLabel)} · network status">
+          <div class="k">Difficulty</div><div class="v">${esc(dShow)}</div><div class="s">~${esc(expectTxt)} H next</div></div>
         <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/richlist'" title="${esc(String(s.circulating||''))}">
           <div class="k">Circulating</div><div class="v">${esc(circulatingShort(s))}</div><div class="s">${esc(String(s.addresses??'—'))} addrs</div></div>
-        <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/mempool'">
+        <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/mempool'" title="Open mempool">
           <div class="k">Mempool</div><div class="v">${s.mempool}</div><div class="s">pending</div></div>
       </div>
 
@@ -3518,6 +3566,8 @@ async function loadHome(){
         <button class="chipbtn" onclick="location.hash='#/play'">Play</button>
         <button class="chipbtn" onclick="location.hash='#/culture'">Culture</button>
         <button class="chipbtn" onclick="location.hash='#/charts'">Charts</button>
+        <button class="chipbtn" onclick="location.hash='#/nodes'">Nodes</button>
+        <button class="chipbtn" onclick="location.hash='#/${net}/richlist'">Richlist</button>
         <a class="chipbtn" href="/app/" style="text-decoration:none;color:var(--green)">Wallet</a>
         <button class="chipbtn" onclick="location.hash='#/run'">Mine</button>
       </div>
@@ -3537,15 +3587,15 @@ async function loadHome(){
           </div>
         </div>
         <div class="mlist compact-list">
-          ${bl.slice(0,8).map(b=>`<div class="mrow" onclick="location.hash='#/${net}/block/${b.height}'">
+          ${bl.slice(0,8).map(b=>`<div class="mrow" onclick="location.hash='#/${net}/block/${b.height}'" title="Open block #${b.height}">
             <div class="ml">
               <div class="mt">#${b.height} <span class="muted" style="font-weight:500;font-size:.8rem">· ${b.tx_count||0} tx · ${ago(b.timestamp)}</span></div>
-              <div class="ms mono">${esc(short(b.hash,14))}${b.miner?' · '+short(b.miner,10):''}</div>
+              <div class="ms mono" onclick="event.stopPropagation()">${linkBlock(b.hash||b.height)}${b.miner?' · <span onclick="event.stopPropagation()">'+linkAddr(b.miner)+'</span>':''}</div>
             </div>
             <div class="mr"><div class="ma" style="font-size:.85rem">${fmtAmt(b.reward)}</div></div>
           </div>`).join('')||'<div class="mrow"><div class="muted">No blocks</div></div>'}
         </div>
-        <div class="post-ft"><a href="#/${net}/block/${s.height}">all blocks →</a></div>
+        <div class="post-ft"><a href="#/${net}/block/${s.height}">tip block →</a> · <a href="#/${net}/richlist">richlist →</a></div>
       </article>
 
       <article class="post">
@@ -3560,16 +3610,20 @@ async function loadHome(){
           ${tl.slice(0,8).map(t=>{
             const m = txTypeMeta(t);
             const st = t.confirmed ? ('#'+t.block_height) : 'pending';
-            return `<div class="mrow" onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'">
+            const stHtml = t.confirmed
+              ? `<a class="badge ok chain-link" style="margin-left:4px" href="#/${net}/block/${t.block_height}" onclick="event.stopPropagation()">#${t.block_height}</a>`
+              : `<a class="badge warn chain-link" style="margin-left:4px" href="#/${net}/mempool" onclick="event.stopPropagation()">pending</a>`;
+            return `<div class="mrow" onclick="location.hash='#/${net}/tx/${encodeURIComponent(t.txid||'')}'" title="Open transaction">
             <div class="ml">
-              <div class="mt">${esc(m.label)} <span class="badge ${t.confirmed?'ok':'warn'}" style="margin-left:4px">${esc(st)}</span></div>
-              <div class="ms mono">${esc(short(t.txid,12))}${t.from||t.to?' · '+(t.from?short(t.from,8):'—')+' → '+(t.to?short(t.to,8):'—'):''}</div>
+              <div class="mt">${esc(m.label)} ${stHtml}</div>
+              <div class="ms mono" onclick="event.stopPropagation()">${t.txid?linkTx(t.txid):'—'}
+                ${t.from||t.to?' · <span onclick="event.stopPropagation()">'+linkAddr(t.from)+' → '+linkAddr(t.to)+'</span>':''}</div>
             </div>
             <div class="mr"><div class="ma" style="font-size:.85rem">${fmtAmt(t.amount)}</div></div>
           </div>`;
           }).join('')||'<div class="mrow"><div class="muted">No transactions yet</div></div>'}
         </div>
-        <div class="post-ft"><a href="#/${net}/mempool">mempool →</a></div>
+        <div class="post-ft"><a href="#/${net}/mempool">mempool →</a> · <a href="#/${net}/richlist">richlist →</a></div>
       </article>
 
       <article class="post">
@@ -3592,19 +3646,21 @@ async function loadHome(){
     <aside class="dash-rail" aria-label="Chain pulse">
       <div class="rail-card">
         <h4>Chain pulse</h4>
-        <div class="rail-stat"><span class="rk">Height</span><span class="rv">${s.height}</span></div>
-        <div class="rail-stat"><span class="rk">Diff</span><span class="rv">${esc(dShow)}</span></div>
-        <div class="rail-stat"><span class="rk">Mempool</span><span class="rv">${s.mempool}</span></div>
-        <div class="rail-stat"><span class="rk">Supply</span><span class="rv">${esc(circulatingShort(s))}</span></div>
-        <div class="rail-stat"><span class="rk">Addrs</span><span class="rv">${esc(String(s.addresses??'—'))}</span></div>
+        <div class="rail-stat" onclick="location.hash='#/${net}/block/${s.height}'" title="Tip block"><span class="rk">Height</span><span class="rv">${s.height}</span></div>
+        <div class="rail-stat" onclick="location.hash='#/health'" title="Network status"><span class="rk">Diff</span><span class="rv">${esc(dShow)}</span></div>
+        <div class="rail-stat" onclick="location.hash='#/${net}/mempool'" title="Mempool"><span class="rk">Mempool</span><span class="rv">${s.mempool}</span></div>
+        <div class="rail-stat" onclick="location.hash='#/${net}/richlist'" title="Richlist / supply"><span class="rk">Supply</span><span class="rv">${esc(circulatingShort(s))}</span></div>
+        <div class="rail-stat" onclick="location.hash='#/${net}/richlist'" title="Addresses on richlist"><span class="rk">Addrs</span><span class="rv">${esc(String(s.addresses??'—'))}</span></div>
+        <div class="rail-stat" onclick="location.hash='#/nodes'" title="Public nodes"><span class="rk">Nodes</span><span class="rv">seeds</span></div>
       </div>
       <div class="rail-card">
         <h4>Culture</h4>
-        <div class="rail-stat"><span class="rk">Howls</span><span class="rv">${cul.howls??0}</span></div>
-        <div class="rail-stat"><span class="rk">Names</span><span class="rv">${cul.names??0}</span></div>
-        <div class="rail-stat"><span class="rk">Open pots</span><span class="rv">${cul.packpots_open??0}</span></div>
-        <div class="rail-stat"><span class="rk">NFTs</span><span class="rv">${cul.nfts??0}</span></div>
+        <div class="rail-stat" onclick="location.hash='#/city'" title="Howls in City"><span class="rk">Howls</span><span class="rv">${cul.howls??0}</span></div>
+        <div class="rail-stat" onclick="location.hash='#/play'" title="Names / Play"><span class="rk">Names</span><span class="rv">${cul.names??0}</span></div>
+        <div class="rail-stat" onclick="location.hash='#/contracts'" title="Pack pots"><span class="rk">Open pots</span><span class="rv">${cul.packpots_open??0}</span></div>
+        <div class="rail-stat" onclick="location.hash='#/culture'" title="NFT gallery"><span class="rk">NFTs</span><span class="rv">${cul.nfts??0}</span></div>
         <a class="rail-link" href="#/city" style="margin-top:8px;border:0">Open City →</a>
+        <a class="rail-link" href="#/nodes" style="border:0">Public nodes →</a>
       </div>
     </aside>
   </div>`;
@@ -3653,10 +3709,10 @@ async function showBlock(id){
       <button class="chipbtn" onclick="copyText(${JSON.stringify(String(b.hash||''))}, this)">Copy hash</button>
     </div>
     <div class="stats" style="margin-bottom:10px">
-      <div class="stat"><div class="k">Height</div><div class="v">#${b.height}</div><div class="s">${esc(ago(b.header.timestamp))}</div></div>
+      <div class="stat" onclick="location.hash='#/${net}/block/${b.height}'" title="This block"><div class="k">Height</div><div class="v">#${b.height}</div><div class="s">${esc(ago(b.header.timestamp))}</div></div>
       <div class="stat"><div class="k">Mined</div><div class="v" style="font-size:.9rem">${esc(fmtTime(b.header.timestamp))}</div><div class="s">block time</div></div>
-      <div class="stat"><div class="k">Txs</div><div class="v">${txs.length}</div><div class="s">${g.transfers.length} transfer · ${cultureN} culture</div></div>
-      <div class="stat"><div class="k">Reward</div><div class="v" style="font-size:.95rem">${fmtAmt(cb&&cb.amount)}</div><div class="s">miner ${cb&&cb.to?esc(short(cb.to,10)):'—'}</div></div>
+      <div class="stat" title="Transactions in this block"><div class="k">Txs</div><div class="v">${txs.length}</div><div class="s">${g.transfers.length} transfer · ${cultureN} culture</div></div>
+      <div class="stat" ${cb&&cb.to?`onclick="location.hash='#/${net}/address/${encodeURIComponent(cb.to)}'" title="Miner address"`:''}><div class="k">Reward</div><div class="v" style="font-size:.95rem">${fmtAmt(cb&&cb.amount)}</div><div class="s">miner ${cb&&cb.to?esc(short(cb.to,10)):'—'}</div></div>
     </div>
     <div class="card detail">
       <div class="badge blue">Block</div>
@@ -3736,8 +3792,8 @@ async function showAddr(addr){
   const spark = heights.length
     ? `<div style="display:flex;align-items:flex-end;gap:3px;height:36px;margin:10px 0 4px">${heights.map(h=>{
         const pct = Math.max(8, Math.round(100 * (Number(h)||0) / maxH));
-        return `<div title="#${h}" style="flex:1;min-width:4px;height:${pct}%;background:var(--green);opacity:.75"></div>`;
-      }).join('')}</div><div class="muted" style="font-size:.72rem">Recent activity heights (newest left)</div>`
+        return `<div title="Open block #${h}" role="link" tabindex="0" onclick="location.hash='#/${net}/block/${h}'" style="flex:1;min-width:4px;height:${pct}%;background:var(--green);opacity:.75;cursor:pointer"></div>`;
+      }).join('')}</div><div class="muted" style="font-size:.72rem">Recent activity heights — tap a bar to open that block</div>`
     : `<p class="muted" style="font-size:.85rem;margin:8px 0">No activity spark yet</p>`;
   app().innerHTML=`<div class="main" style="padding-top:12px">
     ${crumbs([{label:'Home',href:'#/'+net},{label:'Richlist',href:'#/'+net+'/richlist'},{label:onName?('@'+onName):'Address'}])}
@@ -4007,10 +4063,10 @@ async function showHealth(){
       <h2 style="margin:8px 0 6px">Network status</h2>
       <p class="muted" style="margin:0 0 12px">Ops theater — live L1 metrics for Howlcoin. No ads, no trackers.</p>
       <div class="stats">
-        <div class="stat"><div class="k">Height</div><div class="v">${h.height??'—'}</div><div class="s">tip</div></div>
-        <div class="stat"><div class="k">Tip age</div><div class="v" style="font-size:1rem">${esc(ageTxt)}</div><div class="s">target ${h.target_block_time||60}s</div></div>
-        <div class="stat"><div class="k">Est. hashrate</div><div class="v" style="font-size:.95rem">${esc(hpsTxt)}</div><div class="s">from work / block time</div></div>
-        <div class="stat"><div class="k">Mempool</div><div class="v">${h.mempool??'—'}</div><div class="s">pending</div></div>
+        <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/block/${h.height??0}'" title="Open tip block"><div class="k">Height</div><div class="v">${h.height??'—'}</div><div class="s">tip</div></div>
+        <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/block/${h.height??0}'" title="Tip block"><div class="k">Tip age</div><div class="v" style="font-size:1rem">${esc(ageTxt)}</div><div class="s">target ${h.target_block_time||60}s</div></div>
+        <div class="stat" style="cursor:pointer" onclick="location.hash='#/run'" title="Run a node / mine"><div class="k">Est. hashrate</div><div class="v" style="font-size:.95rem">${esc(hpsTxt)}</div><div class="s">from work / block time</div></div>
+        <div class="stat" style="cursor:pointer" onclick="location.hash='#/${net}/mempool'" title="Mempool"><div class="k">Mempool</div><div class="v">${h.mempool??'—'}</div><div class="s">pending</div></div>
       </div>
       <div class="kv" style="margin-top:12px">
         <div class="k">Difficulty</div><div>${esc(String(h.difficulty_label||'—'))}</div>
@@ -4025,10 +4081,10 @@ async function showHealth(){
       <h3 style="margin-top:0">Culture on-chain</h3>
       <p class="muted" style="margin:0 0 10px">Live counts from the public ledger — pots, howls, names, NFTs.</p>
       <div class="stats">
-        <div class="stat"><div class="k">Open pots</div><div class="v">${cul.packpots_open??0}</div><div class="s">${cul.packpots??0} total</div></div>
-        <div class="stat"><div class="k">Howls</div><div class="v">${cul.howls??0}</div><div class="s">posts</div></div>
-        <div class="stat"><div class="k">Names</div><div class="v">${cul.names??0}</div><div class="s">@handles</div></div>
-        <div class="stat"><div class="k">NFTs</div><div class="v">${cul.nfts??0}</div><div class="s">${cul.tipjars??0} tip jars</div></div>
+        <div class="stat" style="cursor:pointer" onclick="location.hash='#/contracts'" title="Contracts / pots"><div class="k">Open pots</div><div class="v">${cul.packpots_open??0}</div><div class="s">${cul.packpots??0} total</div></div>
+        <div class="stat" style="cursor:pointer" onclick="location.hash='#/city'" title="City howls"><div class="k">Howls</div><div class="v">${cul.howls??0}</div><div class="s">posts</div></div>
+        <div class="stat" style="cursor:pointer" onclick="location.hash='#/play'" title="Play / names"><div class="k">Names</div><div class="v">${cul.names??0}</div><div class="s">@handles</div></div>
+        <div class="stat" style="cursor:pointer" onclick="location.hash='#/culture'" title="NFT gallery"><div class="k">NFTs</div><div class="v">${cul.nfts??0}</div><div class="s">${cul.tipjars??0} tip jars</div></div>
       </div>
     </div>
     <div class="card detail" style="margin-top:12px">
@@ -4434,11 +4490,6 @@ function fmtAmtShort(howlies){
   if(n >= 1e6) return (n/1e6).toFixed(2)+'M HOWL';
   if(n >= 1e3) return (n/1e3).toFixed(2)+'k HOWL';
   return n.toFixed(n >= 1 ? 2 : 4) + ' HOWL';
-}
-function linkName(slug){
-  if(!slug) return '—';
-  const s = String(slug).replace(/^@/,'');
-  return `<a href="#/name/${encodeURIComponent(s)}">@${esc(s)}</a>`;
 }
 function sparkPts(points, w, h){
   const vals = (points||[]).map(p=>Number(p.p)).filter(v=>isFinite(v));
