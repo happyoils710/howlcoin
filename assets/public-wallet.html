@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-title" content="Howlcoin"/>
 <meta name="theme-color" content="#03010a" id="themeColorMeta"/>
-<title>Howlcoin Wallet</title>
+<title>HOWL Wallet · degen pack</title>
 <link rel="icon" href="/assets/howlcoin-logo.png"/>
 <link rel="apple-touch-icon" href="/assets/howlcoin-logo.png"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
@@ -16,6 +16,8 @@
  try{
  var t=localStorage.getItem('howl_theme_v1')||localStorage.getItem('howlscan_theme_v1')||'pack';
  if(['light','dark','neo','bones','pack'].indexOf(t)<0) t='pack';
+ // Default aura is degen pack
+ if(!localStorage.getItem('howl_theme_v1') && !localStorage.getItem('howlscan_theme_v1')) t='pack';
  document.documentElement.setAttribute('data-theme', t);
  var c=localStorage.getItem('howl_corners_v1')||'soft';
  document.documentElement.setAttribute('data-corners', c==='sharp'?'sharp':'soft');
@@ -38,24 +40,24 @@
 </script>
 
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Rajdhani:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800;900&family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <script src="/assets/howl-native-bridge.js"></script>
 <style>
 /* —— Themes —— */
-/* Pack = soft night purple + mint (matches Howlscan dash feed) */
+/* Pack / Degen = toxic mint + hot pink + void purple (meme coin aura) */
 html[data-theme="pack"], :root{
- --bg:#1a1524; --void:#15101f; --card:#2a2338; --card2:#322b42;
- --border:rgba(255,255,255,.1); --border2:rgba(155,140,255,.35);
- --text:#f3eef8; --muted:#a89bb8;
- --green:#5dffb0; --cyan:#9b8cff; --mag:#c4b5fd; --pink:#ff7ab8;
- --amber:#ffc14d; --danger:#ff7a90; --blue:#9b8cff;
- --glow:0 8px 28px rgba(0,0,0,.22);
- --top-bg:rgba(26,21,36,.92); --bottom-bg:rgba(22,18,32,.96);
- --btn-fg:#142018; --field-bg:#221c30;
+ --bg:#0e0618; --void:#080310; --card:#1c1230; --card2:#261a40;
+ --border:rgba(0,255,170,.22); --border2:rgba(255,80,200,.4);
+ --text:#f8f0ff; --muted:#b8a0d0;
+ --green:#00ff9c; --cyan:#7d5cff; --mag:#e040fb; --pink:#ff3d9a;
+ --amber:#ffe066; --danger:#ff4d6d; --blue:#7d5cff;
+ --glow:0 0 32px rgba(0,255,156,.28), 0 0 64px rgba(255,61,154,.12);
+ --top-bg:rgba(10,4,22,.9); --bottom-bg:rgba(8,3,18,.96);
+ --btn-fg:#06140e; --field-bg:#160e28;
  --safe-b:env(safe-area-inset-bottom,0px); --safe-t:env(safe-area-inset-top,0px); --nav-h:68px;
  --font-ui:Inter,system-ui,sans-serif;
- --font-display:Georgia,"Times New Roman",serif;
- --grid-opacity:0; --fx:1;
+ --font-display:"Orbitron",Inter,system-ui,sans-serif;
+ --grid-opacity:.2; --fx:1;
 }
 html[data-theme="neo"]{
  --bg:#03010a; --void:#050214; --card:rgba(12,8,32,.72); --card2:rgba(8,6,24,.9);
@@ -143,10 +145,102 @@ body::before{
 html[data-theme="pack"] body::before{
  opacity:1;
  background:
- radial-gradient(800px 420px at 12% -8%,rgba(93,255,176,.12),transparent 55%),
- radial-gradient(700px 400px at 100% 0%,rgba(155,140,255,.14),transparent 50%),
- radial-gradient(500px 300px at 50% 100%,rgba(255,122,180,.06),transparent 50%),
- linear-gradient(180deg,#1a1524 0%,#15101f 55%,#120e1c 100%);
+ radial-gradient(700px 380px at 8% -5%,rgba(0,255,156,.2),transparent 55%),
+ radial-gradient(600px 360px at 100% 0%,rgba(255,61,154,.18),transparent 50%),
+ radial-gradient(500px 280px at 50% 110%,rgba(125,92,255,.14),transparent 50%),
+ linear-gradient(180deg,#12061f 0%,#0a0414 50%,#06020e 100%);
+}
+html[data-theme="pack"] body::after{
+ content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+ opacity:.12;
+ background-image:
+  linear-gradient(rgba(0,255,156,.07) 1px,transparent 1px),
+  linear-gradient(90deg,rgba(255,61,154,.05) 1px,transparent 1px);
+ background-size:28px 28px;
+ animation:degenGrid 18s linear infinite;
+}
+@keyframes degenGrid{0%{background-position:0 0}100%{background-position:28px 28px}}
+html[data-theme="pack"] .bal{
+ border:1px solid rgba(0,255,156,.25);
+ background:linear-gradient(145deg,rgba(28,18,48,.95),rgba(18,10,36,.98));
+ box-shadow:0 0 0 1px rgba(255,61,154,.12), var(--glow);
+ position:relative;overflow:hidden;
+}
+html[data-theme="pack"] .bal::before{
+ content:"DEGEN MODE · NFA · DYOR · AWOO";
+ position:absolute;top:8px;right:-28px;transform:rotate(18deg);
+ font-size:.58rem;font-weight:800;letter-spacing:.12em;
+ color:rgba(0,255,156,.45);pointer-events:none;white-space:nowrap;
+}
+html[data-theme="pack"] .bal .lbl{
+ text-transform:uppercase;letter-spacing:.14em;font-size:.68rem;
+ color:var(--pink);font-weight:800;
+}
+html[data-theme="pack"] .bal .amt{
+ font-family:var(--font-display);font-weight:800;
+ background:linear-gradient(90deg,#00ff9c,#ffe066,#ff3d9a);
+ -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+ filter:drop-shadow(0 0 12px rgba(0,255,156,.35));
+}
+html[data-theme="pack"] .btn:not(.sec):not(.danger){
+ background:linear-gradient(135deg,#00ff9c 0%,#3dffc0 40%,#ffe066 100%);
+ color:#06140e;font-weight:800;border:0;
+ box-shadow:0 0 20px rgba(0,255,156,.35);
+ text-transform:uppercase;letter-spacing:.04em;
+}
+html[data-theme="pack"] .btn:not(.sec):not(.danger):active{
+ transform:scale(.98);filter:brightness(1.05);
+}
+html[data-theme="pack"] .btn.sec{
+ border-color:rgba(0,255,156,.35);color:var(--green);
+ background:rgba(0,255,156,.06);
+}
+html[data-theme="pack"] .wa-act{
+ border:1px solid rgba(255,61,154,.25);
+ background:linear-gradient(180deg,rgba(38,26,64,.9),rgba(20,12,40,.95));
+}
+html[data-theme="pack"] .wa-act .wa-lab{
+ font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;
+}
+html[data-theme="pack"] .wa-act .wa-ico{
+ background:linear-gradient(135deg,rgba(0,255,156,.2),rgba(255,61,154,.2));
+ border:1px solid rgba(0,255,156,.3);
+}
+html[data-theme="pack"] .top-brand .t{
+ font-family:var(--font-display);font-weight:800;letter-spacing:.02em;
+}
+html[data-theme="pack"] .top-brand .t span{
+ color:var(--green);text-shadow:0 0 12px rgba(0,255,156,.5);
+}
+html[data-theme="pack"] .screen h1{
+ font-family:var(--font-display);font-weight:900;letter-spacing:.04em;
+ background:linear-gradient(90deg,#00ff9c,#ff3d9a,#ffe066);
+ -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+html[data-theme="pack"] .chip.ok,html[data-theme="pack"] #liveChip.ok{
+ color:var(--green);text-shadow:0 0 8px rgba(0,255,156,.8);
+}
+html[data-theme="pack"] .toast{
+ border:1px solid rgba(0,255,156,.4);
+ background:rgba(12,6,24,.95);
+ box-shadow:0 0 24px rgba(255,61,154,.2);
+}
+html[data-theme="pack"] .degen-ticker{
+ overflow:hidden;white-space:nowrap;margin:0 0 10px;padding:6px 0;
+ border-top:1px solid rgba(0,255,156,.15);
+ border-bottom:1px solid rgba(255,61,154,.15);
+ background:rgba(0,0,0,.25);
+ font-size:.68rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+ color:var(--amber);
+}
+html[data-theme="pack"] .degen-ticker span{
+ display:inline-block;padding-left:100%;
+ animation:degenMarquee 22s linear infinite;
+}
+@keyframes degenMarquee{0%{transform:translateX(0)}100%{transform:translateX(-100%)}}
+html[data-theme="pack"] .menu-row .mt{font-weight:800}
+html[data-theme="pack"] .assets-tabs button.on{
+ background:rgba(0,255,156,.15);color:var(--green);border-color:rgba(0,255,156,.4);
 }
 html[data-theme="neo"] body::before{
  background:
@@ -1009,9 +1103,11 @@ html.embed .gate{min-height:100dvh}
 <body>
 <div id="gate" class="screen">
  <img class="logo" src="/assets/howlcoin-logo.png" alt="HOWL"/>
- <h1>Howlcoin</h1>
- <p id="gateMsg">Loading…</p>
+ <h1>HOWL</h1>
+ <p style="margin:0 0 4px;font-weight:800;letter-spacing:.12em;font-size:.72rem;color:var(--green);text-transform:uppercase">Scrypt meme L1 · pure degen energy</p>
+ <p id="gateMsg">Loading the pack…</p>
  <div class="card" id="gateCard"></div>
+ <p class="hint" style="margin-top:14px;max-width:280px;text-align:center;font-size:.72rem">NFA · DYOR · not financial advice · just vibes and Scrypt blocks 🌕</p>
 </div>
 
 <div id="app" class="hidden">
@@ -1023,7 +1119,7 @@ html.embed .gate{min-height:100dvh}
  <div class="top">
  <button type="button" class="top-brand" onclick="showPage('home')" title="Home" aria-label="Go home">
  <img src="/assets/howlcoin-logo.png" alt=""/>
- <div><div class="t">Howl<span>coin</span></div><div class="s" id="syncSub">Wallet</div></div>
+ <div><div class="t">HOWL<span>·pack</span></div><div class="s" id="syncSub">degen wallet</div></div>
  </button>
  <div class="grow"></div>
  <button type="button" class="top-jump" onclick="showPage('activity')" title="History" aria-label="Activity">☰</button>
@@ -1041,9 +1137,10 @@ html.embed .gate{min-height:100dvh}
  <div class="content">
  <!-- HOME — portfolio-first mobile wallet layout -->
  <div class="page on" id="p-home">
+ <div class="degen-ticker" aria-hidden="true"><span>AWOO · MINE HOWL · SEND HOWL · WRAP wHOWL · WAGMI · SCRYPT DEGEN · MOON OR HOWL · NFA · DYOR · PACK FOREVER · </span></div>
  <div class="bal" id="balCard">
  <div class="bal-head">
- <div class="lbl">Total assets</div>
+ <div class="lbl">Bag value · ser</div>
  <button type="button" class="hide-bal-btn" id="hideBalBtn" title="Hide balances" aria-label="Hide balances" aria-pressed="false">
  <svg viewBox="0 0 64 64" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
  <ellipse cx="32" cy="36" rx="18" ry="16" fill="currentColor" opacity=".14"/>
@@ -1069,34 +1166,34 @@ html.embed .gate{min-height:100dvh}
  <button type="button" data-u="usd" class="on" id="unitUsdBtn">USD</button>
  <button type="button" data-u="btc" id="unitBtcBtn">BTC</button>
  </div>
- <div class="price-hint" id="portfolioHint">Portfolio value</div>
+ <div class="price-hint" id="portfolioHint">on-chain degen stack</div>
  <div class="sub-bal" id="howlSubBal">HOWL: —</div>
  <div class="addr" id="addr" style="cursor:pointer" title="Tap: copy · long-press path: open on Howlscan">—</div>
  <div class="id-strip" id="homeIdStrip">
  <span class="hint" id="homeIdHint">Identity loading…</span>
  </div>
  <div class="empty-cta hidden" id="homeEmptyCta">
- <button type="button" class="cta" onclick="openExternalUrl('https://howlscan.org/#/run')"><span class="ico"></span><div><div class="t">Mine HOWL</div><div class="s">Run a node · public seed</div></div></button>
- <button type="button" class="cta" id="homeGetHowlCta" onclick="openGetHowl()"><span class="ico">⇄</span><div><div class="t">Get HOWL</div><div class="s" id="homeGetHowlSub">Mine · receive · swap</div></div></button>
- <button type="button" class="cta" onclick="showPage('recv')"><span class="ico">↓</span><div><div class="t">Receive</div><div class="s">Deposit on any chain</div></div></button>
+ <button type="button" class="cta" onclick="openExternalUrl('https://howlscan.org/#/run')"><span class="ico"></span><div><div class="t">Mine HOWL ⛏</div><div class="s">CPU Scrypt · public seed · free bags</div></div></button>
+ <button type="button" class="cta" id="homeGetHowlCta" onclick="openGetHowl()"><span class="ico">⇄</span><div><div class="t">Get HOWL</div><div class="s" id="homeGetHowlSub">Mine · receive · bridge · awoo</div></div></button>
+ <button type="button" class="cta" onclick="showPage('recv')"><span class="ico">↓</span><div><div class="t">Receive bags</div><div class="s">Your H… address · paste & flex</div></div></button>
  </div>
  </div>
 
  <div class="wa-actions" role="navigation" aria-label="Quick actions" style="flex-wrap:wrap">
- <button class="wa-act" type="button" onclick="openBuyFlow()"><span class="wa-ico" data-icon="recv"></span><span class="wa-lab">Buy</span></button>
+ <button class="wa-act" type="button" onclick="openBuyFlow()"><span class="wa-ico" data-icon="recv"></span><span class="wa-lab">Ape</span></button>
  <button class="wa-act" type="button" onclick="showPage('swap');try{setSwapMode('jup')}catch(_){}"><span class="wa-ico" data-icon="swap"></span><span class="wa-lab">Swap</span></button>
  <button class="wa-act" type="button" onclick="openBridgeFlow()"><span class="wa-ico" data-icon="swap"></span><span class="wa-lab">Bridge</span></button>
  <button class="wa-act" type="button" onclick="showPage('send')"><span class="wa-ico" data-icon="send"></span><span class="wa-lab">Send</span></button>
- <button class="wa-act" type="button" onclick="showPage('recv')"><span class="wa-ico" data-icon="recv"></span><span class="wa-lab">Receive</span></button>
+ <button class="wa-act" type="button" onclick="showPage('recv')"><span class="wa-ico" data-icon="recv"></span><span class="wa-lab">Recv</span></button>
  </div>
 
  <div class="assets-hub" id="homeAssetsHub">
  <div class="assets-tabs" role="tablist" aria-label="Asset type">
- <button type="button" class="on" data-home-tab="crypto" onclick="setHomeAssetsTab('crypto')">Crypto</button>
- <button type="button" data-home-tab="nfts" onclick="setHomeAssetsTab('nfts')">NFTs</button>
+ <button type="button" class="on" data-home-tab="crypto" onclick="setHomeAssetsTab('crypto')">Bags</button>
+ <button type="button" data-home-tab="nfts" onclick="setHomeAssetsTab('nfts')">JPEGs</button>
  </div>
  <div class="net-filter-wrap">
- <label for="homeChainSelect">Network</label>
+ <label for="homeChainSelect">Chain</label>
  <select class="chain-select" id="homeChainSelect" aria-label="Network filter"></select>
  </div>
  <div class="wa-pills hidden" id="homeChainPills" aria-hidden="true"></div>
@@ -2334,38 +2431,37 @@ const DEFAULT_TOOLBAR = ["home", "play", "markets", "more"];
 
 /** Structured More menu + jump sheet destinations */
 const MORE_MENU = [
- { section: "Money", items: [
- { id: "send", icon: "send", title: "Send", sub: "HOWL · address book · QR", page: "send" },
- { id: "recv", icon: "recv", title: "Receive", sub: "HOWL · SOL · XTZ · ETH", page: "recv" },
- { id: "assets", icon: "assets", title: "Assets", sub: "Balances by chain", page: "assets" },
- { id: "swap", icon: "swap", title: "Swap", sub: "Solana · Jupiter", page: "swap" },
- { id: "markets", icon: "chart", title: "Howl Charts", sub: "Howlcoin product", page: "markets" },
- { id: "activity", icon: "list", title: "History", sub: "Txs · pending", page: "activity" },
+ { section: "Money · degen tools", items: [
+ { id: "send", icon: "send", title: "Send HOWL", sub: "Yeet coins · QR · @names", page: "send" },
+ { id: "recv", icon: "recv", title: "Receive", sub: "Flex your H… address", page: "recv" },
+ { id: "assets", icon: "assets", title: "Bags", sub: "Every chain · every cope", page: "assets" },
+ { id: "swap", icon: "swap", title: "Swap", sub: "Solana · Jupiter · chaos", page: "swap" },
+ { id: "markets", icon: "chart", title: "Charts", sub: "Numbers go brrr", page: "markets" },
+ { id: "activity", icon: "list", title: "Tx history", sub: "Pending · confirmed · copium", page: "activity" },
  ]},
- { section: "Collectibles", items: [
- { id: "nft", icon: "nft", title: "Culture / NFTs", sub: "Gallery · mint from howl", page: "nft" },
- { id: "names", icon: "at", title: "Names", sub: "Claim @name", page: "names" },
- { id: "contracts", icon: "contract", title: "Contracts", sub: "Advanced Howl Script", page: "contracts" },
+ { section: "Culture", items: [
+ { id: "nft", icon: "nft", title: "JPEGs / NFTs", sub: "Mint · flex · culture", page: "nft" },
+ { id: "names", icon: "at", title: "@names", sub: "Claim your degen handle", page: "names" },
+ { id: "contracts", icon: "contract", title: "Contracts", sub: "Pots · scripts · on-chain toys", page: "contracts" },
  ]},
- { section: "Apps", items: [
- { id: "city", icon: "pulse", title: "Howl City", sub: "Live L1 feed · act in app", page: "play", playTab: "city" },
- { id: "play", icon: "spark", title: "Play", sub: "City · pots · howls · names · tips", page: "play" },
- { id: "nft", icon: "nft", title: "Culture / NFTs", sub: "Gallery · mint from howl", page: "nft" },
- { id: "nodes", icon: "globe", title: "Active nodes", sub: "Public P2P seeds · live", page: "nodes", hintId: "moreNodesHint" },
- { id: "status", icon: "pulse", title: "Network", sub: "Hashrate · tip age · culture", page: "status" },
- { id: "browser", icon: "globe", title: "Browser", sub: "Search · dApps", page: "browser" },
- { id: "discover", icon: "spark", title: "Discover", sub: "Crypto radar", page: "discover" },
- { id: "wc", icon: "link", title: "Connect", sub: "WalletConnect", page: "wc", hintId: "moreWcHint" },
- { id: "oracle", icon: "oracle", title: "Oracle", sub: "On-chain posts", page: "oracle" },
- { id: "share", icon: "share", title: "Share profile", sub: "@name · address card", action: "share" },
+ { section: "Pack apps", items: [
+ { id: "city", icon: "pulse", title: "Howl City", sub: "Live L1 feed · awoo", page: "play", playTab: "city" },
+ { id: "play", icon: "spark", title: "Play", sub: "Pots · howls · tips · chaos", page: "play" },
+ { id: "nodes", icon: "globe", title: "Nodes", sub: "Public seeds · stay decentralized", page: "nodes", hintId: "moreNodesHint" },
+ { id: "status", icon: "pulse", title: "Network", sub: "Tip age · hashrate · vibes", page: "status" },
+ { id: "browser", icon: "globe", title: "Browser", sub: "Degen sites · dApps", page: "browser" },
+ { id: "discover", icon: "spark", title: "Discover", sub: "Radar for the unhinged", page: "discover" },
+ { id: "wc", icon: "link", title: "Connect", sub: "WalletConnect · ser", page: "wc", hintId: "moreWcHint" },
+ { id: "oracle", icon: "oracle", title: "Oracle", sub: "Post on-chain gibberish", page: "oracle" },
+ { id: "share", icon: "share", title: "Share profile", sub: "@name · bag flex card", action: "share" },
  ]},
  { section: "Settings", items: [
- { id: "sec", icon: "shield", title: "Security", sub: "PIN · Face ID · 2FA", page: "sec", hintId: "moreSecHint" },
+ { id: "sec", icon: "shield", title: "Security", sub: "PIN · biometrics · 2FA (don't get rekt)", page: "sec", hintId: "moreSecHint" },
  { id: "toolbar", icon: "grid", title: "Tab bar", sub: "Customize bottom icons", page: "toolbar" },
- { id: "appearance", icon: "palette", title: "Appearance", sub: "Theme · corners", page: "appearance", hintId: "themeHint" },
- { id: "refresh", icon: "refresh", title: "Refresh", sub: "Reload balances", action: "refresh" },
- { id: "explorer", icon: "external", title: "Explorer", sub: "howlscan.org", action: "explorer" },
- { id: "lock", icon: "lock", title: "Lock", sub: "Require unlock", action: "lock" },
+ { id: "appearance", icon: "palette", title: "Aura", sub: "Degen pack · neo · bones", page: "appearance", hintId: "themeHint" },
+ { id: "refresh", icon: "refresh", title: "Refresh", sub: "Reload bags", action: "refresh" },
+ { id: "explorer", icon: "external", title: "Howlscan", sub: "Touch the blockchain", action: "explorer" },
+ { id: "lock", icon: "lock", title: "Lock", sub: "Hide the bags", action: "lock" },
  ]},
 ];
 
@@ -12077,14 +12173,14 @@ function gateStepBar(step, total = 4){
 
 function uiCreate(){
  accountWizard = null;
- $("gateMsg").textContent = "howlscan.org · non-custodial · PIN · 2FA · Face ID";
+ $("gateMsg").textContent = "Scrypt meme L1 · non-custodial · your keys";
  showGate(`
- <div class="gate-badge">howlscan.org</div>
- <p class="hint" style="margin-top:0;text-align:left">Create a free local <b>account</b> on this device. Keys never leave your phone/browser — Howlscan does not store your phrase.</p>
- <button class="btn" type="button" id="btnCreate">Create account</button>
- <button class="btn sec" type="button" id="btnRestore">Sign in / restore phrase</button>
- <button class="btn sec" type="button" id="btnRestoreKey">Import private key</button>
- <p class="hint" style="margin-top:12px;font-size:.78rem;text-align:left">Account security: device PIN vault · optional Google Authenticator · optional Face ID / Touch ID · 12-word recovery.</p>
+ <div class="gate-badge">AWOO · HOWLSCAN</div>
+ <p class="hint" style="margin-top:0;text-align:left"><b>Join the pack.</b> Local vault on this device. Phrase never leaves your phone. Mine, send, wrap, howl — pure degen L1 energy.</p>
+ <button class="btn" type="button" id="btnCreate">Spawn wallet · let's go</button>
+ <button class="btn sec" type="button" id="btnRestore">I have a phrase · restore</button>
+ <button class="btn sec" type="button" id="btnRestoreKey">Import raw key</button>
+ <p class="hint" style="margin-top:12px;font-size:.78rem;text-align:left">PIN vault · optional 2FA · Face ID · 12-word recovery. NFA. Don't share the words. Don't get rekt.</p>
  `);
  $("btnCreate").onclick = ()=> startAccountWizard();
  $("btnRestore").onclick = ()=> uiRestorePhrase();
@@ -12363,20 +12459,20 @@ function uiRestoreKey(){
 }
 
 function uiUnlock(){
- $("gateMsg").textContent = "Unlock your howlscan account";
+ $("gateMsg").textContent = "Welcome back, ser · unlock the pack";
  const bio = hasBiometricUnlock();
  const need2fa = !!(meta.totpEnabled);
  showGate(`
- <div class="gate-badge">howlscan.org</div>
- ${bio?`<button class="btn" type="button" id="btnBio">Unlock with Face ID / Touch ID</button>
- <p class="hint" style="text-align:center;margin:4px 0 10px">No PIN required when Face ID is enabled</p>`:""}
- ${bio?`<p class="hint" style="text-align:center;margin:0 0 8px">Or use PIN backup</p>`:""}
+ <div class="gate-badge">HOWL · DEGEN VAULT</div>
+ ${bio?`<button class="btn" type="button" id="btnBio">Face ID · open bags</button>
+ <p class="hint" style="text-align:center;margin:4px 0 10px">Biometrics on · PIN is backup</p>`:""}
+ ${bio?`<p class="hint" style="text-align:center;margin:0 0 8px">Or PIN</p>`:""}
  <label>PIN${bio?" (backup)":""}</label>
  <input class="field" id="unPin" type="password" inputmode="numeric" maxlength="8" placeholder="PIN"/>
  ${need2fa?`<label>Authenticator code</label><input class="field" id="unTotp" inputmode="numeric" maxlength="6" placeholder="6 digits"/>`:""}
  <div class="err" id="gErr"></div>
- <button class="btn ${bio?"sec":""}" type="button" id="btnUn">${bio?"Open with PIN":"Unlock account"}</button>
- <button class="btn sec" type="button" id="btnRest2">Create / restore another account</button>
+ <button class="btn ${bio?"sec":""}" type="button" id="btnUn">${bio?"PIN unlock":"Unlock · awoo"}</button>
+ <button class="btn sec" type="button" id="btnRest2">New / restore wallet</button>
  `);
  async function applyVault(vault, pinOrNull){
  const multi = normalizeMultiVault(vault);
@@ -12820,7 +12916,7 @@ function boot(skipInstallPrompt){
  }
  }
  }catch(_){}
- if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=13").catch(()=>{});
+ if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=14").catch(()=>{});
  if(!skipInstallPrompt && !isStandalone() && !sessionStorage.getItem("howl_skip_install") && !sessionStorage.getItem("howl_saw_install")){
  sessionStorage.setItem("howl_saw_install","1");
  uiInstall();

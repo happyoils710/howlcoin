@@ -2827,9 +2827,9 @@ input.field,textarea.field{border-radius:10px}
 
 <div class="hero" id="hero-static">
   <div class="ascii-banner" aria-hidden="true" id="howl-banner-host" style="display:none"></div>
-  <h2 style="font-size:clamp(1.35rem,3vw,1.75rem);font-weight:750;letter-spacing:-.02em;margin:0 0 8px">Howlscan</h2>
-  <p class="muted sub-desktop" style="margin:0 auto 4px;max-width:36rem">Your pack feed for the public chain — blocks, howls, pots, @names, and wallets</p>
-  <p class="muted mobile-only" style="margin:0;font-size:.88rem">Search height, hash, tx, @name…</p>
+  <h2 style="font-size:clamp(1.35rem,3vw,1.75rem);font-weight:800;letter-spacing:-.02em;margin:0 0 8px">Howlscan · <span style="color:var(--green)">degen L1</span></h2>
+  <p class="muted sub-desktop" style="margin:0 auto 4px;max-width:36rem">Scrypt meme chain — blocks, howls, pots, @names, wallets. Touch everything. Awoo.</p>
+  <p class="muted mobile-only" style="margin:0;font-size:.88rem">Search height · tx · H… · @name</p>
 </div>
 <div class="searchwrap" id="searchwrap">
   <div class="searchbox" style="max-width:720px;margin:0 auto;box-shadow:0 8px 28px rgba(0,0,0,.18)">

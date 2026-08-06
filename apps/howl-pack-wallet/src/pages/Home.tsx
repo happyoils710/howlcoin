@@ -62,22 +62,23 @@ export function Home() {
         </div>
       </header>
 
-      <Card className="mb-4 text-center">
-        <p className="muted m-0 text-xs font-bold uppercase tracking-widest">Portfolio</p>
-        <p className="font-display m-0 mt-1 text-4xl font-semibold tracking-tight">
+      <Card className="mb-4 text-center relative overflow-hidden">
+        <p className="m-0 text-[0.65rem] font-extrabold uppercase tracking-[0.14em] text-[var(--mint)]">Bag value · ser</p>
+        <p className="font-display m-0 mt-1 text-4xl font-semibold tracking-tight"
+          style={{ background: 'linear-gradient(90deg,#00ff9c,#ffe066,#ff3d9a)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
           {isLoading ? '…' : formatUsd(data?.totalUsd ?? 0)}
         </p>
-        <p className="muted m-0 mt-1 text-xs">on {chain.label}{isFetching ? ' · refreshing' : ''}</p>
+        <p className="muted m-0 mt-1 text-xs">on {chain.label}{isFetching ? ' · refreshing' : ''} · NFA · awoo</p>
       </Card>
 
       <div className="mb-5 grid grid-cols-3 gap-2">
-        <Link to="/send" className="btn btn-primary no-underline"><ArrowUpRight size={18} /> Send</Link>
-        <Link to="/receive" className="btn btn-secondary no-underline"><ArrowDownLeft size={18} /> Receive</Link>
+        <Link to="/send" className="btn btn-primary no-underline"><ArrowUpRight size={18} /> Yeet</Link>
+        <Link to="/receive" className="btn btn-secondary no-underline"><ArrowDownLeft size={18} /> Recv</Link>
         <Link to="/swap" className="btn btn-secondary no-underline"><ArrowLeftRight size={18} /> Swap</Link>
       </div>
 
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="m-0 text-sm font-bold uppercase tracking-wide text-[var(--muted)]">Assets</h2>
+        <h2 className="m-0 text-sm font-bold uppercase tracking-wide text-[var(--muted)]">Bags</h2>
         <button type="button" className="muted border-0 bg-transparent text-xs font-semibold" onClick={() => refetch()}>Refresh</button>
       </div>
       {isLoading ? <Spinner /> : null}

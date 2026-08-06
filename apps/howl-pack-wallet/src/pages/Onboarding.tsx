@@ -54,9 +54,9 @@ export function Onboarding() {
             alt="Howlcoin"
             className="mx-auto mb-4 h-20 w-20 rounded-full border-2 border-[color-mix(in_srgb,var(--mint)_45%,transparent)] object-cover"
           />
-          <h1 className="font-display m-0 text-3xl font-semibold">Howl Pack</h1>
+          <h1 className="font-display m-0 text-3xl font-semibold">HOWL Pack</h1>
           <p className="muted mt-2 text-sm">
-            Full Howlcoin wallet — HOWL L1, Solana, Base &amp; more. City, Play, Charts, NFTs, bridge.
+            Scrypt meme L1 wallet — mine, send, wrap, howl. Multi-chain bags. City · Play · pure degen energy. NFA.
           </p>
         </div>
         <div className="flex flex-col gap-3">
