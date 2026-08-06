@@ -161,10 +161,51 @@ export HOWL_PUBLIC_SEEDS=203.0.113.10:42069
 
 Local/`127.0.0.1` endpoints are **not** listed as public. Live infra + open firewall still required for a new seed to show `status: up`.
 
+## Phase 1 tx test (HOWL ping-pong)
+
+Automated **test** transfers between two agent wallets (no SOL, no wrap).
+
+```bash
+# Create two test wallets
+python3 -m howl --data-dir ~/.howlcoin/agent-a init
+python3 -m howl --data-dir ~/.howlcoin/agent-b init
+
+# Show addresses (fund them with HOWL from your main wallet / faucet / mine)
+python3 scripts/howl-agent-tx-test.py \
+  --wallet-a ~/.howlcoin/agent-a/wallet.json \
+  --wallet-b ~/.howlcoin/agent-b/wallet.json \
+  --show-addresses
+
+# Dry-run (default) — builds flow, no broadcast
+python3 scripts/howl-agent-tx-test.py \
+  --wallet-a ~/.howlcoin/agent-a/wallet.json \
+  --wallet-b ~/.howlcoin/agent-b/wallet.json \
+  --amount 2 --cycles 1 --api https://howlscan.org
+
+# Live — requires env gate
+HOWL_AGENTS_TRADE=1 python3 scripts/howl-agent-tx-test.py \
+  --wallet-a ~/.howlcoin/agent-a/wallet.json \
+  --wallet-b ~/.howlcoin/agent-b/wallet.json \
+  --amount 2 --cycles 1 --live --api https://howlscan.org
+```
+
+| Guard | Detail |
+|-------|--------|
+| Default | **Dry-run** |
+| Live | `--live` **and** `HOWL_AGENTS_TRADE=1` |
+| Caps | amount ≤ 1000 HOWL/leg, ≤ 50 cycles |
+| Fee | min 1 HOWL per leg (chain rule) |
+| Report | `~/.howlcoin/agents/tx-test-last.json` |
+
+Each cycle: **A → B** then **B → A**. Confirmations need miners on the public chain (or local mine if using `--data-dir`).
+
+Module: `howl/agents/tradetest.py`
+
 ## Safety
 
 - **Dry-run by default** for infrastructure.  
 - Settlement is **opt-in** and costs real HOWL fees.  
+- Tx-test is **opt-in** (`HOWL_AGENTS_TRADE=1` + `--live`).  
 - Treasury caps prevent runaway spend.  
 - No private keys in DePIN manifests.  
 - Agents do not control mint authority or bridge hot wallets unless you point `--wallet` at those files (not recommended for production mint authority).  

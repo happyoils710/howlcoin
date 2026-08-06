@@ -62,8 +62,16 @@ def build_oracle_tx(
 
 
 def next_nonce(api_base: str, address: str, data_dir: Optional[Path] = None) -> int:
-    """Prefer explorer/node address API; fall back to local chain file."""
+    """
+    Next valid transfer nonce for `address`.
+
+    Chain rule: nonce must equal accounts' expected next (0, then 1, …).
+    Explorer `address.nonce` is that value. Also bump past any mempool txs
+    from the same sender so we never re-use a pending nonce.
+    """
     api_base = api_base.rstrip("/")
+    n = 0
+    got = False
     for path in (
         f"/api/public/address/{address}",
         f"/api/address/{address}",
@@ -71,32 +79,92 @@ def next_nonce(api_base: str, address: str, data_dir: Optional[Path] = None) -> 
         try:
             j = _http_json(api_base + path)
             if "nonce" in j:
-                return int(j["nonce"])
+                n = int(j["nonce"])
+                got = True
+                break
             if j.get("account") and "nonce" in j["account"]:
-                return int(j["account"]["nonce"])
-            # some APIs return next_nonce
+                n = int(j["account"]["nonce"])
+                got = True
+                break
             if "next_nonce" in j:
-                return int(j["next_nonce"])
+                n = int(j["next_nonce"])
+                got = True
+                break
         except Exception:
             continue
-    if data_dir:
+    if not got and data_dir:
         try:
             from ..blockchain import Blockchain
 
             chain = Blockchain(Path(data_dir))
-            return int(chain.next_nonce(address))
+            n = int(chain.next_nonce(address))
+            got = True
         except Exception:
             pass
-    return 0
+
+    # Pending mempool nonces from this sender
+    for path in ("/api/public/mempool", "/api/mempool"):
+        try:
+            mp = _http_json(api_base + path)
+            items = mp.get("transactions") or mp.get("mempool") or mp.get("txs") or []
+            if isinstance(items, dict):
+                items = list(items.values())
+            for t in items:
+                if not isinstance(t, dict):
+                    continue
+                if (t.get("from") or "") != address:
+                    continue
+                try:
+                    n = max(n, int(t.get("nonce") or 0) + 1)
+                except (TypeError, ValueError):
+                    pass
+            break
+        except Exception:
+            continue
+    return int(n)
+
+
+def _http_json_raise(url: str, payload: Optional[dict] = None, timeout: int = 25) -> dict:
+    """Like _http_json but includes server JSON error body in exceptions."""
+    data = None if payload is None else json.dumps(payload).encode()
+    headers = {"User-Agent": "HowlAgents/1.0 (+https://howlscan.org; settlement)"}
+    if data:
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers=headers,
+        method="POST" if data else "GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        body = ""
+        try:
+            body = e.read().decode()
+            j = json.loads(body)
+            msg = j.get("error") or j.get("message") or body
+        except Exception:
+            msg = body or str(e)
+        raise RuntimeError(str(msg)) from e
 
 
 def broadcast_tx(api_base: str, tx: Dict[str, Any], data_dir: Optional[Path] = None) -> str:
     api_base = api_base.rstrip("/")
+    last_err: Optional[str] = None
     for path in ("/api/public/broadcast", "/api/broadcast"):
         try:
-            j = _http_json(api_base + path, {"tx": tx})
+            j = _http_json_raise(api_base + path, {"tx": tx})
+            if j.get("error"):
+                raise RuntimeError(str(j["error"]))
             return str(j.get("txid") or tx.get("txid") or "")
-        except Exception:
+        except Exception as e:
+            last_err = str(e)
+            # Don't silently try the next path on clear validation errors
+            low = last_err.lower()
+            if "nonce" in low or "insufficient" in low or "reject" in low or "invalid" in low:
+                raise RuntimeError(last_err) from e
             continue
     if data_dir:
         from ..blockchain import Blockchain
@@ -106,8 +174,20 @@ def broadcast_tx(api_base: str, tx: Dict[str, Any], data_dir: Optional[Path] = N
         if not ok:
             raise RuntimeError(f"mempool reject: {msg}")
         return str(tx.get("txid") or msg)
-    raise RuntimeError("broadcast failed — no API and no data_dir")
+    raise RuntimeError(last_err or "broadcast failed — no API and no data_dir")
 
+
+def parse_wanted_nonce(err: str) -> Optional[int]:
+    """Parse 'bad nonce (want 9)' → 9."""
+    import re
+
+    m = re.search(r"want\s+(\d+)", str(err), re.I)
+    if m:
+        return int(m.group(1))
+    m = re.search(r"nonce\s+(\d+)\s+already", str(err), re.I)
+    if m:
+        return int(m.group(1)) + 1
+    return None
 
 def settle_consensus(
     *,
