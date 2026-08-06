@@ -33,6 +33,9 @@ from .config import (
     DEFAULT_DATA_DIR,
     DEFAULT_TX_FEE_HOWLIES,
     MIN_TX_FEE_HOWLIES,
+    KNOWN_ADDRESSES,
+    PUBLIC_TREASURY_ADDRESS,
+    address_label,
 )
 from .crypto import is_valid_address
 from .wallet import format_howl
@@ -3183,12 +3186,22 @@ function linkTx(t){
   if(!t) return '—';
   return `<a class="chain-link mono" href="#/${net}/tx/${encodeURIComponent(t)}" title="Open transaction">${esc(short(t,14))}</a>`;
 }
+/** Known address labels (synced with howl.config.KNOWN_ADDRESSES) */
+const KNOWN_ADDR = {
+  'HOWL_GENESIS_BURN': 'Genesis burn',
+  'HC4828dUhoiJtp6ZL1WgUexMLPNoU1nSkP': 'Howl Treasury · public seed miner',
+};
+const TREASURY_ADDR = 'HC4828dUhoiJtp6ZL1WgUexMLPNoU1nSkP';
+function addrLabel(a){ return KNOWN_ADDR[a] || ''; }
 function linkAddr(a){
   if(!a) return '—';
   if(a==='HOWL_GENESIS_BURN') return `<span class="mono" title="Genesis burn">${esc(a)}</span>`;
+  const lab = addrLabel(a);
   // Howl L1 addresses start with H
   if(String(a).startsWith('H') && String(a).length >= 20){
-    return `<a class="chain-link mono" href="#/${net}/address/${encodeURIComponent(a)}" title="Open address">${esc(short(a,12))}</a>`;
+    const tip = lab || 'Open address';
+    const badge = lab ? ` <span class="badge ok" style="font-size:.65rem;vertical-align:middle">${esc(lab.split('·')[0].trim())}</span>` : '';
+    return `<a class="chain-link mono" href="#/${net}/address/${encodeURIComponent(a)}" title="${esc(tip)}">${esc(short(a,12))}</a>${badge}`;
   }
   return `<span class="mono">${esc(short(a,12))}</span>`;
 }
@@ -3782,10 +3795,9 @@ async function showAddr(addr){
     onName = nm.name || nm.name_display || null;
     if(onName && String(onName).startsWith('@')) onName = String(onName).slice(1);
   }catch(e){}
-  const known = {
-    'HOWL_GENESIS_BURN': 'Genesis burn',
-  };
-  const tag = known[d.address] || (onName ? '@'+onName : (String(d.address||'').startsWith('H') ? 'Howlcoin address' : 'Address'));
+  const knownLab = d.label || addrLabel(d.address) || '';
+  const isTreasury = !!(d.is_treasury || d.address === TREASURY_ADDR);
+  const tag = knownLab || (onName ? '@'+onName : (String(d.address||'').startsWith('H') ? 'Howlcoin address' : 'Address'));
   // mini activity strip (heights)
   const heights = hist.map(t=>t.block_height).filter(h=>h!=null).slice(0,24);
   const maxH = heights.length ? Math.max(...heights) : 1;
@@ -3795,8 +3807,9 @@ async function showAddr(addr){
         return `<div title="Open block #${h}" role="link" tabindex="0" onclick="location.hash='#/${net}/block/${h}'" style="flex:1;min-width:4px;height:${pct}%;background:var(--green);opacity:.75;cursor:pointer"></div>`;
       }).join('')}</div><div class="muted" style="font-size:.72rem">Recent activity heights — tap a bar to open that block</div>`
     : `<p class="muted" style="font-size:.85rem;margin:8px 0">No activity spark yet</p>`;
+  const title = isTreasury ? 'Howl Treasury' : (onName ? ('@'+esc(onName)) : (knownLab ? esc(knownLab.split('·')[0].trim()) : 'Wallet'));
   app().innerHTML=`<div class="main" style="padding-top:12px">
-    ${crumbs([{label:'Home',href:'#/'+net},{label:'Richlist',href:'#/'+net+'/richlist'},{label:onName?('@'+onName):'Address'}])}
+    ${crumbs([{label:'Home',href:'#/'+net},{label:'Richlist',href:'#/'+net+'/richlist'},{label:isTreasury?'Treasury':(onName?('@'+onName):'Address')}])}
     <div class="page-actions">
       <button class="back" onclick="location.hash='#/${net}'">← Home</button>
       <button class="chipbtn" onclick="location.hash='#/${net}/richlist'">Richlist</button>
@@ -3809,15 +3822,18 @@ async function showAddr(addr){
       <div class="stat"><div class="k">Txs shown</div><div class="v">${d.tx_count}</div><div class="s">history</div></div>
     </div>
     <div class="card detail" style="margin-top:4px">
-      <div class="badge blue">${esc(tag)}</div>
+      <div class="badge ${isTreasury?'ok':'blue'}">${esc(tag)}</div>
+      ${isTreasury?`<span class="badge ok" style="margin-left:6px">Seed miner</span>`:''}
       <span class="badge ok" style="margin-left:6px">Verified on Howlcoin</span>
-      <h2 style="margin:8px 0 4px;font-size:1.25rem">${onName?('@'+esc(onName)):'Wallet'}</h2>
+      <h2 style="margin:8px 0 4px;font-size:1.25rem">${title}</h2>
       <div class="mono">${esc(d.address)}${copyBtn(d.address)}</div>
+      ${isTreasury||d.role_note?`<p class="muted" style="margin:10px 0 0;font-size:.88rem">${esc(d.role_note||'Public seed auto-mine coinbase · ops treasury for mined HOWL. Not a multi-sig vault yet.')}</p>`:''}
       ${spark}
       <div class="kv" style="margin-top:12px">
         <div class="k">Balance</div><div class="amount" style="font-size:1.25rem">${esc(d.balance_fmt)}</div>
         <div class="k">Nonce</div><div>${d.nonce}</div>
         <div class="k">Shown txs</div><div>${d.tx_count}</div>
+        ${isTreasury?`<div class="k">Role</div><div>Treasury · public seed miner</div>`:''}
         ${onName?`<div class="k">Name</div><div>${linkName(onName)}</div>`:''}
       </div>
     </div>
@@ -3905,10 +3921,12 @@ async function showRichlist(){
         <tbody>
           ${rows.map(r=>{
             const nm = nameMap[r.address];
+            const lab = r.label || addrLabel(r.address);
+            const nameCell = nm ? linkName(nm) : (lab ? `<span class="badge ok">${esc(lab.split('·')[0].trim())}</span>` : '<span class="muted">—</span>');
             return `<tr onclick="location.hash='#/${net}/address/${encodeURIComponent(r.address)}'">
             <td>${r.rank}</td>
             <td onclick="event.stopPropagation()">${linkAddr(r.address)}</td>
-            <td onclick="event.stopPropagation()">${nm?linkName(nm):'<span class="muted">—</span>'}</td>
+            <td onclick="event.stopPropagation()">${nameCell}</td>
             <td class="amount">${esc(r.balance_fmt)}</td>
           </tr>`;
           }).join('')||'<tr><td colspan="4" class="muted" style="padding:16px">No balances</td></tr>'}
@@ -3918,10 +3936,12 @@ async function showRichlist(){
       <div class="mobile-only mlist">
         ${rows.map(r=>{
           const nm = nameMap[r.address];
+          const lab = r.label || addrLabel(r.address);
+          const title = nm ? ('@'+esc(nm)) : (lab ? esc(lab.split('·')[0].trim()) : '<span class="mono" style="font-weight:500">'+esc(short(r.address,12))+'</span>');
           return `<div class="mrow" onclick="location.hash='#/${net}/address/${encodeURIComponent(r.address)}'">
           <div class="ml">
-            <div class="mt">#${r.rank} ${nm?'<span style="color:var(--green)">@'+esc(nm)+'</span>':'<span class="mono" style="font-weight:500">'+esc(short(r.address,12))+'</span>'}</div>
-            <div class="ms mono">${esc(short(r.address,18))}</div>
+            <div class="mt">#${r.rank} ${title}</div>
+            <div class="ms mono">${esc(short(r.address,18))}${lab&&!nm?' · '+esc(lab):''}</div>
           </div>
           <div class="mr"><div class="ma">${esc(r.balance_fmt)}</div></div>
         </div>`;
@@ -5905,6 +5925,13 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                             "explorer": f"https://solscan.io/token/{mint}",
                             "metadata": "https://howlscan.org/assets/whowl-token.json",
                         },
+                        "treasury": {
+                            "label": "Howl Treasury · public seed miner",
+                            "address": PUBLIC_TREASURY_ADDRESS,
+                            "role": "public_seed_miner",
+                            "note": "Receives coinbase from the public seed auto-mine. Ops treasury for mined HOWL.",
+                            "explorer": f"https://howlscan.org/#/public/address/{PUBLIC_TREASURY_ADDRESS}",
+                        },
                         "trust_docs": {
                             "security_policy": "https://github.com/happyoils710/howlcoin/blob/main/SECURITY.md",
                             "trust_overview": "https://github.com/happyoils710/howlcoin/blob/main/docs/TRUST_AND_SECURITY.md",
@@ -6431,9 +6458,21 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
 
                     if rest[0] == "richlist":
                         limit = int(qs.get("limit", ["50"])[0])
+                        rows = chain.richlist(limit)
+                        for r in rows:
+                            lab = address_label(str(r.get("address") or ""))
+                            if lab:
+                                r["label"] = lab
+                                r["is_treasury"] = (
+                                    str(r.get("address") or "") == PUBLIC_TREASURY_ADDRESS
+                                )
                         return self._json(
                             200,
-                            {"network": net, "richlist": chain.richlist(limit)},
+                            {
+                                "network": net,
+                                "richlist": rows,
+                                "treasury_address": PUBLIC_TREASURY_ADDRESS,
+                            },
                         )
 
                     if rest[0] == "block" and len(rest) >= 2:
@@ -6455,7 +6494,24 @@ th{{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:
                         if not is_valid_address(addr) and addr != "HOWL_GENESIS_BURN":
                             # still allow lookup of known strings
                             pass
-                        return self._json(200, {"network": net, **chain.address_history(addr)})
+                        hist = chain.address_history(addr)
+                        lab = address_label(addr)
+                        out = {"network": net, **hist}
+                        if lab:
+                            out["label"] = lab
+                            out["label_kind"] = (
+                                "treasury"
+                                if addr == PUBLIC_TREASURY_ADDRESS
+                                else "known"
+                            )
+                        if addr == PUBLIC_TREASURY_ADDRESS:
+                            out["is_treasury"] = True
+                            out["role"] = "public_seed_miner"
+                            out["role_note"] = (
+                                "Receives coinbase rewards from the public seed "
+                                "(howlcoin auto-mine). Ops treasury for mined HOWL."
+                            )
+                        return self._json(200, out)
 
                     if rest[0] == "nfts":
                         owner = (qs.get("owner") or [None])[0]

@@ -103,6 +103,22 @@ PUBLIC_SEED = "147.182.223.204:42069"
 PUBLIC_SEED_HOST = "147.182.223.204"
 PUBLIC_SEED_PORT = 42069
 
+# --- Known addresses (explorer labels; not on-chain names) ---
+# Seed miner wallet that receives public-node block rewards (ops treasury)
+PUBLIC_TREASURY_ADDRESS = "HC4828dUhoiJtp6ZL1WgUexMLPNoU1nSkP"
+KNOWN_ADDRESSES = {
+    "HOWL_GENESIS_BURN": "Genesis burn",
+    PUBLIC_TREASURY_ADDRESS: "Howl Treasury · public seed miner",
+}
+
+
+def address_label(addr: str) -> str:
+    """Human label for a known address, or empty string."""
+    if not addr:
+        return ""
+    return str(KNOWN_ADDRESSES.get(str(addr).strip()) or "")
+
+
 # --- Storage ---
 DEFAULT_DATA_DIR = Path.home() / ".howlcoin"
 CHAIN_FILE = "chain.json"
